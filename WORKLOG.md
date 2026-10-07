@@ -39,3 +39,11 @@ Append-only. Keep entries compact.
 - New `crates/lumen-embedding`: sync `EmbeddingBackend` trait, `Embedder` (EmbeddingGemma retrieval prompts v1, batching, cancellation, shape/NaN/zero checks, Matryoshka 768→256 + L2 in f64), `EmbeddingSpace` key, deterministic feature-hashing `MockBackend` with simulated latency. 25 tests.
 - New `crates/lumen-bench`: `lumen-bench embed` (cold load, first/warm query p50/p95/p99 vs 60/120 ms, doc throughput per batch size, resident memory, machine metadata, JSON). 9 tests.
 - Release run in sandbox (mock): Embedder overhead ≈ 2 µs/query p50; simulated 40 ms call measured 42.2 ms (harness accuracy check). ADR-014.
+
+## 2026-10-07 — T006 EmbeddingGemma 2 runtime benchmark (claude)
+
+- Verified EmbeddingGemma 2 (released 2026-10-06) prompts = our PromptFormat v1.
+- `crates/lumen-embedding-ort`: ORT dynamic loading (API 24), CPU/DirectML (index or high/low preference), placement diagnostics via verbose session logger, fidelity test vs Python fp32 reference (`fixtures/embedding/`).
+- `lumen-bench`: `--backend ort`, long-input probe, `--reference`, `--placement`. Windows matrix script `scripts/t006/run-windows-bench.ps1`.
+- Windows results (Ryzen 5 5600H / GTX 1650 / Vega): CPU q4 30 ms p50, 168 MiB; fp32 33 ms, 627 MiB; q8 221 ms. DirectML 293–572 ms (dispatch-bound, Gelu on CPU for fp32/q4), fp16 zero-norm, iGPU device hang. First DML run failed by over-strict `disable_cpu_ep_fallback` (fixed: fallback allowed + placement report).
+- ADR-015: ORT + CPU + q4 default; GPU deferred to T013/T014.

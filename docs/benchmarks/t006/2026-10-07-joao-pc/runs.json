@@ -1,0 +1,84 @@
+[
+  {
+    "name": "cpu-fp32",
+    "ok": true,
+    "nvidia_vram_before_mb": null,
+    "nvidia_vram_peak_mb": null
+  },
+  {
+    "name": "cpu-q8",
+    "ok": true,
+    "nvidia_vram_before_mb": null,
+    "nvidia_vram_peak_mb": null
+  },
+  {
+    "name": "cpu-q4",
+    "ok": true,
+    "nvidia_vram_before_mb": null,
+    "nvidia_vram_peak_mb": null
+  },
+  {
+    "name": "cpu-q4-t4",
+    "ok": true,
+    "nvidia_vram_before_mb": null,
+    "nvidia_vram_peak_mb": null
+  },
+  {
+    "name": "cpu-fp32-t4",
+    "ok": true,
+    "nvidia_vram_before_mb": null,
+    "nvidia_vram_peak_mb": null
+  },
+  {
+    "name": "dml-high-fp16",
+    "ok": false,
+    "nvidia_vram_before_mb": 764,
+    "nvidia_vram_peak_mb": 2247,
+    "error": "error: vector 0 has zero norm"
+  },
+  {
+    "name": "dml-high-fp32",
+    "ok": true,
+    "nvidia_vram_before_mb": 770,
+    "nvidia_vram_peak_mb": 3624
+  },
+  {
+    "name": "dml-high-q4f16",
+    "ok": true,
+    "nvidia_vram_before_mb": 770,
+    "nvidia_vram_peak_mb": 1859
+  },
+  {
+    "name": "dml-high-q4",
+    "ok": true,
+    "nvidia_vram_before_mb": 788,
+    "nvidia_vram_peak_mb": 3260
+  },
+  {
+    "name": "dml-low-fp16",
+    "ok": false,
+    "nvidia_vram_before_mb": 788,
+    "nvidia_vram_peak_mb": 788,
+    "error": "error: embedding backend error: inference: E:\\_work\\1\\s\\onnxruntime\\core\\providers\\dml\\DmlExecutionProvider\\src\\DmlCommandRecorder.cpp(371)\\onnxruntime.dll!00007FFAE2ACCCC3: (caller: 00007FFAE2A36724) Exception(1) tid(5bc4) 887A0006 La GPU no responder\u00b4\u2510\u00a2 a m\u00b4\u2510\u00a2s comandos, probablemente porque la aplicaci\u00b4\u2510\u00a2n que realiza la llamada ha pasado un comando no v\u00b4\u2510\u00a2lido."
+  },
+  {
+    "name": "dml-low-q4f16",
+    "ok": false,
+    "nvidia_vram_before_mb": 788,
+    "nvidia_vram_peak_mb": 788,
+    "error": "error: vector 0 has zero norm"
+  },
+  {
+    "name": "dml-0-fp16",
+    "ok": true,
+    "nvidia_vram_before_mb": 788,
+    "nvidia_vram_peak_mb": 2056
+  },
+  {
+    "name": "dml-1-fp16",
+    "ok": false,
+    "nvidia_vram_before_mb": 559,
+    "nvidia_vram_peak_mb": 559,
+    "error": "error: embedding backend error: inference: E:\\_work\\1\\s\\onnxruntime\\core\\providers\\dml\\DmlExecutionProvider\\src\\DmlCommandRecorder.cpp(371)\\onnxruntime.dll!00007FFAE2ACCCC3: (caller: 00007FFAE2A36724) Exception(1) tid(2be8) 887A0006 La GPU no responder\u00b4\u2510\u00a2 a m\u00b4\u2510\u00a2s comandos, probablemente porque la aplicaci\u00b4\u2510\u00a2n que realiza la llamada ha pasado un comando no v\u00b4\u2510\u00a2lido."
+  }
+]

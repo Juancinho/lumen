@@ -30,6 +30,8 @@ crates/
     src/execution.rs       ActionRequest -> ExecutionContext::authorize, CancellationToken
   lumen-embedding/         EmbeddingBackend trait (sync), Embedder (prompts, batching,
                            cancellation, 768->256 truncation + L2), EmbeddingSpace key, MockBackend
+  lumen-embedding-ort/     EmbeddingGemma 2 on ONNX Runtime (ADR-015): dynamic onnxruntime.dll,
+                           CPU (default) / DirectML (feature `directml`), placement diagnostics
   lumen-bench/             benchmark harness binary `lumen-bench` (release-mode, JSON reports)
 apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
   src/                     React UI
@@ -111,6 +113,13 @@ Benchmarks (release builds only; debug runs are flagged in the report):
 |---|---|
 | Embedding backend latency/throughput/memory | `cargo run --release -p lumen-bench -- embed --json target/bench/embed-<backend>.json` |
 | Options | `cargo run --release -p lumen-bench -- --help` (`--backend`, `--dim`, `--iterations`, `--batch-sizes`, `--label`, …) |
+
+Real model (ADR-015): `cargo run --release -p lumen-bench --features ort -- embed --backend ort
+--ort-dylib <onnxruntime.dll> --model-dir <embeddinggemma-2-ONNX copy> --variant q4
+--reference fixtures/embedding/reference-eg2-onnx-fp32-d256.json`. Full Windows matrix:
+`scripts/t006/run-windows-bench.ps1` (see `docs/benchmarks/t006/README.md`). Fidelity test:
+`LUMEN_EG2_MODEL_DIR=… LUMEN_ORT_DYLIB=… cargo test -p lumen-embedding-ort --release --test fidelity`
+(skipped when unset).
 
 Reports carry `schema_version`, machine/build metadata, the `EmbeddingSpace` key, cold load,
 first and warm query latency (p50/p95/p99 vs the 60/120 ms budget), per-batch-size document

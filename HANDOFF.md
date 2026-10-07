@@ -4,69 +4,68 @@
 
 ## Active branch
 
-`main`. Commits: spec baseline → T001 → T011 → T002 → T005.
+`main`. Commits: spec baseline → T001 → T011 → T002 → T005 → T006 (wip + final).
 
 ## Active task
 
-None claimed. T001, T011, T002, T005 are DONE.
+None claimed. T001, T002, T005, T006, T011 are DONE. New tasks: **T013** (device policy),
+**T014** (indexing-throughput runtime spike).
 
-## T005 — implemented behavior
+## T006 — outcome (ADR-015)
 
-- `crates/lumen-embedding` (depends only on `lumen-core`):
-  - `EmbeddingBackend` (sync, `Send + Sync`): `capabilities`, `warm/unload/is_warm(Modality)`,
-    `embed_text(&[&str]) -> Vec<f32>` raw native-dim row-major. ADR-014 explains why sync.
-  - `Capabilities`/`ModelInfo` (native dim, Matryoshka dims, max batch, target cpu/gpu/npu,
-    preprocessing version, concurrent_calls).
-  - `Embedder::new(Arc<dyn EmbeddingBackend>, EmbeddingProfile)` validates the profile;
-    `embed(task, &[TextInput], Option<&CancellationToken>) -> EmbeddingBatch` and `embed_query`.
-    Empty inputs rejected up front; cancel checked before each backend batch; error indices are
-    caller indices.
-  - `PromptFormat::EMBEDDINGGEMMA_RETRIEVAL_V1` (`task: search result | query: …`,
-    `title: {title|none} | text: …`) and `RAW`. **T006 must verify against EmbeddingGemma 2.**
-  - `EmbeddingProfile::DEFAULT` = 256d + Gemma prompts; `EmbeddingSpace::key()` e.g.
-    `embeddinggemma-2@q8-1/pre1/embeddinggemma-retrieval@1/d256/l2`.
-  - `MockBackend` (FNV-1a feature hashing of words + trigrams, 768d) with `MockLatency`.
-  - `TextInput` Debug never prints content.
-- `crates/lumen-bench` (binary `lumen-bench`): `embed` subcommand; `make_backend()` in
-  `src/embed.rs` is where T006 adds real backends (behind cargo features).
+- Default: ONNX Runtime **CPU**, weights **q4** (`model_q4`): 30.0/36.9 ms p50/p95 query,
+  133 ms @~128 tokens, 168 MiB, min cos 0.980 vs fp32, top-1 identical. fp32 = 33 ms / 627 MiB
+  (quality profile). q8 = 221 ms on AVX2 (rejected).
+- DirectML (GTX 1650 / Vega iGPU): 293–572 ms queries, 2–3× indexing at 1.1–2.9 GB VRAM, fp16
+  zero-norm, iGPU device hang → not default.
+- Evidence: `docs/benchmarks/t006/2026-10-07-joao-pc/summary.md` (+ per-run JSON/logs).
 
-## Validation (Linux sandbox, Rust 1.97.0)
+## Code (T006)
+
+- `crates/lumen-embedding-ort`: `init_runtime(dylib)` once per process; `OrtBackend::new(OrtConfig)`
+  (`model_dir`, `ModelVariant` fp32/fp16/q8/q4/q4f16, `Device` cpu/dml:N/dml:high/dml:low,
+  `threads`, `max_batch`=16, `max_tokens`=2048, `cpu_fallback`=true); `placement()` parses ORT
+  verbose node placement. Graph inputs: input_ids/attention_mask + empty [0,512] media features;
+  output `sentence_embedding` (mean-pooled, unit norm, 768d).
+- `crates/lumen-bench`: features `ort`, `directml`; `--backend ort --ort-dylib --model-dir --variant
+  --device --threads --placement --no-cpu-fallback --reference --corpus --long-words`.
+- `fixtures/embedding/`: corpus (24 queries / 36 docs, EN+ES) + fp32 reference (256d);
+  regenerate with `scripts/embedding/make_reference.py` (dev-only Python).
+- `scripts/t006/run-windows-bench.ps1`: Windows matrix (process per config, DLLs next to exe).
+- Local assets (git-ignored): `.cache/t006/{ort-cpu,ort-dml,embeddinggemma-2-ONNX}`.
+
+## Validation
 
 ```sh
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace      # core 32+3 doc, embedding 25, bench 9, shell 7, xtask 8
-cargo xtask arch            # OK - lumen-bench, lumen-core, lumen-embedding
-cd apps/desktop && npm run check   # 10 tests
-cargo run --release -p lumen-bench -- embed --json target/bench/embed-mock.json
-cargo run --release -p lumen-bench -- embed --iterations 30 --batch-sizes 8 --docs 64 \
-  --mock-load-ms 300 --mock-call-ms 40 --mock-item-ms 2   # measured 300.2 / 42.2 / 56.9 ms
+cargo clippy -p lumen-bench --features directml --all-targets -- -D warnings
+cargo test --workspace
+cargo xtask arch            # 4 core crates OK
+LUMEN_EG2_MODEL_DIR=… LUMEN_ORT_DYLIB=… cargo test -p lumen-embedding-ort --release --test fidelity
+cd apps/desktop && npm run check
 ```
 
-Sandbox numbers are harness sanity checks only (2 vCPU Xeon), not evidence.
+All passed in the Linux sandbox (fidelity: fp32 1.00000 / q8 0.99991 / q4 0.97973 min cos).
+Windows: `run-windows-bench.ps1` ran on joao-pc (results above).
 
 ## Exact next steps
 
-1. **T006** (needs Windows hardware): pick candidate runtimes (e.g. ONNX Runtime CPU/DirectML,
-   OpenVINO CPU/NPU, llama.cpp/GGUF), implement each as an `EmbeddingBackend` behind a cargo
-   feature (separate crate per runtime keeps `lumen-embedding` runtime-free), verify
-   EmbeddingGemma 2 prompts, run
-   `cargo run --release -p lumen-bench --features <rt> -- embed --backend <rt> --label "<machine, power>"`
-   per target, compare against mock-independent reference vectors (cosine ≥ 0.99 vs reference
-   implementation), record license/size/packaging per docs/ARCHITECTURE.md §19, write the ADR.
-   Commit reports under `docs/benchmarks/`.
-2. Parallel-safe now: T007 (SQLite/FTS → `crates/lumen-storage`), T008 (USearch 256d bench — add
-   `lumen-bench ann`), T009 (file identity), T010 (CI: wire the gate + `lumen-bench`), T004, T012, T003.
+1. **T013** device policy (CPU q4 default; probe + placement before ever using a GPU; profiles).
+2. **T014** if indexing speed matters before M2: LiteRT-LM (int4 QAT, 270M text model),
+   llama.cpp GGUF (CPU/Vulkan/CUDA), Windows ML EPs, WebGPU EP — same harness/fidelity bar.
+3. Unblocked foundation tasks: T007 (SQLite/FTS), T008 (USearch 256d), T009 (file identity),
+   T010 (CI), T003/T004/T012 (shell). T201/T204 can now target `OrtBackend`.
 
 ## Known issues / notes
 
-- Windows memory in reports is the working set (memory-stats), not private working set.
-- `lumen-bench` measures in-process only; IPC/render latency belongs to T010/T012.
-- Plain `cargo run` of `lumen-desktop` loads the dev URL; use `npm run tauri dev|build`.
-- Overlay height 64 is a placeholder until T103.
+- `.cache/` holds ~2.3 GB of models/DLLs; safe to delete, `-Download` restores it.
+- Windows memory numbers are working set (memory-stats), not private working set.
+- Packaging must ship `onnxruntime.dll` (+ `onnxruntime_providers_shared.dll`) next to the exe;
+  the model location/download UX is undecided (onboarding/T807).
+- If Windows git reports "dubious ownership": `git config --global --add safe.directory D:/Proyectos/lumen`.
 
 ## Unresolved evidence-based decisions
 
-- production EmbeddingGemma runtime + verified prompts (T006); native backdrop path (T004);
-  vector scalar profile (T008); FastFrame/egui spike timing (TX01); TS binding generation
-  (ADR-013 revisit).
+- native backdrop path (T004); vector scalar profile (T008); GPU/NPU embedding path (T013/T014);
+  q4 vs fp32 relevance at scale (T205); FastFrame/egui spike timing (TX01); TS bindings (ADR-013).

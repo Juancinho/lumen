@@ -46,6 +46,8 @@ ort backend (build with --features ort, or directml on Windows):
   --variant NAME         fp32 | fp16 | q8 | q4 | q4f16 (default: q4)
   --device NAME          cpu | dml:<adapter> | dml:high | dml:low (default: cpu)
   --threads N            intra-op threads (default: runtime default)
+  --placement            report which execution provider runs each graph node
+  --no-cpu-fallback      fail instead of running unsupported GPU nodes on CPU
 ";
 
 fn main() -> ExitCode {
@@ -143,6 +145,8 @@ fn parse_embed(args: &[String]) -> Result<(embed::EmbedOptions, Option<String>),
             "--variant" => opts.ort.variant = Some(value()?),
             "--device" => opts.ort.device = Some(value()?),
             "--threads" => opts.ort.threads = Some(num(value()?)?),
+            "--placement" => opts.ort.placement = true,
+            "--no-cpu-fallback" => opts.ort.no_cpu_fallback = true,
             "--json" => json = Some(value()?),
             "--mock-load-ms" => opts.mock_latency.load = millis(value()?)?,
             "--mock-call-ms" => opts.mock_latency.per_call = millis(value()?)?,

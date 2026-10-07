@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "kind": "embed",
+  "label": "AMD Ryzen 5 5600H with Radeon Graphics | dml-0-fp16",
+  "machine": {
+    "os": "windows",
+    "arch": "x86_64",
+    "logical_cpus": 12,
+    "cpu": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791407340
+  },
+  "backend": {
+    "name": "onnxruntime-dml:0",
+    "runtime_version": "ORT Build Info: git-branch=HEAD, git-commit-id=2d924974ef, build type=Release",
+    "target": "gpu",
+    "device": "DirectML adapter 0",
+    "max_batch": 16,
+    "concurrent_calls": false,
+    "model_id": "embeddinggemma-2",
+    "model_revision": "onnx-community-fp16",
+    "native_dim": 768
+  },
+  "space": "embeddinggemma-2@onnx-community-fp16/pre1/embeddinggemma-retrieval@1/d256/l2",
+  "cold_load_ms": 3692.5485999999996,
+  "query": {
+    "first_query_ms": 485.7525,
+    "warm": {
+      "n": 200,
+      "min_ms": 84.4003,
+      "mean_ms": 293.9780679999999,
+      "p50_ms": 293.0668,
+      "p95_ms": 374.82300000000004,
+      "p99_ms": 384.0248,
+      "max_ms": 394.49879999999996
+    },
+    "long_input": {
+      "n": 50,
+      "min_ms": 320.335,
+      "mean_ms": 333.30475399999995,
+      "p50_ms": 332.0897,
+      "p95_ms": 336.0546,
+      "p99_ms": 431.0848,
+      "max_ms": 431.0848
+    },
+    "long_words": 100,
+    "budget_p50_ms": 60.0,
+    "budget_p95_ms": 120.0,
+    "within_budget": false
+  },
+  "throughput": [
+    {
+      "batch_size": 1,
+      "items": 128,
+      "items_per_s": 2.1727243772634144,
+      "per_batch": {
+        "n": 128,
+        "min_ms": 400.7861,
+        "mean_ms": 460.25109687500014,
+        "p50_ms": 474.0013,
+        "p95_ms": 508.8187,
+        "p99_ms": 515.2664,
+        "max_ms": 515.7125
+      }
+    },
+    {
+      "batch_size": 8,
+      "items": 128,
+      "items_per_s": 4.565144877761576,
+      "per_batch": {
+        "n": 16,
+        "min_ms": 1738.217,
+        "mean_ms": 1752.4073062500001,
+        "p50_ms": 1751.1693,
+        "p95_ms": 1788.8939000000003,
+        "p99_ms": 1788.8939000000003,
+        "max_ms": 1788.8939000000003
+      }
+    },
+    {
+      "batch_size": 32,
+      "items": 128,
+      "items_per_s": 4.847562324322968,
+      "per_batch": {
+        "n": 4,
+        "min_ms": 6575.4609,
+        "mean_ms": 6601.2546999999995,
+        "p50_ms": 6591.7088,
+        "p95_ms": 6638.9309,
+        "p99_ms": 6638.9309,
+        "max_ms": 6638.9309
+      }
+    }
+  ],
+  "memory": {
+    "before_load": {
+      "resident_mib": 3.859375,
+      "virtual_mib": 0.64453125
+    },
+    "after_warm": {
+      "resident_mib": 169.0546875,
+      "virtual_mib": 732.234375
+    },
+    "after_throughput": {
+      "resident_mib": 375.8671875,
+      "virtual_mib": 1881.80078125
+    }
+  },
+  "doc_words": 200,
+  "fidelity": {
+    "reference": "D:\\Proyectos\\lumen\\fixtures\\embedding\\reference-eg2-onnx-fp32-d256.json",
+    "texts": 60,
+    "min_cosine": 0.99998456,
+    "mean_cosine": 0.9999934,
+    "recall_at_1": 1.0,
+    "reference_recall_at_1": 1.0
+  },
+  "config": {
+    "device": "dml:0",
+    "ort_dylib": "D:\\Proyectos\\lumen\\.cache\\t006\\run\\dml\\onnxruntime.dll",
+    "threads": null,
+    "variant": "fp16"
+  },
+  "diagnostics": {
+    "placement": {
+      "cpu_op_types": {
+        "Add": 3,
+        "Cast": 1,
+        "Concat": 3,
+        "Gather": 7,
+        "Unsqueeze": 2
+      },
+      "nodes_per_provider": {
+        "CPUExecutionProvider": 16,
+        "DmlExecutionProvider": 1685
+      },
+      "offloaded_fraction": 0.9905937683715461
+    }
+  }
+}

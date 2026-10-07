@@ -49,6 +49,10 @@ pub(crate) struct OrtOptions {
     pub(crate) device: Option<String>,
     pub(crate) threads: Option<usize>,
     pub(crate) dylib: Option<PathBuf>,
+    /// Report which EP got which nodes (one extra model load before measuring).
+    pub(crate) placement: bool,
+    /// Fail instead of running unsupported GPU nodes on CPU.
+    pub(crate) no_cpu_fallback: bool,
 }
 
 impl Default for EmbedOptions {
@@ -128,6 +132,7 @@ pub(crate) struct EmbedReport {
     pub(crate) fidelity: Option<FidelityReport>,
     /// Backend-specific settings that define the run (variant, device, threads).
     pub(crate) config: serde_json::Value,
+    pub(crate) diagnostics: serde_json::Value,
 }
 
 fn ms(d: Duration) -> f64 {
@@ -135,12 +140,16 @@ fn ms(d: Duration) -> f64 {
 }
 
 /// Creates a backend by name. Runtime backends are behind cargo features.
+/// Also returns backend-specific diagnostics for the report (e.g. node placement).
 pub(crate) fn make_backend(
     name: &str,
     opts: &EmbedOptions,
-) -> Result<Arc<dyn EmbeddingBackend>, String> {
+) -> Result<(Arc<dyn EmbeddingBackend>, serde_json::Value), String> {
     match name {
-        "mock" => Ok(Arc::new(MockBackend::with_latency(opts.mock_latency))),
+        "mock" => Ok((
+            Arc::new(MockBackend::with_latency(opts.mock_latency)),
+            serde_json::Value::Null,
+        )),
         #[cfg(feature = "ort")]
         "ort" => make_ort(&opts.ort),
         other => Err(format!(
@@ -155,7 +164,7 @@ pub(crate) fn make_backend(
 }
 
 #[cfg(feature = "ort")]
-fn make_ort(o: &OrtOptions) -> Result<Arc<dyn EmbeddingBackend>, String> {
+fn make_ort(o: &OrtOptions) -> Result<(Arc<dyn EmbeddingBackend>, serde_json::Value), String> {
     use lumen_embedding_ort::{Device, ModelVariant, OrtBackend, OrtConfig, init_runtime};
     let dylib = o
         .dylib
@@ -175,9 +184,19 @@ fn make_ort(o: &OrtOptions) -> Result<Arc<dyn EmbeddingBackend>, String> {
     })?;
     let mut config = OrtConfig::new(model_dir, variant, device);
     config.threads = o.threads;
-    OrtBackend::new(config)
-        .map(|b| Arc::new(b) as Arc<dyn EmbeddingBackend>)
-        .map_err(|e| e.to_string())
+    config.cpu_fallback = !o.no_cpu_fallback;
+    let backend = OrtBackend::new(config).map_err(|e| e.to_string())?;
+    let diagnostics = if o.placement {
+        let p = backend.placement().map_err(|e| e.to_string())?;
+        serde_json::json!({ "placement": {
+            "nodes_per_provider": p.nodes_per_provider,
+            "cpu_op_types": p.cpu_op_types,
+            "offloaded_fraction": p.offloaded_fraction(),
+        }})
+    } else {
+        serde_json::Value::Null
+    };
+    Ok((Arc::new(backend), diagnostics))
 }
 
 fn backend_config(opts: &EmbedOptions) -> serde_json::Value {
@@ -221,7 +240,7 @@ pub(crate) fn run(opts: &EmbedOptions) -> Result<EmbedReport, String> {
 
     // Cold path: construct + validate + load the text encoder.
     let started = Instant::now();
-    let backend = make_backend(&opts.backend, opts)?;
+    let (backend, diagnostics) = make_backend(&opts.backend, opts)?;
     let profile = EmbeddingProfile {
         dim: opts.dim,
         ..EmbeddingProfile::DEFAULT
@@ -347,6 +366,7 @@ pub(crate) fn run(opts: &EmbedOptions) -> Result<EmbedReport, String> {
         doc_words: opts.doc_words,
         fidelity,
         config: backend_config(opts),
+        diagnostics,
     })
 }
 

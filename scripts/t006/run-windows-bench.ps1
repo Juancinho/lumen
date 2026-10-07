@@ -183,6 +183,7 @@ try {
             "--iterations", $iters, "--docs", $docs, "--reference", $reference, "--corpus", $corpus,
             "--label", "$($machine.cpu) | $($run.name)", "--json", $json)
         if ($run.threads) { $benchArgs += @("--threads", $run.threads) }
+        if ($run.kind -eq "dml") { $benchArgs += @("--placement") }
         Write-Step "$($run.name)"
         $vramBefore = $null; $vramPeak = $null
         $sampler = $null
@@ -203,7 +204,9 @@ try {
         $started = Get-Date
         # PS 5.1 turns redirected native stderr into errors; do not let that abort the matrix.
         $ErrorActionPreference = "Continue"
-        & (Join-Path $dir "lumen-bench.exe") @benchArgs 2> $log
+        & (Join-Path $dir "lumen-bench.exe") @benchArgs 2>&1 |
+            ForEach-Object { if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { "$_" } } |
+            Where-Object { $_ -and $_.Trim() } | Set-Content $log -Encoding UTF8
         $code = $LASTEXITCODE
         $ErrorActionPreference = "Stop"
         if ($sampler) {
@@ -214,29 +217,42 @@ try {
         $entry = [ordered]@{ name = $run.name; ok = ($code -eq 0); seconds = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
             nvidia_vram_before_mb = $vramBefore; nvidia_vram_peak_mb = $vramPeak }
         if ($code -ne 0) {
-            $entry.error = ((Get-Content $log -Raw) -split "`n" | Where-Object { $_ -match "error" } | Select-Object -First 3) -join " | "
+            $entry.error = (Get-Content $log | Where-Object { $_ -match "^error:" } | Select-Object -First 1) -replace "\|", "/"
+            if (-not $entry.error) { $entry.error = "exit code $code (see $($run.name).log)" }
             Write-Warning "$($run.name) failed: $($entry.error)"
         }
         $results += $entry
     }
-    $results | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $OutDir "runs.json") -Encoding UTF8
+    # With -Only, keep earlier results of runs that were not repeated.
+    $runsFile = Join-Path $OutDir "runs.json"
+    if ($Only -and (Test-Path $runsFile)) {
+        # PS 5.1 emits a JSON array as ONE pipeline object: assign first, then enumerate.
+        $parsed = Get-Content $runsFile -Raw | ConvertFrom-Json
+        $previous = @($parsed | ForEach-Object { $_ } | Where-Object { $keep -notcontains $_.name })
+        $results = @($previous) + @($results)
+    }
+    $results | ConvertTo-Json -Depth 4 | Set-Content $runsFile -Encoding UTF8
 
     # Summary table.
     $lines = @("# T006 benchmark - $($machine.cpu)", "",
         "$($machine.os) | $($machine.ram_gb) GB RAM | GPUs: $(($machine.gpus | ForEach-Object { $_.name }) -join ', ') | AC power: $($machine.on_ac_power)", "",
-        "| run | query p50 ms | p95 | ~128-tok p50 | docs/s (b8) | cold load ms | RSS warm MiB | NVIDIA VRAM +MiB | min cos | status |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|")
+        "| run | query p50 ms | p95 | ~128-tok p50 | docs/s (b8) | cold load ms | RSS warm MiB | NVIDIA VRAM +MiB | GPU nodes % | min cos | status |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|")
     foreach ($r in $results) {
         $f = Join-Path $OutDir "$($r.name).json"
         if ($r.ok -and (Test-Path $f)) {
             $j = Get-Content $f -Raw | ConvertFrom-Json
             $b8 = $j.throughput | Where-Object { $_.batch_size -eq 8 } | Select-Object -First 1
             $vram = ""; if ($null -ne $r.nvidia_vram_peak_mb -and $null -ne $r.nvidia_vram_before_mb) { $vram = $r.nvidia_vram_peak_mb - $r.nvidia_vram_before_mb }
-            $lines += ("| {0} | {1:N1} | {2:N1} | {3:N1} | {4:N1} | {5:N0} | {6:N0} | {7} | {8:N4} | ok |" -f $r.name,
+            $gpu = ""
+            if ($j.diagnostics -and $j.diagnostics.placement -and $null -ne $j.diagnostics.placement.offloaded_fraction) {
+                $gpu = "{0:N1}" -f (100 * $j.diagnostics.placement.offloaded_fraction)
+            }
+            $lines += ("| {0} | {1:N1} | {2:N1} | {3:N1} | {4:N1} | {5:N0} | {6:N0} | {7} | {8} | {9:N4} | ok |" -f $r.name,
                 $j.query.warm.p50_ms, $j.query.warm.p95_ms, $j.query.long_input.p50_ms, $b8.items_per_s,
-                $j.cold_load_ms, $j.memory.after_warm.resident_mib, $vram, $j.fidelity.min_cosine)
+                $j.cold_load_ms, $j.memory.after_warm.resident_mib, $vram, $gpu, $j.fidelity.min_cosine)
         } else {
-            $lines += "| $($r.name) | | | | | | | | | FAILED: $($r.error) |"
+            $lines += "| $($r.name) | | | | | | | | | | FAILED: $($r.error) |"
         }
     }
     $lines | Set-Content (Join-Path $OutDir "summary.md") -Encoding UTF8

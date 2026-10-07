@@ -16,9 +16,10 @@
 
 #![forbid(unsafe_code)]
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 use lumen_embedding::{
@@ -149,6 +150,10 @@ pub struct OrtConfig {
     pub max_batch: usize,
     /// Token cap per input; longer inputs are truncated (chunkers stay far below this).
     pub max_tokens: usize,
+    /// Allow ONNX Runtime to run nodes the GPU EP cannot take on the CPU EP. ORT always
+    /// keeps some shape/index nodes on CPU on purpose, so `false` makes DirectML sessions
+    /// fail; use [`OrtBackend::placement`] to see what actually runs where.
+    pub cpu_fallback: bool,
 }
 
 impl OrtConfig {
@@ -161,6 +166,7 @@ impl OrtConfig {
             threads: None,
             max_batch: 16,
             max_tokens: 2048,
+            cpu_fallback: true,
         }
     }
 
@@ -169,6 +175,78 @@ impl OrtConfig {
             .join("onnx")
             .join(format!("{}.onnx", self.variant.file_stem()))
     }
+}
+
+/// Which execution provider ONNX Runtime assigned graph nodes to (from its verbose
+/// session log). Empty `nodes_per_provider` means the log format was not recognized.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Placement {
+    /// e.g. `{"DmlExecutionProvider": 512, "CPUExecutionProvider": 23}`.
+    pub nodes_per_provider: BTreeMap<String, usize>,
+    /// Op types of the nodes placed on the CPU EP, with counts, when listed in the log.
+    pub cpu_op_types: BTreeMap<String, usize>,
+}
+
+impl Placement {
+    /// Parses ORT's `Node(s) placed on [EP]. Number of nodes: N` / `All nodes placed on [EP].
+    /// Number of nodes: N` messages and the per-node lines (`  OpType (node_name)`) that follow.
+    #[must_use]
+    pub fn parse(messages: &[String]) -> Self {
+        let mut out = Self::default();
+        let mut current: Option<String> = None;
+        for message in messages {
+            for line in message.lines() {
+                let trimmed = line.trim();
+                if let Some((provider, count)) = parse_placement_header(trimmed) {
+                    *out.nodes_per_provider.entry(provider.clone()).or_default() += count;
+                    current = Some(provider);
+                } else if trimmed.is_empty() || trimmed == "Node placements" {
+                    // separators
+                } else if let Some(provider) = &current {
+                    if provider == "CPUExecutionProvider"
+                        && let Some(op) = trimmed.split_whitespace().next()
+                        && trimmed.ends_with(')')
+                    {
+                        *out.cpu_op_types.entry(op.to_owned()).or_default() += 1;
+                    } else if !trimmed.ends_with(')') {
+                        current = None;
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Fraction of nodes not on the CPU EP (1.0 = fully offloaded), if known.
+    #[must_use]
+    pub fn offloaded_fraction(&self) -> Option<f64> {
+        let total: usize = self.nodes_per_provider.values().sum();
+        if total == 0 {
+            return None;
+        }
+        let cpu = self
+            .nodes_per_provider
+            .get("CPUExecutionProvider")
+            .copied()
+            .unwrap_or(0);
+        #[allow(clippy::cast_precision_loss)]
+        Some((total - cpu) as f64 / total as f64)
+    }
+}
+
+fn parse_placement_header(line: &str) -> Option<(String, usize)> {
+    let rest = line
+        .strip_prefix("Node(s) placed on [")
+        .or_else(|| line.strip_prefix("All nodes placed on ["))?;
+    let (provider, tail) = rest.split_once(']')?;
+    let count = tail
+        .rsplit(':')
+        .next()?
+        .trim()
+        .trim_end_matches('.')
+        .parse()
+        .ok()?;
+    Some((provider.to_owned(), count))
 }
 
 static RUNTIME: OnceLock<Result<PathBuf, String>> = OnceLock::new();
@@ -307,11 +385,45 @@ impl OrtBackend {
     }
 
     fn create_session(&self) -> Result<Session, EmbeddingError> {
+        self.create_session_with(None)
+    }
+
+    /// Diagnostics: builds a throwaway session with verbose logging and reports how many
+    /// graph nodes each execution provider received (and which op types fell back to CPU).
+    /// Costs one extra model load; never used on the hot path.
+    ///
+    /// # Errors
+    /// As session creation.
+    pub fn placement(&self) -> Result<Placement, EmbeddingError> {
+        let lines: Arc<Mutex<Vec<String>>> = Arc::default();
+        let sink = Arc::clone(&lines);
+        let logger: ort::logging::LoggerFunction =
+            Arc::new(move |_level, _category, _id, _location, message: &str| {
+                if let Ok(mut l) = sink.lock() {
+                    l.push(message.to_owned());
+                }
+            });
+        drop(self.create_session_with(Some(logger))?);
+        let lines = lines.lock().map(|l| l.clone()).unwrap_or_default();
+        Ok(Placement::parse(&lines))
+    }
+
+    fn create_session_with(
+        &self,
+        verbose_logger: Option<ort::logging::LoggerFunction>,
+    ) -> Result<Session, EmbeddingError> {
         let started = Instant::now();
         let mut builder = Session::builder()
             .map_err(|e| backend_err("session builder", e))?
             .with_optimization_level(GraphOptimizationLevel::Level3)
             .map_err(|e| backend_err("optimization level", e))?;
+        if let Some(logger) = verbose_logger {
+            builder = builder
+                .with_logger(logger)
+                .map_err(|e| backend_err("logger", e))?
+                .with_log_level(ort::logging::LogLevel::Verbose)
+                .map_err(|e| backend_err("log level", e))?;
+        }
         if let Some(threads) = self.config.threads {
             builder = builder
                 .with_intra_threads(threads)
@@ -320,10 +432,18 @@ impl OrtBackend {
         match self.config.device {
             Device::Cpu => {}
             Device::DirectMl { adapter } => {
-                builder = directml(builder, DmlTarget::Adapter(adapter))?;
+                builder = directml(
+                    builder,
+                    DmlTarget::Adapter(adapter),
+                    self.config.cpu_fallback,
+                )?;
             }
             Device::DirectMlPreferred(pref) => {
-                builder = directml(builder, DmlTarget::Preferred(pref))?;
+                builder = directml(
+                    builder,
+                    DmlTarget::Preferred(pref),
+                    self.config.cpu_fallback,
+                )?;
             }
         }
         let session = builder
@@ -369,6 +489,7 @@ enum DmlTarget {
 fn directml(
     builder: ort::session::builder::SessionBuilder,
     target: DmlTarget,
+    cpu_fallback: bool,
 ) -> Result<ort::session::builder::SessionBuilder, EmbeddingError> {
     use ort::ep::directml::{DeviceFilter, PerformancePreference};
     let ep = match target {
@@ -381,15 +502,19 @@ fn directml(
                 GpuPreference::MinimumPower => PerformancePreference::MinimumPower,
             }),
     };
-    builder
+    let mut builder = builder
         // DirectML requirements (ONNX Runtime docs): no memory pattern, sequential execution.
         .with_memory_pattern(false)
         .map_err(|e| backend_err("memory pattern", e))?
         .with_parallel_execution(false)
-        .map_err(|e| backend_err("execution mode", e))?
-        // Unsupported ops must fail loudly instead of silently running on CPU.
-        .with_config_entry("session.disable_cpu_ep_fallback", "1")
-        .map_err(|e| backend_err("disable cpu fallback", e))?
+        .map_err(|e| backend_err("execution mode", e))?;
+    if !cpu_fallback {
+        builder = builder
+            .with_config_entry("session.disable_cpu_ep_fallback", "1")
+            .map_err(|e| backend_err("disable cpu fallback", e))?;
+    }
+    // A failing EP registration is an error, never a silent CPU-only session.
+    builder
         .with_execution_providers([ep.build().error_on_failure()])
         .map_err(|e| backend_err("register DirectML", e))
 }
@@ -398,6 +523,7 @@ fn directml(
 fn directml(
     _builder: ort::session::builder::SessionBuilder,
     _target: DmlTarget,
+    _cpu_fallback: bool,
 ) -> Result<ort::session::builder::SessionBuilder, EmbeddingError> {
     Err(EmbeddingError::Backend(
         "DirectML support not compiled in (enable feature `directml`)".into(),
@@ -505,6 +631,34 @@ mod tests {
         }
         assert_eq!(Device::parse("cuda"), None);
         assert_eq!(Device::parse("dml:x"), None);
+    }
+
+    #[test]
+    fn parses_mixed_placement_log() {
+        let log = [
+            "Node placements".to_owned(),
+            " Node(s) placed on [DmlExecutionProvider]. Number of nodes: 510".to_owned(),
+            "  MatMul (/layers.0/MatMul)".to_owned(),
+            " Node(s) placed on [CPUExecutionProvider]. Number of nodes: 3".to_owned(),
+            "  Shape (/Shape)\n  Gather (/Gather_1)\n  Gather (/Gather_2)".to_owned(),
+            "Some unrelated verbose message".to_owned(),
+        ];
+        let p = Placement::parse(&log);
+        assert_eq!(p.nodes_per_provider["DmlExecutionProvider"], 510);
+        assert_eq!(p.nodes_per_provider["CPUExecutionProvider"], 3);
+        assert_eq!(p.cpu_op_types["Gather"], 2);
+        assert_eq!(p.cpu_op_types["Shape"], 1);
+        assert!((p.offloaded_fraction().unwrap() - 510.0 / 513.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn parses_single_provider_placement() {
+        let p = Placement::parse(&[
+            "All nodes placed on [CPUExecutionProvider]. Number of nodes: 1061".to_owned(),
+        ]);
+        assert_eq!(p.nodes_per_provider["CPUExecutionProvider"], 1061);
+        assert_eq!(p.offloaded_fraction(), Some(0.0));
+        assert_eq!(Placement::parse(&[]).offloaded_fraction(), None);
     }
 
     #[test]

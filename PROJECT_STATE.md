@@ -73,8 +73,11 @@ Benchmark/ADR required:
 - **T005 DONE:** `crates/lumen-embedding` (sync `EmbeddingBackend`, `Embedder` with prompts,
   batching, cancellation, 768→256 + L2, `EmbeddingSpace` key, deterministic `MockBackend`) and
   `crates/lumen-bench` (`lumen-bench embed` JSON reports vs 60/120 ms budget). ADR-014.
-- Not yet: real inference runtime (T006), provider trait/registry, storage, ANN, design tokens/
-  material (T004/T103).
+- **T006 DONE (ADR-015):** EmbeddingGemma 2 on ONNX Runtime (`crates/lumen-embedding-ort`,
+  dynamic `onnxruntime.dll`), default **CPU + q4**: 30 ms p50 query, 168 MiB, cos 0.98 vs fp32.
+  DirectML measured and rejected as default (slower than CPU, unstable fp16/iGPU). Indexing
+  throughput on CPU (~3–4 chunks/s) is the top risk → T013/T014 added.
+- Not yet: provider trait/registry, storage, ANN, design tokens/material (T004/T103).
 
 ## Immediate objective
 
@@ -101,6 +104,8 @@ Complete M0 without overbuilding:
 - CI baseline.
 
 ## Top risks
+
+- CPU embedding throughput for initial indexing (~3–4 chunks/s measured, ADR-015);
 
 - inference integration maturity;
 - WebView lifecycle/RAM while resident;
