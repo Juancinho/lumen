@@ -1,46 +1,68 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { type CoreInfo, getCoreInfo } from "../ipc";
+import { SearchField } from "../features/root-search/SearchField";
+import { hideOverlay, onOverlayShown, overlayReady } from "../ipc";
 
-type CoreState =
-  | { status: "loading" }
-  | { status: "ready"; info: CoreInfo }
-  | { status: "error"; message: string };
+function reportIpcError(action: string) {
+  return (error: unknown) => {
+    console.error(`lumen: ${action} failed`, error);
+  };
+}
+
+/** Focus the query and select it, so typing replaces the previous query. */
+function focusQuery(input: HTMLInputElement | null) {
+  input?.focus();
+  input?.select();
+}
 
 /**
- * T001 placeholder shell: proves React -> IPC -> Rust core wiring.
- * The real overlay (T002) and root-search surface (T103) replace this.
+ * Overlay root (T002): one search surface, keyboard-first.
+ * - focus is placed in the query on mount and every time the shell shows the overlay;
+ * - Escape dismisses (ignored while an IME composition is active).
+ * Results (T101+) and the premium surface (T103) build on this.
  */
 export function App() {
-  const [core, setCore] = useState<CoreState>({ status: "loading" });
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    let active = true;
-    getCoreInfo().then(
-      (info) => {
-        if (active) setCore({ status: "ready", info });
-      },
-      (error: unknown) => {
-        if (active) setCore({ status: "error", message: String(error) });
-      },
-    );
+    focusQuery(inputRef.current);
+    overlayReady().catch(reportIpcError("overlay_ready"));
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    onOverlayShown(() => {
+      focusQuery(inputRef.current);
+    }).then((fn) => {
+      if (disposed) fn();
+      else unlisten = fn;
+    }, reportIpcError("listen overlay-shown"));
     return () => {
-      active = false;
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      // keyCode 229: some IMEs signal composition only this way (no isComposing).
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional IME guard
+      const imeProcessing = event.keyCode === 229;
+      if (event.key !== "Escape" || event.isComposing || imeProcessing) return;
+      event.preventDefault();
+      hideOverlay().catch(reportIpcError("hide_overlay"));
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
     };
   }, []);
 
   return (
-    <main className="shell">
-      <h1 className="shell__title">Lumen</h1>
-      {core.status === "error" ? (
-        <p className="shell__status shell__status--error" role="alert">
-          Core unavailable: {core.message}
-        </p>
-      ) : (
-        <p className="shell__status" role="status">
-          {core.status === "ready" ? `Core ${core.info.version}` : "Connecting to core…"}
-        </p>
-      )}
+    <main className="overlay">
+      <SearchField value={query} onChange={setQuery} inputRef={inputRef} />
     </main>
   );
 }

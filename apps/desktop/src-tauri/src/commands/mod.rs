@@ -6,3 +6,4 @@
 //! Never perform blocking disk, database or inference work in a sync command.
 
 pub(crate) mod app_info;
+pub(crate) mod overlay;

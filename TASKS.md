@@ -10,7 +10,7 @@ Do not renumber task IDs. New tasks get new IDs.
 | ID   | Status | Owner  | Task                                                                                                                 | Depends on |
 | ---- | ------ | ------ | -------------------------------------------------------------------------------------------------------------------- | ---------- |
 | T001 | DONE   | claude | Initialize Tauri 2 + React/TS + Rust workspace; enforce shell → core dependency direction; lint/format/test baseline | —          |
-| T002 | TODO   | —      | Overlay prototype: borderless window, show/hide/focus/Escape/tray                                                    | T001       |
+| T002 | REVIEW | claude | Overlay prototype: borderless window, show/hide/focus/Escape/tray                                                    | T001       |
 | T003 | TODO   | —      | Configurable global shortcut + conflict/error UX                                                                     | T002       |
 | T004 | TODO   | —      | Windows material/backdrop spike: Mica foundation, Acrylic/translucent fallback, shadows/rounding                     | T002       |
 | T005 | TODO   | —      | `EmbeddingBackend` interface + inference benchmark harness                                                           | T001       |

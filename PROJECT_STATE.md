@@ -67,7 +67,10 @@ Benchmark/ADR required:
 - Crates: `crates/lumen-core`, `apps/desktop/src-tauri` (`lumen-desktop`, bin `lumen`), `xtask`.
 - Shell → core direction enforced by `cargo xtask arch` and ESLint `no-restricted-imports`.
 - Commands/layout: `docs/DEVELOPMENT.md`. Contract summary: `docs/COMMAND_MODEL.md` §0.
-- Not yet: overlay (T002), provider trait/registry, storage, ANN, embedding.
+- **T002 REVIEW:** resident overlay — hidden borderless window, Alt+Space toggle, Escape/blur/
+  Alt+F4 hide, cursor-monitor placement, tray (Show/Quit), single instance, focus-on-show. Built
+  and smoke-tested on Linux; awaiting interactive Windows verification (checklist in HANDOFF).
+- Not yet: provider trait/registry, storage, ANN, embedding, design tokens/material (T004/T103).
 
 ## Immediate objective
 

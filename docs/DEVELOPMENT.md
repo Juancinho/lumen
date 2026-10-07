@@ -30,11 +30,15 @@ crates/
     src/execution.rs       ActionRequest -> ExecutionContext::authorize, CancellationToken
 apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
   src/                     React UI
-    app/                   root component + placeholder styles
+    app/                   overlay root (App.tsx) + placeholder styles
+    features/root-search/  SearchField (T002 minimal; premium surface is T103)
     ipc/                   ONLY place allowed to import @tauri-apps/* (typed wrappers + wire types)
     test/                  Vitest setup
   src-tauri/               Rust shell crate `lumen-desktop` (binary `lumen`)
     src/commands/          Tauri commands, one module per feature area
+    src/overlay/           overlay window lifecycle; placement.rs + policy.rs are pure/tested
+    src/shortcut.rs        global shortcut (fixed Alt+Space until T003)
+    src/tray.rs            tray icon + menu (Show / Quit)
     src/dto.rs             wire DTOs mapped from core types
     capabilities/          Tauri permission sets (minimal: core:default)
     tauri.conf.json        window, CSP, build hooks
@@ -110,7 +114,22 @@ cd apps/desktop && npm run check
 
 CI wiring of this gate and the release-mode benchmark command are T010.
 
-## 5. Build profiles
+## 5. Overlay runtime behaviour (T002)
+
+- Single resident process (`tauri-plugin-single-instance`; a second launch shows the running
+  overlay). The overlay window is created hidden, never destroyed.
+- First show waits for the UI's `overlay_ready` call (no blank first frame). `lumen --background`
+  starts resident in the tray without showing.
+- `Alt+Space` toggles (show → focus if visible but unfocused → hide). If registration fails
+  (another launcher owns it) Lumen keeps running; the tray tooltip says the shortcut is unavailable.
+- Placement: monitor under the cursor, horizontally centered, top edge at 20% of the work area,
+  clamped inside it; logical size 800×64 (`overlay::LOGICAL_SIZE` = `tauri.conf.json`).
+- Dismiss: Escape (ignored during IME composition), focus loss, Alt+F4. Quit: tray → Quit Lumen.
+- On every show the shell emits `lumen:overlay-shown`; the UI focuses and selects the query.
+- Linux dev note: WebKitGTK enforces a ~200px minimum window height and single-instance needs a
+  D-Bus session; both are Linux-only artefacts.
+
+## 6. Build profiles
 
 - `release`: LTO, `codegen-units = 1`, stripped. Use for all performance evidence
   (docs/PERFORMANCE.md: dev timings are not acceptance evidence).
@@ -124,7 +143,7 @@ the Tauri CLI adds for `tauri build`) produces a binary that loads the **dev ser
 
 Installer bundling is disabled (`bundle.active = false`); packaging/signing is T807.
 
-## 6. Security baseline
+## 7. Security baseline
 
 - Strict CSP in `tauri.conf.json` (`default-src 'self'`, no inline scripts/styles in production;
   dev CSP only adds Vite HMR websocket + inline styles).
@@ -132,7 +151,7 @@ Installer bundling is disabled (`bundle.active = false`); packaging/signing is T
 - Capability set is `core:default` for the `main` window. Adding a permission requires a task
   reason in the capability file description or commit message.
 
-## 7. Toolchain policy
+## 8. Toolchain policy
 
 - Rust toolchain is pinned; bump it in a dedicated commit after `cargo clippy` is clean.
 - npm dependencies are pinned exactly (`--save-exact`). ESLint is held at 9.x because

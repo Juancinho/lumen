@@ -15,8 +15,17 @@
         "label": "main",
         "title": "Lumen",
         "width": 800,
-        "height": 520,
-        "center": true
+        "height": 64,
+        "visible": false,
+        "decorations": false,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": true,
+        "focus": false,
+        "center": false
       }
     ],
     "security": {

@@ -25,3 +25,10 @@ Append-only. Keep entries compact.
 - `lumen-core`: `ids` (namespaced `ProviderId`/`ActionId` with const validation, entity-stable `ResultId`, JS-safe `QueryId`), `result` (`ResultItem`, `ResultKind`, `IconRef`, normalized `Confidence` + `MatchKind`, Rust-only `Payload`), `capability` (bitset), `action` (`ActionSafety`, `ActionGroup`, descriptor consistency), `contract::validate_result`, `execution` (`ActionRequest` → `ExecutionContext::authorize`, `CancellationToken`).
 - ADR-013 (shell-owned wire DTOs, no serde in core); COMMAND_MODEL §0 and DEVELOPMENT updated.
 - 32 unit + 3 doc tests (incl. compile-fail for invalid built-in id); `ResultItem` = 224 B, guarded ≤ 256 B.
+
+## 2026-10-07 — T002 overlay prototype (claude)
+
+- Shell: `overlay/` (show/hide/toggle; pure `placement` + `policy` with tests), `shortcut.rs` (tauri-plugin-global-shortcut 2.4, fixed Alt+Space, non-fatal on conflict), `tray.rs` (tray-icon feature; Show/Quit), single-instance plugin 2.5, `hide_overlay`/`overlay_ready` commands, `lumen:overlay-shown` event; `--background` start flag.
+- Window: hidden, undecorated, always-on-top, skip-taskbar, 800×64 logical, no resize; close hides.
+- UI: minimal `SearchField`; focus + select on show; Escape hides except during IME composition. 10 frontend tests, 7 shell tests.
+- Linux Xvfb smoke: placement (560,216 on 1920×1080), typing reaches input, Escape hides, Alt+Space conflict handled gracefully (openbox owns it). Native show path 0.3–3 ms. Windows interactive check pending → REVIEW.
