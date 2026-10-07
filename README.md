@@ -119,9 +119,18 @@ The inference runtime must remain replaceable. Do not require Python in producti
 │  ├─ DECISIONS.md
 │  ├─ IMPLEMENTATION_NOTES.md
 │  ├─ RELEASE_AND_LICENSING.md
+│  ├─ DEVELOPMENT.md            # commands, layout, boundary enforcement
 │  └─ AGENT_PROMPTS.md
-└─ src / apps / crates ...
+├─ Cargo.toml / rust-toolchain.toml
+├─ crates/
+│  └─ lumen-core/               # shell-agnostic domain core
+├─ apps/
+│  └─ desktop/                  # Tauri 2 + React/TS shell (src/, src-tauri/)
+└─ xtask/                       # `cargo xtask arch` dependency-direction check
 ```
+
+Getting started: see [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
+(`cd apps/desktop && npm ci && npm run tauri dev`).
 
 ## Build order
 

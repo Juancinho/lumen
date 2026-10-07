@@ -1,0 +1,21 @@
+# Rust
+/target/
+
+# Frontend
+node_modules/
+/apps/desktop/dist/
+/apps/desktop/coverage/
+
+# Tauri generated
+/apps/desktop/src-tauri/gen/
+
+# Parallel agent worktrees (docs/AGENT_PROTOCOL.md)
+/worktrees/
+
+# Local/editor noise
+*.log
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/

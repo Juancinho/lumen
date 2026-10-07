@@ -59,7 +59,14 @@ Benchmark/ADR required:
 
 ## Implementation status
 
-This pack contains specifications/task coordination. No application implementation is assumed.
+- **T001 (REVIEW):** Cargo workspace + Tauri 2 shell + React/TS/Vite frontend exist and pass the
+  full local gate on Linux. Windows `npm run tauri build` not yet run on real hardware.
+- Crates: `crates/lumen-core` (domain, shell-agnostic), `apps/desktop/src-tauri` (`lumen-desktop`,
+  binary `lumen`), `xtask` (repo tooling).
+- Shell → core direction enforced by `cargo xtask arch` (Rust) and ESLint `no-restricted-imports`
+  (only `src/ipc/` may import `@tauri-apps/*`).
+- Commands, layout and toolchain policy: `docs/DEVELOPMENT.md`.
+- No domain contracts (T011), overlay (T002), storage, ANN or embedding code yet.
 
 ## Immediate objective
 

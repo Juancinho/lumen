@@ -1,0 +1,43 @@
+[workspace]
+resolver = "3"
+members = ["crates/lumen-core", "apps/desktop/src-tauri", "xtask"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+
+# Single source of truth for dependency versions. Members opt in with `dep.workspace = true`.
+[workspace.dependencies]
+lumen-core = { path = "crates/lumen-core" }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+tauri = { version = "2.12.1", features = [] }
+tauri-build = { version = "2.7.1", features = [] }
+
+[workspace.lints.rust]
+rust_2018_idioms = { level = "warn", priority = -1 }
+unused_qualifications = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+unwrap_used = "warn"
+print_stdout = "warn"
+large_futures = "warn"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true
+
+# Release optimisations with symbols, for profilers/flamegraphs (see docs/DEVELOPMENT.md).
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = false

@@ -1,0 +1,3 @@
+[alias]
+# Repository tooling: `cargo xtask arch` enforces the shell -> core dependency direction.
+xtask = "run --package xtask --quiet --"

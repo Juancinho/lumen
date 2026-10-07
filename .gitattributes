@@ -1,0 +1,9 @@
+# Normalise text to LF in the repo and working tree on every OS (rustfmt/prettier expect LF).
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
+*.icns binary
+*.jpg binary
+*.gguf binary
+*.onnx binary
