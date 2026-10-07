@@ -11,7 +11,19 @@
 **T010 REVIEW** — `.github/workflows/ci.yml` (actionlint-clean; every command it runs passes
 locally) and `cargo xtask bench [--quick]`. Becomes DONE after the first green GitHub run, which
 needs a remote (the repo has none yet — the user decides where to host it).
+**T013 REVIEW** — needs `scripts/t013/run-windows-device-probe.ps1` on joao-pc (CPU +
+dml:high probes with GPU memory sampling, then the policy matrix).
 DONE: T001, T002, T005, T006, T007, T008, T009, T011.
+
+## T013 — outcome (ADR-019)
+
+- `lumen_embedding::policy::plan(space_key, &[DeviceProbe], &Quarantine, &SystemState,
+  &PolicyConfig) -> DevicePlan { query_device, indexing: Run{device,threads}|Paused(reason),
+  rejected }`; `Quarantine::record_failure`, `is_device_failure`.
+- `lumen_embedding::probe::measure(&Embedder, &ProbeCorpus, Option<&ProbeVectors>, &ProbeConfig)`.
+- `lumen-bench probe` (embed options + `--device-id --integrated --runtime-key --save-vectors
+  --cpu-vectors --device-memory-mib --device-memory-total-mib`) and `lumen-bench device-policy
+  --probe F...` (7 scenarios). Sandbox q4 CPU probe: p50 48 ms, 2.8 chunks/s (2 vCPU).
 
 ## T010 — outcome
 

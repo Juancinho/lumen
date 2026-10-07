@@ -318,3 +318,41 @@ Data: synthetic 256d vectors calibrated on real EmbeddingGemma 2 geometry (mean 
 - Identity costs ~7× the walk when warm. T101/T207 should read ids in bulk per directory
   (`GetFileInformationByHandleEx(FileIdExtdDirectoryInfo)` on the directory handle) or defer
   identity to a background pass after names/paths are searchable.
+
+## ADR-019 — Embedding device policy: CPU by default, accelerators only on measured proof
+
+**Status:** Proposed (T013) until `scripts/t013/run-windows-device-probe.ps1` runs on joao-pc.
+Refines ADR-015 §3–4. Code: `lumen_embedding::policy` (pure rules), `lumen_embedding::probe`
+(measurement through the production `Embedder`), `lumen-bench probe` / `device-policy`.
+
+**Decision**
+
+- **CPU is always available and always the fallback**; a missing, failed or rejected
+  accelerator never blocks search or indexing.
+- **Same space only:** a device is considered only if its probe ran the index generation's
+  exact `EmbeddingSpace` (weights, prompts, dimension). Device choice never changes weights.
+- **Eligibility (all required):** successful probe; stable output (two runs ≥ 0.99999 cosine,
+  no NaN/zero); vectors interchangeable with CPU ones (min cosine ≥ 0.999 on the same
+  inputs); ≥ 90 % of graph nodes offloaded (placement known); device memory known and
+  ≤ min(1.5 GiB, 50 % of the device); not an integrated GPU (opt-in only — T006 device hang);
+  not quarantined; a successful CPU probe exists to compare with.
+- **Query lane:** stays on CPU while CPU p95 ≤ 120 ms; otherwise the fastest eligible
+  accelerator if ≥ 1.5× faster. Never paused.
+- **Indexing lane:** the fastest eligible accelerator if ≥ 1.5× CPU throughput, only on AC,
+  Balanced and idle (or Turbo); otherwise CPU with Eco 1 thread / Balanced n/2 (n/4 while the
+  user is active, 1 on battery) / Turbo n−1. Paused below 20 % battery (not Turbo), on battery
+  in Eco, and under 768 MiB available memory (any profile).
+- **Quarantine:** a runtime `Backend`/`NonFinite`/`ZeroVector`/`OutputShape` error on an
+  accelerator quarantines it for its `runtime_key` (runtime + driver versions) and the batch is
+  re-run on CPU; a driver/runtime update lifts it. Cancellation/input errors never do.
+- Probes run once per device per `runtime_key`, each in its own process; device memory comes
+  from the platform layer (Windows: GPU Process Memory perf counters).
+
+**Consequences**
+
+- With T006's numbers (GTX 1650 q4: ~300 ms queries, 2–3× indexing) the policy would keep
+  queries on CPU and index on the GPU only when plugged in and idle — if placement, memory and
+  fidelity checks pass.
+- The probe compares against CPU at the runtime's default threads (all cores): conservative.
+- `lumen-windows` (M1+) must supply power source, battery %, available memory, user activity
+  and per-process GPU memory; the shell persists probes and the quarantine in settings.

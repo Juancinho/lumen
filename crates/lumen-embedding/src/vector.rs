@@ -23,6 +23,13 @@ impl EmbeddingBatch {
         Self { dim, data }
     }
 
+    /// Rebuilds a batch from a row-major buffer (e.g. reference vectors read from disk).
+    /// `None` if `dim == 0` or `data` is not a whole number of rows.
+    #[must_use]
+    pub fn try_from_flat(dim: usize, data: Vec<f32>) -> Option<Self> {
+        (dim > 0 && data.len().is_multiple_of(dim)).then_some(Self { dim, data })
+    }
+
     pub(crate) fn empty(dim: usize) -> Self {
         Self {
             dim,

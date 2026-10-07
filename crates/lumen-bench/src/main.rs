@@ -9,6 +9,7 @@
 
 mod ann;
 mod corpus;
+mod device;
 mod embed;
 mod fidelity;
 mod machine;
@@ -29,6 +30,8 @@ Commands:
   storage   SQLite/FTS5 insert throughput, per-keystroke lexical latency, size (T007)
   scan      File inventory over real folders: counts, coverage, speed (T009; no paths stored)
   identity-check  Stable file identity under rename/move/copy/save/hard link (T009)
+  probe     Measure one embedding device for the device policy (T013), JSON probe
+  device-policy   Device decisions from probe files across power/profile scenarios (T013)
 
 embed options:
   --backend NAME         backend to measure (default: mock)
@@ -88,6 +91,22 @@ scan options:
   --show-issues N        print the first N issue paths to stderr (default: 10)
   --label TEXT / --json PATH
 
+probe options (plus every embed option: --backend, --ort-dylib, --model-dir, --variant,
+--device, --threads, --placement, --dim, --label, --json):
+  --device-id NAME       policy device id (default: --device, or cpu)
+  --integrated           the device is an integrated GPU
+  --runtime-key TEXT     runtime + driver versions (default: backend runtime version)
+  --save-vectors FILE    write this probe's vectors (run on cpu first)
+  --cpu-vectors FILE     compare with the CPU probe's vectors
+  --device-memory-mib N  device memory the session used (measured outside, e.g. PDH)
+  --device-memory-total-mib N   the device's total memory
+  --measured-queries N   timed queries (default: 40)
+
+device-policy options:
+  --probe FILE           probe JSON (repeatable; include the cpu probe)
+  --space KEY            index generation space (default: the cpu probe's)
+  --label TEXT / --json PATH
+
 identity-check options:
   --dir DIR              scratch location on the volume under test (default: temp dir)
   --label TEXT / --json PATH
@@ -127,6 +146,21 @@ fn main() -> ExitCode {
             Ok((summary, json, path)) => emit(&summary, json, path),
             Err(err) => usage_error(&err),
         },
+        Some("probe") => match parse_probe(&args[1..]).and_then(|(opts, json)| {
+            device::run_probe(&opts).map(|r| (device::summarize_probe(&r), to_json(&r), json))
+        }) {
+            Ok((summary, json, path)) => emit(&summary, json, path),
+            Err(err) => usage_error(&err),
+        },
+        Some("device-policy") => {
+            match parse_policy(&args[1..]).and_then(|(files, space, label, json)| {
+                device::run_policy(&files, space, label)
+                    .map(|r| (device::summarize_policy(&r), to_json(&r), json))
+            }) {
+                Ok((summary, json, path)) => emit(&summary, json, path),
+                Err(err) => usage_error(&err),
+            }
+        }
         Some("-h" | "--help") => {
             print!("{USAGE}");
             ExitCode::SUCCESS
@@ -321,6 +355,70 @@ fn parse_identity(args: &[String]) -> Result<IdentityArgs, String> {
         }
     }
     Ok((dir, label, json))
+}
+
+fn parse_probe(args: &[String]) -> Result<(device::ProbeOptions, Option<String>), String> {
+    let mut opts = device::ProbeOptions {
+        measured_queries: 40,
+        ..device::ProbeOptions::default()
+    };
+    let mut rest = Vec::new();
+    let mut it = args.iter();
+    while let Some(flag) = it.next() {
+        let mut value = || {
+            it.next()
+                .cloned()
+                .ok_or_else(|| format!("{flag} needs a value"))
+        };
+        let float = |v: String| {
+            v.parse::<f64>()
+                .map_err(|_| format!("{flag}: `{v}` is not a number"))
+        };
+        match flag.as_str() {
+            "--device-id" => opts.device_id = Some(value()?),
+            "--integrated" => opts.integrated = true,
+            "--runtime-key" => opts.runtime_key = Some(value()?),
+            "--save-vectors" => opts.save_vectors = Some(value()?.into()),
+            "--cpu-vectors" => opts.cpu_vectors = Some(value()?.into()),
+            "--device-memory-mib" => opts.device_memory_mib = Some(float(value()?)?),
+            "--device-memory-total-mib" => opts.device_memory_total_mib = Some(float(value()?)?),
+            "--measured-queries" => {
+                opts.measured_queries = value()?
+                    .parse()
+                    .map_err(|_| format!("{flag}: not a non-negative integer"))?;
+            }
+            _ => rest.push(flag.clone()),
+        }
+    }
+    let (embed, json) = parse_embed(&rest)?;
+    opts.embed = embed;
+    Ok((opts, json))
+}
+
+type PolicyArgs = (
+    Vec<std::path::PathBuf>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
+
+fn parse_policy(args: &[String]) -> Result<PolicyArgs, String> {
+    let (mut files, mut space, mut label, mut json) = (Vec::new(), None, None, None);
+    let mut it = args.iter();
+    while let Some(flag) = it.next() {
+        let value = it
+            .next()
+            .cloned()
+            .ok_or_else(|| format!("{flag} needs a value"))?;
+        match flag.as_str() {
+            "--probe" => files.push(value.into()),
+            "--space" => space = Some(value),
+            "--label" => label = Some(value),
+            "--json" => json = Some(value),
+            other => return Err(format!("unknown option `{other}`")),
+        }
+    }
+    Ok((files, space, label, json))
 }
 
 fn parse_embed(args: &[String]) -> Result<(embed::EmbedOptions, Option<String>), String> {

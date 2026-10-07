@@ -72,3 +72,10 @@ Append-only. Keep entries compact.
 - `.github/workflows/ci.yml`: frontend job; rust matrix ubuntu-24.04/windows-2025 (UI build → fmt → clippy `--locked` → directml clippy → tests → arch); bench matrix running `cargo xtask bench --quick` with JSON artifacts, non-gating. actionlint clean.
 - `cargo xtask bench [--quick] [--out DIR]`: every model-free lumen-bench subcommand in release mode. Sandbox quick run 31 s.
 - REVIEW until the first GitHub run (no remote configured yet).
+
+## 2026-10-08 — T013 embedding device selection + fallback policy (claude)
+
+- `lumen_embedding::policy` (pure, 14 tests): CPU default/fallback; same-space rule; eligibility gates (probe ok, stable, cos >= 0.999 vs CPU, >= 90% offload, memory <= min(1.5 GiB, 50%), no iGPU by default, CPU baseline); query lane CPU while p95 <= 120 ms; indexing lane accelerator >= 1.5x only on AC+idle/Turbo; thread counts per profile; pauses (low battery, Eco on battery, memory pressure); quarantine per runtime key.
+- `lumen_embedding::probe::measure` via the production Embedder; `EmbeddingBatch::try_from_flat`.
+- `lumen-bench probe` / `device-policy`; `scripts/t013/run-windows-device-probe.ps1` (process per device, GPU memory from perf counters, iGPU only with -IncludeIntegrated).
+- First CI run (repo pushed by the user): frontend + Linux green, Windows `cargo test` red (log needs repo admin).

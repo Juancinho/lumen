@@ -1,4 +1,4 @@
-//! Lumen embedding abstraction (ADR-005, T005).
+//! Lumen embedding abstraction (ADR-005, T005) and device policy (ADR-019, T013).
 //!
 //! ```text
 //!   callers (query service T204, index queue T202)
@@ -25,6 +25,8 @@ mod backend;
 mod embedder;
 mod mock;
 mod model;
+pub mod policy;
+pub mod probe;
 mod prompt;
 mod space;
 mod vector;
