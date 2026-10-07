@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { describe, expect, it, vi } from "vitest";
 
-import { getCoreInfo, hideOverlay, overlayReady } from "./commands";
+import { getCoreInfo, hideOverlay, overlayPainted, overlayReady } from "./commands";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
@@ -22,5 +22,12 @@ describe("ipc commands", () => {
 
     await fn();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(command);
+  });
+
+  it("overlayPainted sends the show sequence number", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(undefined);
+
+    await overlayPainted(3);
+    expect(invoke).toHaveBeenCalledExactlyOnceWith("overlay_painted", { seq: 3 });
   });
 });

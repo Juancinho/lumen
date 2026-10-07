@@ -2,22 +2,30 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { hideOverlay, onOverlayShown, overlayReady } from "../ipc";
+import {
+  hideOverlay,
+  onOverlayShown,
+  overlayPainted,
+  overlayReady,
+  type OverlayShown,
+} from "../ipc";
 import { App } from "./App";
 
 vi.mock("../ipc", () => ({
   hideOverlay: vi.fn(),
   onOverlayShown: vi.fn(),
+  overlayPainted: vi.fn(),
   overlayReady: vi.fn(),
 }));
 
-let shownHandler: (() => void) | undefined;
+let shownHandler: ((shown: OverlayShown) => void) | undefined;
 const unlisten = vi.fn();
 
 beforeEach(() => {
   shownHandler = undefined;
   vi.mocked(hideOverlay).mockResolvedValue(undefined);
   vi.mocked(overlayReady).mockResolvedValue(undefined);
+  vi.mocked(overlayPainted).mockResolvedValue(undefined);
   vi.mocked(onOverlayShown).mockImplementation((handler) => {
     shownHandler = handler;
     return Promise.resolve(unlisten);
@@ -67,7 +75,7 @@ describe("App overlay", () => {
     });
 
     act(() => {
-      shownHandler?.();
+      shownHandler?.({ seq: null });
     });
 
     expect(input).toHaveFocus();
@@ -83,5 +91,34 @@ describe("App overlay", () => {
 
     unmount();
     expect(unlisten).toHaveBeenCalled();
+  });
+
+  it("reports the painted frame only when the shell asks for timing", async () => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame"] });
+    try {
+      render(<App />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      act(() => {
+        shownHandler?.({ seq: null });
+        vi.advanceTimersToNextFrame();
+        vi.advanceTimersToNextFrame();
+      });
+      expect(overlayPainted).not.toHaveBeenCalled();
+
+      act(() => {
+        shownHandler?.({ seq: 4 });
+        vi.advanceTimersToNextFrame();
+      });
+      expect(overlayPainted).not.toHaveBeenCalled(); // not before the frame is painted
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(overlayPainted).toHaveBeenCalledExactlyOnceWith(4);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

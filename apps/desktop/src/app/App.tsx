@@ -1,12 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 
 import { SearchField } from "../features/root-search/SearchField";
-import { hideOverlay, onOverlayShown, overlayReady } from "../ipc";
+import { hideOverlay, onOverlayShown, overlayPainted, overlayReady } from "../ipc";
 
 function reportIpcError(action: string) {
   return (error: unknown) => {
     console.error(`lumen: ${action} failed`, error);
   };
+}
+
+/**
+ * Diagnostics: report after the next painted frame (double rAF: the first callback runs
+ * before that frame is painted, the second after it was presented).
+ */
+function reportPainted(seq: number) {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      overlayPainted(seq).catch(reportIpcError("overlay_painted"));
+    });
+  });
 }
 
 /** Focus the query and select it, so typing replaces the previous query. */
@@ -33,8 +45,9 @@ export function App() {
   useEffect(() => {
     let disposed = false;
     let unlisten: (() => void) | undefined;
-    onOverlayShown(() => {
+    onOverlayShown(({ seq }) => {
       focusQuery(inputRef.current);
+      if (seq !== null) reportPainted(seq);
     }).then((fn) => {
       if (disposed) fn();
       else unlisten = fn;

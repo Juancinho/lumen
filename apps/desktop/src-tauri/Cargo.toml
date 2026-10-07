@@ -20,6 +20,11 @@ tauri.workspace = true
 tauri-plugin-global-shortcut.workspace = true
 tauri-plugin-single-instance.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+# Same versions as wry/tauri (Cargo.lock): the controller type comes from tauri's PlatformWebview.
+webview2-com = "0.39.1"
+windows-core = "0.62.2"
+
 [dev-dependencies]
 serde_json.workspace = true
 

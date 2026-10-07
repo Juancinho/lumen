@@ -19,8 +19,16 @@ pub(crate) async fn overlay_ready(
     window: WebviewWindow,
     show: State<'_, ShowWhenReady>,
 ) -> Result<(), ()> {
+    crate::diag::record("ready_ms", crate::diag::since_start_ms());
     if show.0.swap(false, Ordering::AcqRel) {
         crate::overlay::show(window.app_handle());
     }
     Ok(())
+}
+
+/// Timing diagnostics (T012): the UI painted the frame after show `seq`. No-op unless
+/// `LUMEN_DIAG_LOG` is set.
+#[tauri::command]
+pub(crate) async fn overlay_painted(seq: u64) {
+    crate::diag::painted(seq);
 }

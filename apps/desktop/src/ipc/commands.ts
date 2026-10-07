@@ -19,3 +19,11 @@ export function hideOverlay(): Promise<void> {
 export function overlayReady(): Promise<void> {
   return invoke("overlay_ready");
 }
+
+/**
+ * Timing diagnostics: the frame after show `seq` was painted. Only sent when the shell
+ * provided a `seq` (diagnostics on). Command: `overlay_painted`.
+ */
+export function overlayPainted(seq: number): Promise<void> {
+  return invoke("overlay_painted", { seq });
+}
