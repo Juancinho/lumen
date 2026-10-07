@@ -4,6 +4,7 @@
 #![allow(clippy::print_stdout)] // a CLI reporting to the terminal
 
 mod arch;
+mod bench;
 
 use std::process::{Command, ExitCode};
 
@@ -12,12 +13,15 @@ Usage: cargo xtask <command>
 
 Commands:
   arch    Verify the shell -> core dependency direction (ADR-002)
+  bench   Release-mode benchmark suite, JSON reports in target/bench/ (T010)
+          [--quick] [--out DIR]
 ";
 
 fn main() -> ExitCode {
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
         Some("arch") => run_arch(),
+        Some("bench") => bench::run(args),
         Some("-h" | "--help") => {
             print!("{USAGE}");
             ExitCode::SUCCESS

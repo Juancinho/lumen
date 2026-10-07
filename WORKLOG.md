@@ -66,3 +66,9 @@ Append-only. Keep entries compact.
 - `lumen-bench scan` / `identity-check`; `scripts/t009/run-windows-scan.ps1` (edge cases incl. >260-char path, junction loop, ACL-denied folder, unpaired surrogate; .NET oracle count; per-drive identity).
 - Sandbox: 240k entries, 33k/s cold, 349k/s warm, 0 issues; identity-check as designed (inode reused on recreate). ADR-017 note: budget interruption never affects the index.
 - Windows (joao-pc): first build failed to link usearch (numkong `dllimport` vs static lib) — T008 had never been built on MSVC; fixed via `CXXFLAGS_*_pc_windows_msvc=/DNK_DYNAMIC=` in `.cargo/config.toml`. Then: 12/12 tests, 7/7 edge cases, 26,469 entries = .NET oracle, 515 OneDrive placeholders not hydrated, identity 7.3k/s cold. T009 → DONE, ADR-018 Accepted.
+
+## 2026-10-08 — T010 CI baseline + release-mode benchmark command (claude)
+
+- `.github/workflows/ci.yml`: frontend job; rust matrix ubuntu-24.04/windows-2025 (UI build → fmt → clippy `--locked` → directml clippy → tests → arch); bench matrix running `cargo xtask bench --quick` with JSON artifacts, non-gating. actionlint clean.
+- `cargo xtask bench [--quick] [--out DIR]`: every model-free lumen-bench subcommand in release mode. Sandbox quick run 31 s.
+- REVIEW until the first GitHub run (no remote configured yet).

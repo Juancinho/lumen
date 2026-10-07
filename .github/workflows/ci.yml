@@ -1,0 +1,107 @@
+# CI baseline (T010): the local gate from docs/DEVELOPMENT.md §4 on Linux and Windows, plus the
+# release-mode benchmark suite whose JSON reports are uploaded as artifacts (not gating yet).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUST_BACKTRACE: short
+  # Tauri's Linux packages (docs/DEVELOPMENT.md §1).
+  LINUX_PACKAGES: libwebkit2gtk-4.1-dev librsvg2-dev libxdo-dev libssl-dev
+
+jobs:
+  frontend:
+    name: frontend (format, lint, types, tests)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+
+  rust:
+    name: rust (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - name: Linux system packages
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends $LINUX_PACKAGES
+      # The Tauri shell embeds apps/desktop/dist at compile time, so the UI is built first.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Build frontend
+        working-directory: apps/desktop
+        run: |
+          npm ci
+          npm run build
+      - name: Rust toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo fmt
+        if: runner.os == 'Linux'
+        run: cargo fmt --all -- --check
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: cargo clippy (lumen-bench, directml)
+        run: cargo clippy -p lumen-bench --features directml --all-targets --locked -- -D warnings
+      - name: cargo test
+        run: cargo test --workspace --locked
+      - name: architecture boundary
+        run: cargo xtask arch
+
+  bench:
+    name: bench quick (${{ matrix.os }})
+    needs: rust
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Rust toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: bench
+      - name: cargo xtask bench --quick
+        run: cargo xtask bench --quick --out target/bench/quick
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-quick-${{ matrix.os }}
+          path: target/bench/quick/*.json
+          if-no-files-found: warn
+          retention-days: 90

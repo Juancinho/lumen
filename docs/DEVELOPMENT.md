@@ -19,7 +19,8 @@ Linux (CI/agents) additionally needs the Tauri system packages, e.g. on Ubuntu 2
 ```text
 Cargo.toml                 Cargo workspace (shared versions, lints, profiles)
 rust-toolchain.toml        pinned toolchain
-.cargo/config.toml         `cargo xtask` alias
+.cargo/config.toml         `cargo xtask` alias; MSVC CXXFLAGS workaround for usearch (ADR-016)
+.github/workflows/ci.yml   CI: frontend checks, Rust gate on Linux + Windows, quick benches (T010)
 crates/
   lumen-core/              domain core — shell-agnostic, no Tauri/React/WebView deps
     src/ids.rs             ProviderId / ActionId / ResultId / QueryId
@@ -143,7 +144,31 @@ cargo xtask arch
 cd apps/desktop && npm run check
 ```
 
-CI wiring of this gate and the release-mode benchmark command are T010.
+Release-mode benchmark suite (every model-free `lumen-bench` subcommand, one JSON per bench):
+
+```sh
+cargo xtask bench --quick          # ~1 min: CI size, reports in target/bench/quick/
+cargo xtask bench                  # full size (100k ANN/storage), target/bench/full/
+cargo xtask bench --out DIR        # custom output directory
+```
+
+## 4.1 Continuous integration (T010)
+
+`.github/workflows/ci.yml` runs on every push to `main`, every pull request and on demand:
+
+- **frontend** (Ubuntu 24.04): `npm ci`, `npm run check`, `npm run build`;
+- **rust** (Ubuntu 24.04 + Windows Server 2025): builds the UI first (the shell embeds
+  `apps/desktop/dist`), then `cargo fmt --check` (Linux), `cargo clippy --workspace
+  --all-targets --locked -D warnings`, clippy for `lumen-bench --features directml`,
+  `cargo test --workspace --locked`, `cargo xtask arch`;
+- **bench** (both OSes, after rust): `cargo xtask bench --quick`; reports uploaded as the
+  `bench-quick-<os>` artifact (90 days). Numbers are not gating yet (PERFORMANCE.md §12): add
+  thresholds only once run-to-run noise on hosted runners is known.
+
+The Windows job exists because Linux-only checks missed a Windows link failure (usearch/MSVC,
+found in T009). Model-dependent tests (`--test fidelity`, ORT benches) stay manual: they need
+the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
+`actionlint .github/workflows/ci.yml`.
 
 ## 5. Overlay runtime behaviour (T002)
 

@@ -88,6 +88,8 @@ Benchmark/ADR required:
   never followed, cloud placeholders metadata-only, stable identity (volume + file id).
   Windows: 26.5k user entries = independent .NET count, 0 issues, 22k entries/s cold
   (7.3k/s with identity); all edge cases reported. Also fixed usearch MSVC link (ADR-016).
+- **T010 REVIEW:** GitHub Actions CI (frontend; Rust gate on Linux + Windows; quick release
+  benches as artifacts) + `cargo xtask bench [--quick]`. Pending first run on a remote.
 - Not yet: provider trait/registry, design tokens/material (T004/T103).
 
 ## Immediate objective

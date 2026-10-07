@@ -4,13 +4,23 @@
 
 ## Active branch
 
-`main`. Commits: spec baseline → T001 → T011 → T002 → T005 → T006 → T008 → T007 → T009.
+`main` (no remote yet). Commits: spec baseline → T001 → T011 → T002 → T005 → T006 → T008 → T007 → T009 → T010.
 
 ## Active task
 
-None claimed. DONE: T001, T002, T005, T006, T007, T008, T009, T011.
-Next: **T010** (CI baseline incl. a Windows build — the usearch MSVC link failure found in
-T009 shows Linux-only checks are not enough).
+**T010 REVIEW** — `.github/workflows/ci.yml` (actionlint-clean; every command it runs passes
+locally) and `cargo xtask bench [--quick]`. Becomes DONE after the first green GitHub run, which
+needs a remote (the repo has none yet — the user decides where to host it).
+DONE: T001, T002, T005, T006, T007, T008, T009, T011.
+
+## T010 — outcome
+
+- CI jobs: frontend (Ubuntu), rust gate on Ubuntu 24.04 + Windows 2025 (UI built first for
+  the Tauri context; fmt, clippy `--locked -D warnings`, directml clippy, tests, arch), quick
+  bench suite on both OSes uploaded as artifacts (non-gating).
+- `xtask/src/bench.rs`: builds `lumen-bench` release `--locked`, runs embed-mock, ann, storage,
+  scan-repo (repo minus target/node_modules/.git/.cache), identity-check → JSON per bench.
+  Sandbox `--quick`: 31 s including the release build cache hit.
 
 ## T009 — outcome (ADR-018)
 

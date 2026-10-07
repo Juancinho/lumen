@@ -1,6 +1,6 @@
 [package]
 name = "xtask"
-description = "Repository tooling (architecture checks). Not shipped."
+description = "Repository tooling (architecture checks, benchmark suite). Not shipped."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

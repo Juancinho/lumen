@@ -18,7 +18,7 @@ Do not renumber task IDs. New tasks get new IDs.
 | T007 | DONE   | claude | SQLite schema + migrations + WAL + FTS5 proof                                                                        | T001       |
 | T008 | DONE   | claude | USearch 256d 100k/1M benchmark; f32/f16 candidate comparison                                                         | T001       |
 | T009 | DONE   | claude | File enumeration + stable identity spike                                                                             | T001       |
-| T010 | TODO   | —      | CI baseline + release-mode benchmark command                                                                         | T001       |
+| T010 | REVIEW | claude | CI baseline + release-mode benchmark command                                                                         | T001       |
 | T011 | DONE   | claude | Minimal universal domain contracts: `ResultItem`, `ProviderId`, `ActionDescriptor`, typed execution context          | T001       |
 | T012 | TODO   | —      | WebView lifecycle/RAM spike: one WebView, hidden state, timers, optional suspension/low-memory path                  | T002       |
 | T013 | TODO   | —      | Embedding device selection + fallback policy: CPU default; GPU/NPU only when placement + probe beat CPU; battery/memory profiles; never switch weights inside an index generation | T006       |
