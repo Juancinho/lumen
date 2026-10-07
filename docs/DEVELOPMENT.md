@@ -22,6 +22,12 @@ rust-toolchain.toml        pinned toolchain
 .cargo/config.toml         `cargo xtask` alias
 crates/
   lumen-core/              domain core — shell-agnostic, no Tauri/React/WebView deps
+    src/ids.rs             ProviderId / ActionId / ResultId / QueryId
+    src/result.rs          ResultItem, ResultKind, IconRef, Score, Payload
+    src/capability.rs      CapabilitySet (what a result's target supports)
+    src/action.rs          ActionDescriptor, ActionSafety, ActionGroup, ActionLookup
+    src/contract.rs        validate_result — run it in every provider test
+    src/execution.rs       ActionRequest -> ExecutionContext::authorize, CancellationToken
 apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
   src/                     React UI
     app/                   root component + placeholder styles
@@ -63,8 +69,15 @@ Shell conventions:
 - Commands are `async` so they run off the main thread. No blocking disk/DB/inference work in a
   sync command.
 - Wire DTOs are explicit camelCase structs in `src-tauri/src/dto.rs`, mirrored by
-  `src/ipc/types.ts`, with a Rust test guarding the JSON shape. Whether domain types gain serde
-  derives (or generated TS bindings) is decided in T011.
+  `src/ipc/types.ts`, with a Rust test guarding the JSON shape. Core types never derive serde
+  (ADR-013); `Payload` and provider confidence are never sent to the UI.
+
+Provider/result conventions (T011, see `docs/COMMAND_MODEL.md` §0):
+
+- built-in ids are `const`s via `ProviderId::from_static` / `ActionId::from_static` (invalid names
+  fail compilation); `lumen.` is reserved for built-ins;
+- every provider test asserts `validate_result(&item, &actions).is_empty()` for each result;
+- actions run only through `ExecutionContext::authorize`; the UI sends ids, never paths.
 
 ## 4. Commands
 

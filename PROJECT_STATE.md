@@ -59,14 +59,15 @@ Benchmark/ADR required:
 
 ## Implementation status
 
-- **T001 (REVIEW):** Cargo workspace + Tauri 2 shell + React/TS/Vite frontend exist and pass the
-  full local gate on Linux. Windows `npm run tauri build` not yet run on real hardware.
-- Crates: `crates/lumen-core` (domain, shell-agnostic), `apps/desktop/src-tauri` (`lumen-desktop`,
-  binary `lumen`), `xtask` (repo tooling).
-- Shell → core direction enforced by `cargo xtask arch` (Rust) and ESLint `no-restricted-imports`
-  (only `src/ipc/` may import `@tauri-apps/*`).
-- Commands, layout and toolchain policy: `docs/DEVELOPMENT.md`.
-- No domain contracts (T011), overlay (T002), storage, ANN or embedding code yet.
+- **T001 DONE:** Cargo workspace + Tauri 2 shell + React/TS/Vite frontend; full gate passes on
+  Linux and Windows (`target/release/lumen.exe` verified by the user).
+- **T011 DONE:** universal command contracts in `crates/lumen-core` — ids, `ResultItem`,
+  `CapabilitySet`, `ActionDescriptor` (risk class + panel group), `validate_result`,
+  `ExecutionContext::authorize`, `CancellationToken`. ADR-013: shell owns wire DTOs.
+- Crates: `crates/lumen-core`, `apps/desktop/src-tauri` (`lumen-desktop`, bin `lumen`), `xtask`.
+- Shell → core direction enforced by `cargo xtask arch` and ESLint `no-restricted-imports`.
+- Commands/layout: `docs/DEVELOPMENT.md`. Contract summary: `docs/COMMAND_MODEL.md` §0.
+- Not yet: overlay (T002), provider trait/registry, storage, ANN, embedding.
 
 ## Immediate objective
 

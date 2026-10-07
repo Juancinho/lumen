@@ -1,5 +1,24 @@
 # COMMAND_MODEL.md — root query, results and actions
 
+## 0. Implementation status
+
+Canonical code (T011): `crates/lumen-core/src/` — `ids.rs`, `result.rs`, `capability.rs`,
+`action.rs`, `contract.rs`, `execution.rs`. The code is authoritative where it differs from the
+conceptual sketches below. Notable concrete choices:
+
+- `ResultId` is the identity of the **entity**, equal across providers/batches (merge + selection
+  stability); convention `<kind>:<stable key>`.
+- `ProviderId`/`ActionId` are namespaced names (`lumen.files`, `lumen.reveal`), compile-time
+  validated for built-ins; `lumen.` is reserved for built-ins.
+- `Score` = provider-normalized `Confidence` ∈ [0,1] + `MatchKind`; raw scores stay inside providers.
+- `CapabilitySet` (what a target supports) is distinct from future workflow *permissions* (T501).
+- `primary_action` + `secondary_actions`; `validate_result` rejects destructive/privileged primaries,
+  unknown/duplicate actions and missing capabilities.
+- `ExecutionContext::authorize` turns an id-only `ActionRequest` into an authorized context:
+  action must be offered by the result, Enter runs only the primary, destructive/privileged need
+  explicit confirmation.
+- `Payload` never crosses to the UI (ADR-013). `PreviewRef` is deferred to T105.
+
 ## 1. Mental model
 
 There is one root search. Providers propose results; a coordinator normalizes/fuses/ranks them; each result advertises valid actions.

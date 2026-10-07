@@ -4,83 +4,87 @@
 
 ## Active branch
 
-`main` (git initialized this session; two commits: spec-pack baseline, then T001).
+`main`. Commits: spec-pack baseline → T001 → T011.
 
 ## Active task
 
-**T001 — REVIEW (owner: claude).** Implementation complete and validated on Linux. Only remaining
-item: verify the Windows build on real hardware, then set T001 to `DONE` in `TASKS.md`.
+None claimed. T001 and T011 are DONE.
 
-T001's output (the workspace) exists, so T002/T005/T007/T008/T010/T011/T012 can start now; do the
-Windows verification below first if you are on Windows.
+## T011 — implemented behavior
 
-## Implemented behavior
+Universal command model in `crates/lumen-core/src/` (summary in `docs/COMMAND_MODEL.md` §0):
 
-- Cargo workspace (`Cargo.toml`, resolver 3, edition 2024, shared deps/lints/profiles), toolchain
-  pinned to Rust 1.97.0 (`rust-toolchain.toml`).
-- `crates/lumen-core`: shell-agnostic core; currently only `CoreInfo`/`core_info()` (product name +
-  version). `#![forbid(unsafe_code)]`, zero dependencies.
-- `apps/desktop/src-tauri` (`lumen-desktop`, bin `lumen`): Tauri 2.12 shell; async command
-  `core_info` returning `CoreInfoDto` (camelCase, JSON shape tested); strict CSP; capability
-  `core:default` only; `withGlobalTauri: false`; installer bundling disabled (T807).
-- `apps/desktop/src`: React 19 placeholder (`app/App.tsx`) showing core version via typed
-  `src/ipc` wrapper; loading = `role="status"`, failure = `role="alert"`.
-- `xtask`: `cargo xtask arch` fails if any member under `crates/` depends (transitively, any kind,
-  any platform, or merely declared) on Tauri/WebView/GUI-toolkit crates or on anything under `apps/`.
-- ESLint: only `src/ipc/**` may import `@tauri-apps/*`.
+- `ids.rs`: `ProviderId`/`ActionId` = namespaced names (`segment(.segment)+`, `[a-z0-9][a-z0-9_-]*`,
+  ≤64 B). Built-ins: `const X: ActionId = ActionId::from_static("lumen.open");` — invalid literal is
+  a compile error (compile_fail doctest). `lumen.` reserved for built-ins. `ResultId` (`Arc<str>`)
+  = identity of the *entity*, equal across providers/batches; convention `<kind>:<stable key>`
+  (`ResultId::from_parts`). `QueryId(u64)` ≤ 2^53−1, `is_stale(latest)`.
+- `result.rs`: `ResultItem { id, provider, kind, title, subtitle, detail, icon, score, capabilities,
+  primary_action, secondary_actions, payload }`; `ResultKind` {File, Folder, Application, Command}
+  (`non_exhaustive`, add variants per task); `IconRef` {KindDefault, FileExtension, Native};
+  `Confidence` ∈ [0,1], total order, -0.0 normalized; `MatchKind`; `Payload` {Path, Text,
+  ProviderKey} — Rust-only.
+- `capability.rs`: `CapabilitySet` u32 bitset {LocalPath, Launchable, TextValue, Pinnable}.
+- `action.rs`: `ActionDescriptor { id, title, safety, group, requires }`; `ActionSafety`
+  {SafeRead, SafeReversible, Privileged, Destructive, ExternalData} with `requires_confirmation`
+  (Destructive|Privileged) and `allowed_as_primary` (not those two); `ActionGroup` ordered for the
+  Action Panel; `ActionLookup` trait (slice/array/HashMap).
+- `contract.rs`: `validate_result(&item, &lookup) -> Vec<ContractViolation>` (empty title, unknown,
+  duplicate, unsafe primary, missing capabilities, inconsistent descriptor). Test fixtures in
+  `contract::fixtures` (crate-private, cfg(test)).
+- `execution.rs`: `ActionRequest` (ids only + `Invocation` + `confirmed`) →
+  `ExecutionContext::authorize(req, &item, &descriptor, token)`; checks result/descriptor identity,
+  offered by result, `Invocation::Primary` ⇒ primary action, capabilities, confirmation.
+  Actions on older queries are intentionally allowed. `CancellationToken` (Arc<AtomicBool>).
+- ADR-013 in `docs/DECISIONS.md`: no serde in core; shell projects DTOs; Payload/confidence never
+  reach the UI.
 
-## Files changed
+## Files changed (T011)
 
-New: `.cargo/config.toml`, `.editorconfig`, `.gitattributes`, `.gitignore`,
-`.vscode/extensions.json`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `rustfmt.toml`,
-`clippy.toml`, `crates/lumen-core/**`, `xtask/**`, `apps/desktop/**` (package.json + lockfile,
-eslint/prettier/tsconfig/vite configs, `index.html`, `src/**`, `src-tauri/**` incl. placeholder
-icons), `docs/DEVELOPMENT.md`.
-Updated: `TASKS.md`, `PROJECT_STATE.md`, `README.md` (repo map), `WORKLOG.md`, this file.
+`crates/lumen-core/src/{lib,ids,result,capability,action,contract,execution}.rs`,
+`docs/DECISIONS.md` (ADR-013), `docs/COMMAND_MODEL.md` (§0), `docs/DEVELOPMENT.md`, `TASKS.md`,
+`PROJECT_STATE.md`, `WORKLOG.md`, this file.
 
-## Validation (run in Linux sandbox, toolchain 1.97.0, Node 22)
+## Validation (Linux sandbox, Rust 1.97.0)
 
 All passed:
 
 ```sh
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace            # core 2, shell 2, xtask 8
-cargo xtask arch                  # OK - lumen-core
-cd apps/desktop && npm run check  # prettier, eslint, tsc -b, vitest (3 tests)
-cd apps/desktop && npx tauri build --debug --no-bundle   # then ran under Xvfb: "Core 0.1.0" rendered
-cargo build --profile profiling -p lumen-desktop --features tauri/custom-protocol
+cargo test --workspace     # core 32 unit + 3 doc (1 compile_fail), shell 2, xtask 8
+cargo xtask arch           # OK - lumen-core
+cargo doc -p lumen-core --no-deps   # no warnings
+cd apps/desktop && npm run check    # unchanged frontend, 3 tests
 ```
 
-Negative checks performed (then reverted): `tauri` added to `lumen-core` → `cargo xtask arch` exit 1;
-dev-dependency on `apps/desktop/src-tauri` → exit 1; `@tauri-apps/api/core` imported from
-`src/app/` → ESLint error.
+Not run on Windows for T011 (pure Rust, no platform code); `cargo test --workspace` there is a
+cheap confirmation.
 
 ## Exact next steps
 
-1. On Windows 11 (PowerShell, repo root):
-   `cd apps/desktop; npm ci; npm run check; npm run tauri build` → expect `target\release\lumen.exe`
-   opening a window that shows "Core 0.1.0". Also run `cargo test --workspace` and `cargo xtask arch`.
-   If all pass, set T001 to `DONE`.
-2. Take T011 (domain contracts) or T002 (overlay). T011 must decide whether core types derive serde
-   and whether TS wire types are generated (e.g. ts-rs/specta) or stay hand-written with Rust
-   shape tests (current pattern in `src-tauri/src/dto.rs`).
-3. T010 should wire the local gate above into CI (Linux needs `libwebkit2gtk-4.1-dev librsvg2-dev
-   libxdo-dev libssl-dev`; a Windows runner is needed for real shell checks).
+1. **T002 overlay prototype** (needs Windows for interactive verification): borderless,
+   always-on-top, hidden at start, show/hide/focus, Escape hides, hide on focus loss, tray icon
+   with Show/Quit; keep one WebView, no work while hidden. Window/tray code stays in the shell
+   (or a future `crates/lumen-windows` adapter with no Tauri deps).
+2. Parallel-safe alternatives: T007 (SQLite/FTS → new `crates/lumen-storage`), T008 (USearch
+   bench), T009 (file identity → `ResultId` key choice), T010 (CI), T005 (`EmbeddingBackend`).
+3. First provider task (T101) adds the provider trait; reuse `QueryId`, `CancellationToken`,
+   `ResultItem`, `validate_result` — do not create a parallel model.
 
 ## Known issues / notes
 
-- Plain `cargo build`/`cargo run` of `lumen-desktop` (without `tauri/custom-protocol`) loads the dev
-  URL `http://localhost:1420`; use `npm run tauri dev|build`. Documented in `docs/DEVELOPMENT.md`.
-- ESLint pinned to 9.x (jsx-a11y lacks ESLint 10 support); TypeScript 6.0.x (typescript-eslint `<6.1`).
-- Icons are placeholders generated with `tauri icon`; branding is undecided.
-- Repo was committed from the Cowork Linux VM with `core.fileMode=false`. If Windows git reports
-  "dubious ownership", run `git config --global --add safe.directory D:/Proyectos/lumen`.
+- `ActionRequest.confirmed` is trusted from the UI (same app); it prevents accidental execution,
+  not a hostile UI.
+- Capability-derived actions beyond `secondary_actions` (T108) will need `authorize` widened to
+  accept registry-offered actions; keep the "UI sends ids only" rule.
+- Plain `cargo run` of `lumen-desktop` loads the dev URL; use `npm run tauri dev|build`.
+- If Windows git reports "dubious ownership": `git config --global --add safe.directory D:/Proyectos/lumen`.
 
 ## Unresolved evidence-based decisions
 
 - production EmbeddingGemma runtime (T006);
 - exact native backdrop path (T004);
 - vector scalar profile (T008);
-- FastFrame/egui comparative shell spike timing (TX01; not before Tauri baseline);
-- domain type serialization / TS binding generation (T011).
+- FastFrame/egui comparative shell spike timing (TX01);
+- TS binding generation (revisit per ADR-013 when DTOs > ~10).
