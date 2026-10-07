@@ -13,6 +13,7 @@ mod embed;
 mod fidelity;
 mod machine;
 mod stats;
+mod storage;
 mod synth;
 
 use std::process::ExitCode;
@@ -24,6 +25,7 @@ Usage: lumen-bench <command> [options]
 Commands:
   embed     Embedding backend latency/throughput/memory (T005/T006)
   ann       ANN index (USearch/HNSW) build/search/recall/memory/persistence (T008)
+  storage   SQLite/FTS5 insert throughput, per-keystroke lexical latency, size (T007)
 
 embed options:
   --backend NAME         backend to measure (default: mock)
@@ -66,6 +68,13 @@ ann options:
   --work-dir DIR         where index files are saved/loaded (default: temp dir)
   --vectors D.f32,Q.f32  real vectors (raw LE f32, --dim per row) instead of synthetic data
   --label TEXT / --json PATH   as for embed
+
+storage options:
+  --chunks N             chunks to insert (default: 100000)
+  --words N              words per chunk (default: 120)
+  --batch N              chunks per transaction (default: 1000)
+  --work-dir DIR         database location (default: temp dir; deleted afterwards)
+  --label TEXT / --json PATH
 ";
 
 fn main() -> ExitCode {
@@ -79,6 +88,12 @@ fn main() -> ExitCode {
         },
         Some("ann") => match parse_ann(&args[1..]).and_then(|(opts, json)| {
             ann::run(&opts).map(|r| (ann::summarize(&r), to_json(&r), json))
+        }) {
+            Ok((summary, json, path)) => emit(&summary, json, path),
+            Err(err) => usage_error(&err),
+        },
+        Some("storage") => match parse_storage(&args[1..]).and_then(|(opts, json)| {
+            storage::run(&opts).map(|r| (storage::summarize(&r), to_json(&r), json))
         }) {
             Ok((summary, json, path)) => emit(&summary, json, path),
             Err(err) => usage_error(&err),
@@ -182,6 +197,32 @@ fn parse_ann(args: &[String]) -> Result<(ann::AnnOptions, Option<String>), Strin
                     .ok_or("--vectors needs DOCS.f32,QUERIES.f32")?;
                 opts.vectors = Some((docs.into(), queries.into()));
             }
+            "--label" => opts.label = Some(value),
+            "--json" => json = Some(value),
+            other => return Err(format!("unknown option `{other}`")),
+        }
+    }
+    Ok((opts, json))
+}
+
+fn parse_storage(args: &[String]) -> Result<(storage::StorageOptions, Option<String>), String> {
+    let mut opts = storage::StorageOptions::default();
+    let mut json = None;
+    let mut it = args.iter();
+    while let Some(flag) = it.next() {
+        let value = it
+            .next()
+            .cloned()
+            .ok_or_else(|| format!("{flag} needs a value"))?;
+        let one = |v: &str| {
+            parse_list(flag, v)
+                .and_then(|l| l.first().copied().ok_or_else(|| format!("{flag}: empty")))
+        };
+        match flag.as_str() {
+            "--chunks" => opts.chunks = one(&value)?,
+            "--words" => opts.words = one(&value)?,
+            "--batch" => opts.batch = one(&value)?.max(1),
+            "--work-dir" => opts.work_dir = value.into(),
             "--label" => opts.label = Some(value),
             "--json" => json = Some(value),
             other => return Err(format!("unknown option `{other}`")),

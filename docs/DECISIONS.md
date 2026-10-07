@@ -210,3 +210,45 @@ Data: synthetic 256d vectors calibrated on real EmbeddingGemma 2 geometry (mean 
 - Evidence gaps: real-embedding recall at scale (`lumen-bench ann --vectors` +
   `scripts/embedding/embed_corpus.py` exist for it), Windows latencies
   (`scripts/t008/run-windows-ann.ps1`), filtered search (T208).
+
+## ADR-017 — SQLite store: bundled 3.53, WAL, user_version migrations, budgeted FTS5
+
+**Status:** Accepted (T007), implements ADR-003. Evidence:
+`docs/benchmarks/t007/2026-10-08-cloud-sandbox/storage-100k.json` and `lumen-storage` tests.
+
+**Decision**
+
+- **Bundled SQLite** (`rusqlite` 0.40 `bundled`, SQLite 3.53.2 with FTS5): identical engine on
+  every machine; no dependency on a system SQLite.
+- **One writer + N read-only readers, WAL, `synchronous=NORMAL`, `foreign_keys=ON`.** A reader
+  is never blocked by an open write transaction (tested). NORMAL can lose the last
+  transactions on power loss but never corrupts; the index is rebuildable.
+- **Migrations:** embedded SQL files, forward-only, versions contiguous from 1 in
+  `PRAGMA user_version`, one transaction per step (a failing step leaves no partial schema);
+  a database newer than the binary is refused, readers refuse unmigrated databases.
+  `0001_initial`: `items` (stable identity + case-insensitive unique path), `chunks`
+  (`embedding_generation` for T203), `chunks_fts`, `settings` (JSON), `usage_events`.
+- **FTS5:** external-content table over `chunks` kept in sync by triggers;
+  `unicode61 remove_diacritics 2` (case/accent-insensitive: "reunion" finds "reunión");
+  prefix indexes `3 4`; bm25 ranking; snippets marked with U+E000/U+E001.
+- **User input is never raw FTS syntax:** `FtsQuery::from_user` quotes every term, keeps
+  `"phrases"`, makes the last term a prefix only while typing and only from 3 characters
+  (`MIN_PREFIX_CHARS`).
+- **Interactive queries carry a `SearchBudget`** (deadline and/or `CancellationToken`)
+  enforced by SQLite's progress handler; an exceeded budget returns `Interrupted`, never a
+  late or partial answer.
+
+**Evidence (100k chunks × 120 words, 2 vCPU sandbox, worst-case 50-word vocabulary)**
+
+- Insert 8.8k chunks/s (16.9k without prefix indexes) — far above embedding speed.
+- 156 MiB database; path lookup p50 2 µs.
+- Per-keystroke FTS p50 0.05 ms but p95 73 ms / max 115 ms when common terms force bm25 over
+  most rows; with a 20 ms budget p95 20.1 ms / max 20.4 ms (73 of 852 interrupted).
+
+**Consequences**
+
+- The coordinator (T107) gives FTS a per-keystroke budget and cancels stale queries;
+  filename/app results (T102) cover keystrokes where FTS is interrupted or skipped.
+- Very common terms remain the cost driver; T205 may drop high-document-frequency terms
+  (fts5vocab) when selective terms exist.
+- `0001_initial.sql` may still change until the first release; afterwards only new migrations.

@@ -80,7 +80,10 @@ Benchmark/ADR required:
 - **T008 DONE (ADR-016):** `crates/lumen-vector` (USearch HNSW wrapper). f16 storage, cosine,
   M=16, ef_search=256: recall@10 1.000 at 100k / 0.988 at 1M, ≤2 ms queries, ~0.8 KB/vector.
   i8 rejected (recall 0.85). Read path via mmap; T203 adds a mutable delta.
-- Not yet: provider trait/registry, storage (T007), design tokens/material (T004/T103).
+- **T007 DONE (ADR-017):** `crates/lumen-storage` — bundled SQLite 3.53 + FTS5, WAL with
+  one writer/N readers, user_version migrations (0001: items, chunks, chunks_fts, settings,
+  usage_events), safe FTS query builder, budgeted/cancellable interactive search.
+- Not yet: provider trait/registry, file identity (T009), design tokens/material (T004/T103).
 
 ## Immediate objective
 

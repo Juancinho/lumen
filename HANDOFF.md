@@ -4,11 +4,22 @@
 
 ## Active branch
 
-`main`. Commits: spec baseline → T001 → T011 → T002 → T005 → T006 → T008.
+`main`. Commits: spec baseline → T001 → T011 → T002 → T005 → T006 → T008 → T007.
 
 ## Active task
 
-None claimed. DONE: T001, T002, T005, T006, T008, T011. Next: **T007** (SQLite/FTS5).
+None claimed. DONE: T001, T002, T005, T006, T007, T008, T011. Next: **T009** (file enumeration + stable identity).
+
+## T007 — outcome (ADR-017)
+
+- `crates/lumen-storage`: `Store::open_writer(path)` (WAL, pragmas, migrations) /
+  `Store::open_reader(path)` (read-only, query_only); `insert_item`, `item_id_by_path`,
+  `delete_item` (cascade), `insert_chunks` (one tx), `update_chunk_text`,
+  `search_chunks(&FtsQuery, limit, &SearchBudget)` → `ChunkHit { chunk_id, item_id, rank,
+  snippet }`, `checkpoint`, `query_plan`. Migrations in `crates/lumen-storage/migrations/`.
+- `FtsQuery::from_user(input, typing)`: quoted terms, phrases kept, prefix only ≥3 chars.
+- `SearchBudget::within(d).with_cancel(token)` → `StorageError::Interrupted`.
+- Bench: `lumen-bench storage`; results `docs/benchmarks/t007/2026-10-08-cloud-sandbox/`.
 
 ## T008 — outcome (ADR-016)
 
@@ -64,7 +75,7 @@ Windows: `run-windows-bench.ps1` ran on joao-pc (results above).
 1. **T013** device policy (CPU q4 default; probe + placement before ever using a GPU; profiles).
 2. **T014** if indexing speed matters before M2: LiteRT-LM (int4 QAT, 270M text model),
    llama.cpp GGUF (CPU/Vulkan/CUDA), Windows ML EPs, WebGPU EP — same harness/fidelity bar.
-3. Unblocked foundation tasks: T007 (SQLite/FTS), T009 (file identity), T010 (CI),
+3. Unblocked foundation tasks: T009 (file identity; then T101 is unblocked), T010 (CI),
    T003/T004/T012 (shell). T201/T204 can target `OrtBackend`; T203 can target `lumen-vector`.
 
 ## Known issues / notes

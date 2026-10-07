@@ -53,3 +53,8 @@ Append-only. Keep entries compact.
 - `crates/lumen-vector`: typed USearch 2.26.4 wrapper (Scalar f32/f16/bf16/i8, cosine/IP, HNSW params, add/search/remove/save/load/view).
 - `lumen-bench ann`: embedding-like synthetic data calibrated on real EmbeddingGemma 2 vectors, exact ground truth, ef sweep, persistence, deletes; `--vectors` for real embeddings; `scripts/t008/run-windows-ann.ps1`.
 - Sandbox: 100k f16 = f32 recall (1.000 @ef64), half memory; 1M needs ef 256 for 0.99 (1.3 ms); i8 caps at 0.85; bf16 0.995. ADR-016. Windows latency run and real-vector recall left as optional evidence.
+
+## 2026-10-08 — T007 SQLite + migrations + WAL + FTS5 (claude)
+
+- `crates/lumen-storage`: `Store::open_writer/open_reader`, migrations (0001_initial), items/chunks CRUD needed for proofs, `search_chunks` with bm25 + snippets, `FtsQuery::from_user`, `SearchBudget` (progress handler), checkpoint, query plans. 20 tests (FTS5 present, accents, prefix/phrase/symbol, hostile input, trigger sync, cascade, NOCASE unique path + index use, atomic batches, WAL reader isolation, budget interrupts).
+- `lumen-bench storage`: 100k chunks → 8.8k inserts/s, keystroke FTS p95 73 ms unbounded → 20 ms with budget. ADR-017.
