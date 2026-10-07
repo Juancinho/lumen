@@ -14,7 +14,8 @@
 //!    device choice never changes weights inside a generation (ADR-015 §4).
 //! 3. **Prove it first.** An accelerator is eligible only with a successful probe that shows
 //!    stable output, vectors interchangeable with CPU ones (cosine ≥ 0.999 on the same
-//!    inputs), the graph actually offloaded, and device memory within budget. Integrated
+//!    inputs), the graph actually offloaded, and device memory within budget
+//!    (min(1.5 GiB, 50 %); Turbo: 60 % of the device). Integrated
 //!    GPUs are excluded by default (T006: device hang on a Radeon iGPU).
 //! 4. **Faster by a margin, where it matters.** Queries stay on CPU while CPU meets the
 //!    latency budget; indexing moves to an accelerator only when its throughput beats CPU by
@@ -120,6 +121,9 @@ pub struct PolicyConfig {
     pub max_device_memory_mib: f64,
     /// Cap as a fraction of the device's total memory (leave room for games/other apps).
     pub max_device_memory_fraction: f64,
+    /// Turbo (the user asked for speed): the only cap is this fraction of the device's total
+    /// memory, which must be known.
+    pub turbo_max_device_memory_fraction: f64,
     pub allow_integrated_gpu: bool,
     /// Below this battery percentage indexing pauses (except Turbo).
     pub low_battery_percent: u8,
@@ -137,6 +141,7 @@ impl Default for PolicyConfig {
             min_offloaded_fraction: 0.9,
             max_device_memory_mib: 1536.0,
             max_device_memory_fraction: 0.5,
+            turbo_max_device_memory_fraction: 0.6,
             allow_integrated_gpu: false,
             low_battery_percent: 20,
             min_available_memory_mib: 768,
@@ -296,7 +301,7 @@ pub fn plan(
     let mut rejected = Vec::new();
     let mut eligible: Vec<(&DeviceProbe, ProbeMetrics)> = Vec::new();
     for p in probes.iter().filter(|p| p.device != CPU_DEVICE) {
-        match eligibility(p, space_key, quarantine, cpu.as_ref(), cfg) {
+        match eligibility(p, space_key, quarantine, cpu.as_ref(), state, cfg) {
             Ok(m) => eligible.push((p, m)),
             Err(why) => rejected.push((p.device.clone(), why)),
         }
@@ -394,6 +399,7 @@ fn eligibility(
     space_key: &str,
     quarantine: &Quarantine,
     cpu: Option<&ProbeMetrics>,
+    state: &SystemState,
     cfg: &PolicyConfig,
 ) -> Result<ProbeMetrics, Rejection> {
     if p.space_key != space_key {
@@ -425,12 +431,13 @@ fn eligibility(
     if p.integrated && !cfg.allow_integrated_gpu {
         return Err(Rejection::IntegratedGpu);
     }
-    let limit = m
-        .device_memory_total_mib
-        .map_or(cfg.max_device_memory_mib, |total| {
-            cfg.max_device_memory_mib
-                .min(total * cfg.max_device_memory_fraction)
-        });
+    let limit = match (state.profile, m.device_memory_total_mib) {
+        (ResourceProfile::Turbo, Some(total)) => total * cfg.turbo_max_device_memory_fraction,
+        (_, Some(total)) => cfg
+            .max_device_memory_mib
+            .min(total * cfg.max_device_memory_fraction),
+        (_, None) => cfg.max_device_memory_mib,
+    };
     if m.device_memory_mib.is_none_or(|used| used > limit) {
         return Err(Rejection::DeviceMemory {
             used_mib: m.device_memory_mib,
@@ -861,6 +868,57 @@ mod tests {
         );
         let p = run(&[cpu(), probe("dml:0", metrics(320.0, 8.4))], &s);
         assert!(matches!(p.indexing, IndexingPlan::Run { ref device, .. } if device == "dml:0"));
+    }
+
+    #[test]
+    fn turbo_relaxes_the_device_memory_cap_to_60_percent() {
+        // joao-pc (T013): GTX 1650 q4 used 2296 of 4096 MiB, 7.28 vs 3.10 chunks/s.
+        let gtx = || {
+            probe(
+                "dml:high",
+                ProbeMetrics {
+                    device_memory_mib: Some(2296.0),
+                    device_memory_total_mib: Some(4096.0),
+                    ..metrics(513.8, 7.28)
+                },
+            )
+        };
+        let mut cpu_probe = cpu();
+        if let ProbeOutcome::Measured(m) = &mut cpu_probe.outcome {
+            m.index_chunks_per_s = 3.10;
+        }
+        let balanced = run(&[cpu_probe.clone(), gtx()], &ac_idle());
+        assert!(
+            matches!(balanced.indexing, IndexingPlan::Run { ref device, .. } if device == CPU_DEVICE)
+        );
+
+        let mut turbo = ac_idle();
+        turbo.profile = ResourceProfile::Turbo;
+        let p = run(&[cpu_probe.clone(), gtx()], &turbo);
+        assert!(matches!(p.indexing, IndexingPlan::Run { ref device, .. } if device == "dml:high"));
+        assert_eq!(p.query_device, CPU_DEVICE, "queries stay on the faster CPU");
+
+        // Above 60 % even Turbo refuses; unknown totals keep the absolute cap.
+        let greedy = probe(
+            "dml:high",
+            ProbeMetrics {
+                device_memory_mib: Some(2600.0),
+                device_memory_total_mib: Some(4096.0),
+                ..metrics(513.8, 7.28)
+            },
+        );
+        let p = run(&[cpu_probe.clone(), greedy], &turbo);
+        assert!(matches!(p.indexing, IndexingPlan::Run { ref device, .. } if device == CPU_DEVICE));
+        let unknown_total = probe(
+            "dml:high",
+            ProbeMetrics {
+                device_memory_mib: Some(2296.0),
+                device_memory_total_mib: None,
+                ..metrics(513.8, 7.28)
+            },
+        );
+        let p = run(&[cpu_probe, unknown_total], &turbo);
+        assert!(matches!(p.indexing, IndexingPlan::Run { ref device, .. } if device == CPU_DEVICE));
     }
 
     #[test]

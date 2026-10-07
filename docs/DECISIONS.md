@@ -339,7 +339,8 @@ Refines ADR-015 §3–4. Code: `lumen_embedding::policy` (pure rules), `lumen_em
 - **Eligibility (all required):** successful probe; stable output (two runs ≥ 0.99999 cosine,
   no NaN/zero); vectors interchangeable with CPU ones (min cosine ≥ 0.999 on the same
   inputs); ≥ 90 % of graph nodes offloaded (placement known); device memory known and
-  ≤ min(1.5 GiB, 50 % of the device); not an integrated GPU (opt-in only — T006 device hang);
+  ≤ min(1.5 GiB, 50 % of the device) — in **Turbo** (user decision 2026-10-08) ≤ 60 % of the
+  device, total memory required; not an integrated GPU (opt-in only — T006 device hang);
   not quarantined; a successful CPU probe exists to compare with.
 - **Query lane:** stays on CPU while CPU p95 ≤ 120 ms; otherwise the fastest eligible
   accelerator if ≥ 1.5× faster. Never paused.
@@ -365,6 +366,8 @@ The GPU passes stability, fidelity and placement and is fast enough for indexing
 (Balanced AC idle 6 threads, active 3, battery 1, battery 15 % paused, Eco 1, Turbo 11, low
 memory paused). Vectors from DirectML are interchangeable with CPU ones (cos ≥ 0.9999995), so a
 future accelerator can join an existing index generation.
+With the Turbo cap (60 % = 2,458 MiB) the same probes give `turbo → indexing on dml:high`
+(2.35× faster), every other scenario unchanged (`policy-v2.json`).
 
 **Consequences**
 

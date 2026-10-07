@@ -395,12 +395,23 @@ pub(crate) fn run_policy(
         return Err("device-policy needs at least one --probe FILE".into());
     }
     let mut probes = Vec::new();
+    // Thread counts are for the machine that was probed, not the one running this command.
+    let mut probed_cpus: Option<usize> = None;
     for path in files {
         let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
         // PowerShell 5.1 writes UTF-8 with a BOM.
         let text = text.trim_start_matches('\u{feff}');
         let f: ProbeFile =
             serde_json::from_str(text).map_err(|e| format!("{}: {e}", path.display()))?;
+        if f.device == CPU_DEVICE {
+            probed_cpus = f
+                .machine
+                .as_ref()
+                .and_then(|m| m.get("logical_cpus"))
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|n| usize::try_from(n).ok())
+                .filter(|&n| n > 0);
+        }
         probes.push(f.to_probe());
     }
     let space_key = space
@@ -411,7 +422,8 @@ pub(crate) fn run_policy(
                 .map(|p| p.space_key.clone())
         })
         .ok_or("no CPU probe with a space key; pass --space")?;
-    let logical_cpus = std::thread::available_parallelism().map_or(1, usize::from);
+    let logical_cpus =
+        probed_cpus.unwrap_or_else(|| std::thread::available_parallelism().map_or(1, usize::from));
     let plans = scenarios(logical_cpus)
         .into_iter()
         .map(|(scenario, state)| {
