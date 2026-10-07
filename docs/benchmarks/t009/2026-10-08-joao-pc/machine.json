@@ -1,0 +1,20 @@
+{
+    "cpu":  "AMD Ryzen 5 5600H with Radeon Graphics",
+    "threads":  12,
+    "ram_gb":  15.3,
+    "os":  "Microsoft Windows 11 Pro 10.0.26300 (build 26300)",
+    "long_paths_enabled":  1,
+    "volumes":  [
+                    {
+                        "drive":  "D:",
+                        "fs":  "NTFS",
+                        "size_gb":  931.5
+                    },
+                    {
+                        "drive":  "C:",
+                        "fs":  "NTFS",
+                        "size_gb":  476
+                    }
+                ],
+    "date":  "2026-10-08T01:17:00"
+}

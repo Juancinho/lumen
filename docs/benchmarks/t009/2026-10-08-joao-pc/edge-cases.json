@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "kind": "scan",
+  "label": "edge-cases",
+  "machine": {
+    "os": "windows",
+    "arch": "x86_64",
+    "logical_cpus": 12,
+    "cpu": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791415044
+  },
+  "roots": 1,
+  "identity": true,
+  "passes": [
+    {
+      "elapsed_s": 0.0049887,
+      "entries_per_s": 8419.02700102231
+    }
+  ],
+  "files": 8,
+  "dirs": 33,
+  "links": 1,
+  "other": 0,
+  "unknown": 0,
+  "bytes": 7,
+  "hidden": 1,
+  "system": 1,
+  "cloud_placeholders": 0,
+  "non_unicode_paths": 1,
+  "identity_skipped": 1,
+  "shared_identities": 0,
+  "excluded_by_rule": {
+    "system:$Recycle.Bin": 1
+  },
+  "issues": {
+    "ListDirectory/PermissionDenied": 1,
+    "ReadIdentity/PermissionDenied": 1
+  },
+  "blocking_issues": 1,
+  "complete": false,
+  "overlapping_roots": 0,
+  "memory_after": {
+    "resident_mib": 5.16015625,
+    "virtual_mib": 0.859375
+  }
+}

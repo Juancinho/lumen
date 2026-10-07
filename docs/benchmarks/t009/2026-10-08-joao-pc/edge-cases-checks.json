@@ -1,0 +1,9 @@
+{
+    "all 8 readable files found":  true,
+    "junction emitted, not followed":  true,
+    "hidden+system file counted":  true,
+    "unreadable folder reported, not hidden":  true,
+    "recycle bin excluded by a visible rule":  true,
+    "non-Unicode name emitted":  true,
+    "identity read (locked folder may refuse)":  true
+}

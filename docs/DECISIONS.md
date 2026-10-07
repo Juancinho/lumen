@@ -210,6 +210,10 @@ Data: synthetic 256d vectors calibrated on real EmbeddingGemma 2 geometry (mean 
 - Evidence gaps: real-embedding recall at scale (`lumen-bench ann --vectors` +
   `scripts/embedding/embed_corpus.py` exist for it), Windows latencies
   (`scripts/t008/run-windows-ann.ps1`), filtered search (T208).
+- **Windows/MSVC build:** usearch 2.26.4 + numkong 7.8.5 fail to link (`__imp_nk_*`,
+  LNK2019: numkong headers declare `dllimport` but the crate builds a static library).
+  Workaround in `.cargo/config.toml` `[env]`: `CXXFLAGS_<msvc target> = "/DNK_DYNAMIC="`.
+  Found during T009 (T008 had only been built on Linux); remove when fixed upstream.
 
 ## ADR-017 — SQLite store: bundled 3.53, WAL, user_version migrations, budgeted FTS5
 
@@ -258,8 +262,8 @@ Data: synthetic 256d vectors calibrated on real EmbeddingGemma 2 geometry (mean 
 
 ## ADR-018 — Inventory coverage guarantee and stable file identity
 
-**Status:** Proposed (T009) → Accepted once `scripts/t009/run-windows-scan.ps1` passes on
-Windows. Evidence: `crates/lumen-indexer` tests,
+**Status:** Accepted (T009). Evidence: `crates/lumen-indexer` tests (Linux + native Windows),
+`docs/benchmarks/t009/2026-10-08-joao-pc/` (Windows 11, NTFS C: and D:) and
 `docs/benchmarks/t009/2026-10-08-cloud-sandbox/`.
 
 **Decision**
@@ -283,6 +287,17 @@ Windows. Evidence: `crates/lumen-indexer` tests,
   space, reserved names like `aux.txt`) are retried through the `\\?\` verbatim path.
   Non-Unicode paths (unpaired UTF-16 surrogates) are emitted and counted.
 
+**Evidence (Windows 11, Ryzen 5 5600H, user folders incl. OneDrive: 26.5k entries, 18.9 GiB)**
+
+- Coverage COMPLETE, 0 issues; entry count equals an independent .NET walk (26,469 = 26,469).
+  515 cloud placeholders inventoried without hydration; 3 junctions not followed.
+- Without identity: 22k entries/s first pass, 122k/s warm. With identity (one handle open per
+  entry): 7.3k/s first pass, 15.6k/s warm — identity is the dominant cost.
+- Edge cases all reported correctly: 683-char path, junction loop, hidden+system file,
+  ACL-denied folder (emitted + `ListDirectory/PermissionDenied`, coverage flagged incomplete),
+  `$Recycle.Bin` excluded by rule, unpaired-surrogate name, trailing dot, `aux.txt`.
+- identity-check on C: and D: (NTFS): all as expected; delete + recreate got a new id.
+
 **Evidence (2 vCPU Linux sandbox, 240k entries, identity on)**
 
 - First pass 33k entries/s (cold cache), second pass 349k entries/s; 0 issues; 9.7k links not
@@ -300,3 +315,6 @@ Windows. Evidence: `crates/lumen-indexer` tests,
   = rename; identity alone never proves same content (inode reuse, FAT/exFAT and some network
   shares synthesize ids) — always combine with size/mtime/fingerprint.
 - Storage must keep non-Unicode paths losslessly (TEXT columns need an escape scheme, T101).
+- Identity costs ~7× the walk when warm. T101/T207 should read ids in bulk per directory
+  (`GetFileInformationByHandleEx(FileIdExtdDirectoryInfo)` on the directory handle) or defer
+  identity to a background pass after names/paths are searchable.

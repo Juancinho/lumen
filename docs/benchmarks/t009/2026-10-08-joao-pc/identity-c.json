@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "kind": "identity-check",
+  "label": "C: NTFS",
+  "machine": {
+    "os": "windows",
+    "arch": "x86_64",
+    "logical_cpus": 12,
+    "cpu": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791415054
+  },
+  "cases": [
+    {
+      "case": "rename",
+      "expected_same": true,
+      "same": true,
+      "ok": true,
+      "note": "same item, new path"
+    },
+    {
+      "case": "move_same_volume",
+      "expected_same": true,
+      "same": true,
+      "ok": true,
+      "note": "same item, new parent"
+    },
+    {
+      "case": "edit_in_place",
+      "expected_same": true,
+      "same": true,
+      "ok": true,
+      "note": "content changed; fingerprint decides re-index"
+    },
+    {
+      "case": "copy",
+      "expected_same": false,
+      "same": false,
+      "ok": true,
+      "note": "a new item"
+    },
+    {
+      "case": "save_by_replace",
+      "expected_same": false,
+      "same": false,
+      "ok": true,
+      "note": "new id at the same path: T207 must treat same path + new id as an update"
+    },
+    {
+      "case": "hard_link",
+      "expected_same": true,
+      "same": true,
+      "ok": true,
+      "note": "two paths, one file: second path is an alias, not a new item"
+    },
+    {
+      "case": "delete_and_recreate",
+      "expected_same": null,
+      "same": false,
+      "ok": true,
+      "note": "may be reused on Unix (inodes); never trust identity without size/mtime"
+    }
+  ],
+  "all_ok": true
+}

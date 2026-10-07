@@ -1,3 +1,12 @@
 [alias]
 # Repository tooling: `cargo xtask arch` enforces the shell -> core dependency direction.
 xtask = "run --package xtask --quiet --"
+
+[env]
+# usearch 2.26.4 + numkong 7.8.5 on MSVC: numkong's headers declare its functions
+# `__declspec(dllimport)` whenever NK_DYNAMIC_DISPATCH=1, but the numkong crate builds a
+# static library, so linking fails with unresolved `__imp_nk_*` symbols (LNK2019). Defining
+# NK_DYNAMIC as empty for C++ only (usearch's bridge) makes them plain externs; numkong's own
+# C sources still define it (dllexport) via c/dispatch.h. Remove once fixed upstream.
+CXXFLAGS_x86_64_pc_windows_msvc = "/DNK_DYNAMIC="
+CXXFLAGS_aarch64_pc_windows_msvc = "/DNK_DYNAMIC="

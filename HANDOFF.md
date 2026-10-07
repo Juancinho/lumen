@@ -8,10 +8,9 @@
 
 ## Active task
 
-**T009 REVIEW** — needs one Windows run: `powershell -ExecutionPolicy Bypass -File
-scripts\t009\run-windows-scan.ps1` (unit tests natively, edge cases, real-folder counts vs .NET,
-identity-check per drive). All checks green → DONE, ADR-018 Accepted.
-DONE: T001, T002, T005, T006, T007, T008, T011.
+None claimed. DONE: T001, T002, T005, T006, T007, T008, T009, T011.
+Next: **T010** (CI baseline incl. a Windows build — the usearch MSVC link failure found in
+T009 shows Linux-only checks are not enough).
 
 ## T009 — outcome (ADR-018)
 
@@ -21,8 +20,11 @@ DONE: T001, T002, T005, T006, T007, T008, T011.
   `ScanEntry { path, kind, size, modified_ms, created_ms, flags, identity }`.
   `identity_of(path)` → `FileIdentity { volume, file }` (`volume_key()/file_key()` hex for
   `items`). Windows-only `winpath::verbatim`.
-- Windows-specific code paths (attributes, junctions, verbatim retry) are compiled and tested
-  only by the Windows script; the sandbox cannot build the msvc target.
+- Windows run (`scripts/t009/run-windows-scan.ps1`, results in
+  `docs/benchmarks/t009/2026-10-08-joao-pc/`): 12/12 native tests, 7/7 edge-case checks,
+  coverage COMPLETE and count = .NET walk, identity-check OK on C: and D:.
+- Identity is ~7× the walk cost warm → bulk per-directory ids or a deferred pass (T101/T207).
+- `.cargo/config.toml [env]` carries the usearch/numkong MSVC link workaround (ADR-016).
 - Bench: `lumen-bench scan --root DIR [--identity --repeat N --exclude-name X]` (counts only,
   no paths in JSON), `lumen-bench identity-check [--dir DIR]`.
 - Findings for T101/T207: hard links vs `UNIQUE(volume_id, file_id)`; save-by-replace gives a
@@ -90,7 +92,6 @@ Windows: `run-windows-bench.ps1` ran on joao-pc (results above).
 
 ## Exact next steps
 
-0. Run `scripts/t009/run-windows-scan.ps1`; if green, T009 → DONE (then T101 is unblocked).
 1. **T013** device policy (CPU q4 default; probe + placement before ever using a GPU; profiles).
 2. **T014** if indexing speed matters before M2: LiteRT-LM (int4 QAT, 270M text model),
    llama.cpp GGUF (CPU/Vulkan/CUDA), Windows ML EPs, WebGPU EP — same harness/fidelity bar.

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "kind": "scan",
+  "label": "user folders + identity",
+  "machine": {
+    "os": "windows",
+    "arch": "x86_64",
+    "logical_cpus": 12,
+    "cpu": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791415051
+  },
+  "roots": 5,
+  "identity": true,
+  "passes": [
+    {
+      "elapsed_s": 3.6337734,
+      "entries_per_s": 7284.163619008274
+    },
+    {
+      "elapsed_s": 1.6955019999999998,
+      "entries_per_s": 15611.305678200322
+    }
+  ],
+  "files": 23323,
+  "dirs": 3143,
+  "links": 3,
+  "other": 0,
+  "unknown": 0,
+  "bytes": 20278763203,
+  "hidden": 36,
+  "system": 12,
+  "cloud_placeholders": 515,
+  "non_unicode_paths": 0,
+  "identity_skipped": 3,
+  "shared_identities": 0,
+  "excluded_by_rule": {},
+  "issues": {},
+  "blocking_issues": 0,
+  "complete": true,
+  "overlapping_roots": 0,
+  "memory_after": {
+    "resident_mib": 4.73828125,
+    "virtual_mib": 2.3203125
+  }
+}

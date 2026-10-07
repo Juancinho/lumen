@@ -213,13 +213,13 @@ pub(crate) fn summarize(r: &ScanBenchReport) -> String {
         s,
         "  coverage: {}",
         if r.complete {
-            "COMPLETE — every entry emitted or excluded by a rule"
+            "COMPLETE - every entry emitted or excluded by a rule"
         } else {
-            "INCOMPLETE — see blocking issues above"
+            "INCOMPLETE - see blocking issues above"
         }
     );
     if r.machine.build_profile != "release" {
-        s.push_str("  WARNING: debug build — not acceptance evidence\n");
+        s.push_str("  WARNING: debug build - not acceptance evidence\n");
     }
     s
 }
