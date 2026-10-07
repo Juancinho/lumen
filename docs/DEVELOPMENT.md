@@ -34,6 +34,7 @@ crates/
                            CPU (default) / DirectML (feature `directml`), placement diagnostics
   lumen-storage/           SQLite (ADR-017): migrations/, WAL writer+readers, FTS5, SearchBudget
   lumen-vector/            ANN index (USearch HNSW, ADR-016): f16, cosine, add/search/remove/save/view
+  lumen-indexer/           Pass 0 inventory: scan with coverage guarantee, stable FileIdentity (ADR-018)
   lumen-bench/             benchmark harness binary `lumen-bench` (release-mode, JSON reports)
 apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
   src/                     React UI
@@ -116,6 +117,8 @@ Benchmarks (release builds only; debug runs are flagged in the report):
 | Embedding backend latency/throughput/memory | `cargo run --release -p lumen-bench -- embed --json target/bench/embed-<backend>.json` |
 | ANN index build/recall/latency/persistence | `cargo run --release -p lumen-bench -- ann --sizes 100000 --json target/bench/ann.json` |
 | SQLite/FTS5 insert + per-keystroke latency | `cargo run --release -p lumen-bench -- storage --json target/bench/storage.json` |
+| File inventory coverage/speed (counts only) | `cargo run --release -p lumen-bench -- scan --root DIR --identity --json target/bench/scan.json` |
+| Stable identity semantics on a volume | `cargo run --release -p lumen-bench -- identity-check --dir DIR` |
 | Options | `cargo run --release -p lumen-bench -- --help` (`--backend`, `--dim`, `--iterations`, `--batch-sizes`, `--label`, …) |
 
 Real model (ADR-015): `cargo run --release -p lumen-bench --features ort -- embed --backend ort

@@ -12,6 +12,7 @@ mod corpus;
 mod embed;
 mod fidelity;
 mod machine;
+mod scan;
 mod stats;
 mod storage;
 mod synth;
@@ -26,6 +27,8 @@ Commands:
   embed     Embedding backend latency/throughput/memory (T005/T006)
   ann       ANN index (USearch/HNSW) build/search/recall/memory/persistence (T008)
   storage   SQLite/FTS5 insert throughput, per-keystroke lexical latency, size (T007)
+  scan      File inventory over real folders: counts, coverage, speed (T009; no paths stored)
+  identity-check  Stable file identity under rename/move/copy/save/hard link (T009)
 
 embed options:
   --backend NAME         backend to measure (default: mock)
@@ -75,6 +78,19 @@ storage options:
   --batch N              chunks per transaction (default: 1000)
   --work-dir DIR         database location (default: temp dir; deleted afterwards)
   --label TEXT / --json PATH
+
+scan options:
+  --root DIR             folder to inventory (repeatable)
+  --identity             also read stable file identity (one handle open per entry)
+  --exclude-name NAME    exclude entries with this name anywhere (repeatable)
+  --no-system-exclusions include $Recycle.Bin, System Volume Information...
+  --repeat N             passes over the same roots (default: 1)
+  --show-issues N        print the first N issue paths to stderr (default: 10)
+  --label TEXT / --json PATH
+
+identity-check options:
+  --dir DIR              scratch location on the volume under test (default: temp dir)
+  --label TEXT / --json PATH
 ";
 
 fn main() -> ExitCode {
@@ -94,6 +110,19 @@ fn main() -> ExitCode {
         },
         Some("storage") => match parse_storage(&args[1..]).and_then(|(opts, json)| {
             storage::run(&opts).map(|r| (storage::summarize(&r), to_json(&r), json))
+        }) {
+            Ok((summary, json, path)) => emit(&summary, json, path),
+            Err(err) => usage_error(&err),
+        },
+        Some("scan") => match parse_scan(&args[1..]).and_then(|(opts, json)| {
+            scan::run(&opts).map(|r| (scan::summarize(&r), to_json(&r), json))
+        }) {
+            Ok((summary, json, path)) => emit(&summary, json, path),
+            Err(err) => usage_error(&err),
+        },
+        Some("identity-check") => match parse_identity(&args[1..]).and_then(|(dir, label, json)| {
+            scan::identity_check(&dir, label)
+                .map(|r| (scan::summarize_identity(&r), to_json(&r), json))
         }) {
             Ok((summary, json, path)) => emit(&summary, json, path),
             Err(err) => usage_error(&err),
@@ -229,6 +258,69 @@ fn parse_storage(args: &[String]) -> Result<(storage::StorageOptions, Option<Str
         }
     }
     Ok((opts, json))
+}
+
+fn parse_scan(args: &[String]) -> Result<(scan::ScanBenchOptions, Option<String>), String> {
+    let mut opts = scan::ScanBenchOptions {
+        system_exclusions: true,
+        repeat: 1,
+        show_issues: 10,
+        ..scan::ScanBenchOptions::default()
+    };
+    let mut json = None;
+    let mut it = args.iter();
+    while let Some(flag) = it.next() {
+        match flag.as_str() {
+            "--identity" => {
+                opts.identity = true;
+                continue;
+            }
+            "--no-system-exclusions" => {
+                opts.system_exclusions = false;
+                continue;
+            }
+            _ => {}
+        }
+        let value = it
+            .next()
+            .cloned()
+            .ok_or_else(|| format!("{flag} needs a value"))?;
+        let one = |v: &str| {
+            parse_list(flag, v)
+                .and_then(|l| l.first().copied().ok_or_else(|| format!("{flag}: empty")))
+        };
+        match flag.as_str() {
+            "--root" => opts.roots.push(value.into()),
+            "--exclude-name" => opts.exclude_names.push(value),
+            "--repeat" => opts.repeat = one(&value)?.max(1),
+            "--show-issues" => opts.show_issues = one(&value)?,
+            "--label" => opts.label = Some(value),
+            "--json" => json = Some(value),
+            other => return Err(format!("unknown option `{other}`")),
+        }
+    }
+    Ok((opts, json))
+}
+
+type IdentityArgs = (std::path::PathBuf, Option<String>, Option<String>);
+
+fn parse_identity(args: &[String]) -> Result<IdentityArgs, String> {
+    let mut dir = std::env::temp_dir();
+    let (mut label, mut json) = (None, None);
+    let mut it = args.iter();
+    while let Some(flag) = it.next() {
+        let value = it
+            .next()
+            .cloned()
+            .ok_or_else(|| format!("{flag} needs a value"))?;
+        match flag.as_str() {
+            "--dir" => dir = value.into(),
+            "--label" => label = Some(value),
+            "--json" => json = Some(value),
+            other => return Err(format!("unknown option `{other}`")),
+        }
+    }
+    Ok((dir, label, json))
 }
 
 fn parse_embed(args: &[String]) -> Result<(embed::EmbedOptions, Option<String>), String> {

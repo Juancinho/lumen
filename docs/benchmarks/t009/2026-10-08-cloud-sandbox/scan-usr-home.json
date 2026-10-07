@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "kind": "scan",
+  "label": "cloud-sandbox",
+  "machine": {
+    "os": "linux",
+    "arch": "x86_64",
+    "logical_cpus": 2,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791412378
+  },
+  "roots": 2,
+  "identity": true,
+  "passes": [
+    {
+      "elapsed_s": 7.273898702,
+      "entries_per_s": 33071.67309518025
+    },
+    {
+      "elapsed_s": 0.689672033,
+      "entries_per_s": 348803.4725050247
+    }
+  ],
+  "files": 205955,
+  "dirs": 24923,
+  "links": 9682,
+  "other": 0,
+  "unknown": 0,
+  "bytes": 27237915905,
+  "hidden": 424,
+  "system": 0,
+  "cloud_placeholders": 0,
+  "non_unicode_paths": 0,
+  "identity_skipped": 9682,
+  "shared_identities": 3636,
+  "excluded_by_rule": {},
+  "issues": {},
+  "blocking_issues": 0,
+  "complete": true,
+  "overlapping_roots": 0,
+  "memory_after": {
+    "resident_mib": 6.9296875,
+    "virtual_mib": 14.15625
+  }
+}

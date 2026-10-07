@@ -58,3 +58,10 @@ Append-only. Keep entries compact.
 
 - `crates/lumen-storage`: `Store::open_writer/open_reader`, migrations (0001_initial), items/chunks CRUD needed for proofs, `search_chunks` with bm25 + snippets, `FtsQuery::from_user`, `SearchBudget` (progress handler), checkpoint, query plans. 20 tests (FTS5 present, accents, prefix/phrase/symbol, hostile input, trigger sync, cascade, NOCASE unique path + index use, atomic batches, WAL reader isolation, budget interrupts).
 - `lumen-bench storage`: 100k chunks → 8.8k inserts/s, keystroke FTS p95 73 ms unbounded → 20 ms with budget. ADR-017.
+
+## 2026-10-08 — T009 file enumeration + stable identity (claude)
+
+- User requirement: no file may go unindexed silently → coverage guarantee designed in (ADR-018).
+- `crates/lumen-indexer`: iterative scan (emit / excluded-with-rule / issue-with-stage), links and junctions not followed, overlapping roots merged, hidden/system/cloud flags, recall-on-open placeholders never opened, identity via `file-id` with verbatim-path retry. 12 tests + 2 Windows-only (junction loop, trailing-dot/reserved names) and hidden attribute via `attrib`.
+- `lumen-bench scan` / `identity-check`; `scripts/t009/run-windows-scan.ps1` (edge cases incl. >260-char path, junction loop, ACL-denied folder, unpaired surrogate; .NET oracle count; per-drive identity).
+- Sandbox: 240k entries, 33k/s cold, 349k/s warm, 0 issues; identity-check as designed (inode reused on recreate). ADR-017 note: budget interruption never affects the index.

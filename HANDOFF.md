@@ -4,11 +4,29 @@
 
 ## Active branch
 
-`main`. Commits: spec baseline → T001 → T011 → T002 → T005 → T006 → T008 → T007.
+`main`. Commits: spec baseline → T001 → T011 → T002 → T005 → T006 → T008 → T007 → T009.
 
 ## Active task
 
-None claimed. DONE: T001, T002, T005, T006, T007, T008, T011. Next: **T009** (file enumeration + stable identity).
+**T009 REVIEW** — needs one Windows run: `powershell -ExecutionPolicy Bypass -File
+scripts\t009\run-windows-scan.ps1` (unit tests natively, edge cases, real-folder counts vs .NET,
+identity-check per drive). All checks green → DONE, ADR-018 Accepted.
+DONE: T001, T002, T005, T006, T007, T008, T011.
+
+## T009 — outcome (ADR-018)
+
+- `crates/lumen-indexer`: `scan(&ScanOptions { roots, exclusions, identity }, on_entry, cancel)`
+  → `ScanReport` (counts, `excluded` with rule, `issues` with `IssueStage`/`IssueKind`,
+  `is_complete()`, `blocking_issues()`, `non_unicode_paths`, `identity_skipped`).
+  `ScanEntry { path, kind, size, modified_ms, created_ms, flags, identity }`.
+  `identity_of(path)` → `FileIdentity { volume, file }` (`volume_key()/file_key()` hex for
+  `items`). Windows-only `winpath::verbatim`.
+- Windows-specific code paths (attributes, junctions, verbatim retry) are compiled and tested
+  only by the Windows script; the sandbox cannot build the msvc target.
+- Bench: `lumen-bench scan --root DIR [--identity --repeat N --exclude-name X]` (counts only,
+  no paths in JSON), `lumen-bench identity-check [--dir DIR]`.
+- Findings for T101/T207: hard links vs `UNIQUE(volume_id, file_id)`; save-by-replace gives a
+  new id at the same path; inode reuse; non-Unicode paths need lossless storage.
 
 ## T007 — outcome (ADR-017)
 
@@ -62,7 +80,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo clippy -p lumen-bench --features directml --all-targets -- -D warnings
 cargo test --workspace
-cargo xtask arch            # 4 core crates OK
+cargo xtask arch            # 6 core crates + bench OK
 LUMEN_EG2_MODEL_DIR=… LUMEN_ORT_DYLIB=… cargo test -p lumen-embedding-ort --release --test fidelity
 cd apps/desktop && npm run check
 ```
@@ -72,10 +90,11 @@ Windows: `run-windows-bench.ps1` ran on joao-pc (results above).
 
 ## Exact next steps
 
+0. Run `scripts/t009/run-windows-scan.ps1`; if green, T009 → DONE (then T101 is unblocked).
 1. **T013** device policy (CPU q4 default; probe + placement before ever using a GPU; profiles).
 2. **T014** if indexing speed matters before M2: LiteRT-LM (int4 QAT, 270M text model),
    llama.cpp GGUF (CPU/Vulkan/CUDA), Windows ML EPs, WebGPU EP — same harness/fidelity bar.
-3. Unblocked foundation tasks: T009 (file identity; then T101 is unblocked), T010 (CI),
+3. Unblocked foundation tasks: T101 (after T009), T010 (CI),
    T003/T004/T012 (shell). T201/T204 can target `OrtBackend`; T203 can target `lumen-vector`.
 
 ## Known issues / notes

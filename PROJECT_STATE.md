@@ -83,7 +83,11 @@ Benchmark/ADR required:
 - **T007 DONE (ADR-017):** `crates/lumen-storage` — bundled SQLite 3.53 + FTS5, WAL with
   one writer/N readers, user_version migrations (0001: items, chunks, chunks_fts, settings,
   usage_events), safe FTS query builder, budgeted/cancellable interactive search.
-- Not yet: provider trait/registry, file identity (T009), design tokens/material (T004/T103).
+- **T009 REVIEW (ADR-018):** `crates/lumen-indexer` — Pass 0 inventory with a coverage
+  guarantee (every entry emitted, excluded by a visible rule, or reported as an issue), links
+  never followed, cloud placeholders metadata-only, stable identity (volume + file id).
+  Sandbox: 240k entries, 0 issues. Awaiting `scripts/t009/run-windows-scan.ps1` on Windows.
+- Not yet: provider trait/registry, design tokens/material (T004/T103).
 
 ## Immediate objective
 
@@ -119,6 +123,6 @@ Complete M0 without overbuilding:
 - background indexing resource spikes;
 - provider ranking complexity;
 - semantic reranking focus instability;
-- NTFS/non-NTFS identity edge cases;
+- NTFS/non-NTFS identity edge cases (hard links, save-by-replace, id reuse: ADR-018);
 - scope creep from launcher/productivity features;
 - overengineering extension SDK too early.

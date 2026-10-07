@@ -249,6 +249,54 @@ Data: synthetic 256d vectors calibrated on real EmbeddingGemma 2 geometry (mean 
 
 - The coordinator (T107) gives FTS a per-keystroke budget and cancels stale queries;
   filename/app results (T102) cover keystrokes where FTS is interrupted or skipped.
+  **Interruption affects one keystroke's query only, never the index:** when typing pauses,
+  the final query is re-issued with a generous budget so complete lexical results always
+  appear (T107 must test this).
 - Very common terms remain the cost driver; T205 may drop high-document-frequency terms
   (fts5vocab) when selective terms exist.
 - `0001_initial.sql` may still change until the first release; afterwards only new migrations.
+
+## ADR-018 — Inventory coverage guarantee and stable file identity
+
+**Status:** Proposed (T009) → Accepted once `scripts/t009/run-windows-scan.ps1` passes on
+Windows. Evidence: `crates/lumen-indexer` tests,
+`docs/benchmarks/t009/2026-10-08-cloud-sandbox/`.
+
+**Decision**
+
+- **No file is ever dropped silently.** Pass 0 (`lumen_indexer::scan`) emits every entry under
+  an indexed root (at least path + name + kind), or records it as an exclusion with the rule
+  that matched, or records a `ScanIssue` (stage + reason). Metadata, flag or identity failures
+  degrade an entry but never suppress it. `ScanReport::is_complete()` is false whenever a
+  directory could not be listed or the walk was cancelled; those paths must be retried.
+- **Exclusions are visible rules:** system defaults (`$Recycle.Bin`, `System Volume
+  Information`, `$WinREAgent`, `Config.Msi`, case-insensitive) plus user names/paths; each
+  exclusion is reported with its rule. Hidden and system files are indexed (flagged), not
+  excluded.
+- **Iterative walk, links never followed:** symlinks, junctions and other name-surrogate
+  reparse points are emitted as links but not traversed (no loops, no double counting);
+  overlapping roots are merged. Cloud placeholders (OneDrive files on demand) are emitted from
+  directory metadata only; identity is skipped for recall-on-open placeholders so scanning
+  never triggers a download.
+- **Identity = volume serial + 128-bit file id** (Windows, via `file-id`; handle opened with
+  no data access, full sharing) or dev + inode (Unix). Names Win32 rewrites (trailing dot or
+  space, reserved names like `aux.txt`) are retried through the `\\?\` verbatim path.
+  Non-Unicode paths (unpaired UTF-16 surrogates) are emitted and counted.
+
+**Evidence (2 vCPU Linux sandbox, 240k entries, identity on)**
+
+- First pass 33k entries/s (cold cache), second pass 349k entries/s; 0 issues; 9.7k links not
+  followed; 3.6k hard-linked entries detected as shared identities.
+- identity-check: rename, move, in-place edit keep identity; copy and save-by-replace get a
+  new one; hard links share one; delete + recreate **reused** the inode on ext4.
+
+**Consequences**
+
+- T101 stores every emitted entry, including ones with failed metadata (`status = 'error'`
+  with `error_code`), so they are still findable by name/path.
+- `items UNIQUE(volume_id, file_id)` conflicts with hard links: T101 must store the second
+  path as an alias of the same item (or relax the constraint in a new migration).
+- T207: same path + new identity = update (editor save-by-replace); same identity + new path
+  = rename; identity alone never proves same content (inode reuse, FAT/exFAT and some network
+  shares synthesize ids) — always combine with size/mtime/fingerprint.
+- Storage must keep non-Unicode paths losslessly (TEXT columns need an escape scheme, T101).
