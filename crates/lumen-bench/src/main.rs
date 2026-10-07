@@ -9,6 +9,7 @@
 
 mod corpus;
 mod embed;
+mod fidelity;
 mod machine;
 mod stats;
 
@@ -30,11 +31,21 @@ embed options:
   --docs N               synthetic document chunks (default: 256)
   --doc-words N          words per chunk (default: 200)
   --queries FILE         one query per line instead of the built-in set
+  --long-words N         words of the long-input probe, 0 = off (default: 100 ≈ 128 tokens)
+  --reference FILE       fidelity check against reference vectors (see fixtures/embedding/)
+  --corpus FILE          corpus for --reference (default: fixtures/embedding/corpus.json)
   --label TEXT           free-form note stored in the report (machine, power state...)
   --json PATH            write the JSON report to PATH (default: stdout)
   --mock-load-ms N       mock: simulated model load
   --mock-call-ms N       mock: simulated per-call latency
   --mock-item-ms N       mock: simulated per-input latency
+
+ort backend (build with --features ort, or directml on Windows):
+  --ort-dylib PATH       onnxruntime.dll / libonnxruntime.so to load
+  --model-dir DIR        copy of onnx-community/embeddinggemma-2-ONNX
+  --variant NAME         fp32 | fp16 | q8 | q4 | q4f16 (default: q4)
+  --device NAME          cpu | dml:<adapter> | dml:high | dml:low (default: cpu)
+  --threads N            intra-op threads (default: runtime default)
 ";
 
 fn main() -> ExitCode {
@@ -124,6 +135,14 @@ fn parse_embed(args: &[String]) -> Result<(embed::EmbedOptions, Option<String>),
                 );
             }
             "--label" => opts.label = Some(value()?),
+            "--long-words" => opts.long_words = num(value()?)?,
+            "--reference" => opts.reference = Some(value()?.into()),
+            "--corpus" => opts.corpus = value()?.into(),
+            "--ort-dylib" => opts.ort.dylib = Some(value()?.into()),
+            "--model-dir" => opts.ort.model_dir = Some(value()?.into()),
+            "--variant" => opts.ort.variant = Some(value()?),
+            "--device" => opts.ort.device = Some(value()?),
+            "--threads" => opts.ort.threads = Some(num(value()?)?),
             "--json" => json = Some(value()?),
             "--mock-load-ms" => opts.mock_latency.load = millis(value()?)?,
             "--mock-call-ms" => opts.mock_latency.per_call = millis(value()?)?,

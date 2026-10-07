@@ -10,9 +10,17 @@ publish.workspace = true
 name = "lumen-bench"
 path = "src/main.rs"
 
+[features]
+default = []
+# ONNX Runtime backend (`--backend ort`); runtime loaded from --ort-dylib at startup.
+ort = ["dep:lumen-embedding-ort"]
+# DirectML devices (`--device dml:N`, Windows, onnxruntime-directml build).
+directml = ["ort", "lumen-embedding-ort/directml"]
+
 [dependencies]
 lumen-core.workspace = true
 lumen-embedding.workspace = true
+lumen-embedding-ort = { workspace = true, optional = true }
 memory-stats.workspace = true
 serde.workspace = true
 serde_json.workspace = true

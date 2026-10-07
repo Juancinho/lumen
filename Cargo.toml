@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/lumen-core", "crates/lumen-embedding", "crates/lumen-bench", "apps/desktop/src-tauri", "xtask"]
+members = ["crates/lumen-core", "crates/lumen-embedding", "crates/lumen-embedding-ort", "crates/lumen-bench", "apps/desktop/src-tauri", "xtask"]
 
 [workspace.package]
 version = "0.1.0"
@@ -12,7 +12,12 @@ publish = false
 [workspace.dependencies]
 lumen-core = { path = "crates/lumen-core" }
 lumen-embedding = { path = "crates/lumen-embedding" }
+lumen-embedding-ort = { path = "crates/lumen-embedding-ort" }
 memory-stats = "1.2.0"
+# ONNX Runtime loaded dynamically (onnxruntime.dll shipped next to the exe); API level 24 so the
+# DirectML build (frozen at ORT 1.24) and newer CPU builds both load. See ADR-015.
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "load-dynamic", "api-24"] }
+tokenizers = { version = "0.22.2", default-features = false, features = ["fancy-regex"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 tauri = { version = "2.12.1", features = ["tray-icon"] }

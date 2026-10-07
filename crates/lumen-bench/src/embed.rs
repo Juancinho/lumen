@@ -1,6 +1,7 @@
 //! `lumen-bench embed`: query latency, document throughput, load cost and memory
 //! for one embedding backend. T006 runs this per candidate runtime/device.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -11,6 +12,7 @@ use lumen_embedding::{
 use serde::Serialize;
 
 use crate::corpus;
+use crate::fidelity::{self, FidelityReport};
 use crate::machine::{self, MachineInfo, MemorySnapshot};
 use crate::stats::Summary;
 
@@ -30,6 +32,23 @@ pub(crate) struct EmbedOptions {
     pub(crate) queries: Option<Vec<String>>,
     pub(crate) mock_latency: MockLatency,
     pub(crate) label: Option<String>,
+    /// Words of the long-input probe (~1.3 tokens/word; 100 words ≈ the 128-token
+    /// signature of Google's published benchmarks). 0 disables it.
+    pub(crate) long_words: usize,
+    /// Reference vectors for the fidelity check (`--reference`).
+    pub(crate) reference: Option<PathBuf>,
+    pub(crate) corpus: PathBuf,
+    pub(crate) ort: OrtOptions,
+}
+
+/// `--backend ort` settings (ignored by other backends).
+#[derive(Debug, Clone, Default)]
+pub(crate) struct OrtOptions {
+    pub(crate) model_dir: Option<PathBuf>,
+    pub(crate) variant: Option<String>,
+    pub(crate) device: Option<String>,
+    pub(crate) threads: Option<usize>,
+    pub(crate) dylib: Option<PathBuf>,
 }
 
 impl Default for EmbedOptions {
@@ -45,6 +64,10 @@ impl Default for EmbedOptions {
             queries: None,
             mock_latency: MockLatency::default(),
             label: None,
+            long_words: 100,
+            reference: None,
+            corpus: PathBuf::from("fixtures/embedding/corpus.json"),
+            ort: OrtOptions::default(),
         }
     }
 }
@@ -66,6 +89,9 @@ pub(crate) struct BackendInfo {
 pub(crate) struct QueryLatency {
     pub(crate) first_query_ms: f64,
     pub(crate) warm: Summary,
+    /// Single long input (`long_words` words), comparable to 128-token reference numbers.
+    pub(crate) long_input: Option<Summary>,
+    pub(crate) long_words: usize,
     pub(crate) budget_p50_ms: f64,
     pub(crate) budget_p95_ms: f64,
     pub(crate) within_budget: bool,
@@ -99,20 +125,75 @@ pub(crate) struct EmbedReport {
     pub(crate) throughput: Vec<Throughput>,
     pub(crate) memory: MemoryReport,
     pub(crate) doc_words: usize,
+    pub(crate) fidelity: Option<FidelityReport>,
+    /// Backend-specific settings that define the run (variant, device, threads).
+    pub(crate) config: serde_json::Value,
 }
 
 fn ms(d: Duration) -> f64 {
     d.as_secs_f64() * 1000.0
 }
 
-/// Creates a backend by name. T006 adds runtime backends here (behind cargo features).
+/// Creates a backend by name. Runtime backends are behind cargo features.
 pub(crate) fn make_backend(
     name: &str,
     opts: &EmbedOptions,
 ) -> Result<Arc<dyn EmbeddingBackend>, String> {
     match name {
         "mock" => Ok(Arc::new(MockBackend::with_latency(opts.mock_latency))),
-        other => Err(format!("unknown backend `{other}` (available: mock)")),
+        #[cfg(feature = "ort")]
+        "ort" => make_ort(&opts.ort),
+        other => Err(format!(
+            "unknown backend `{other}` (available: mock{})",
+            if cfg!(feature = "ort") {
+                ", ort"
+            } else {
+                "; build with --features ort for ort"
+            }
+        )),
+    }
+}
+
+#[cfg(feature = "ort")]
+fn make_ort(o: &OrtOptions) -> Result<Arc<dyn EmbeddingBackend>, String> {
+    use lumen_embedding_ort::{Device, ModelVariant, OrtBackend, OrtConfig, init_runtime};
+    let dylib = o
+        .dylib
+        .as_ref()
+        .ok_or("--ort-dylib is required for --backend ort")?;
+    init_runtime(dylib).map_err(|e| e.to_string())?;
+    let model_dir = o
+        .model_dir
+        .as_ref()
+        .ok_or("--model-dir is required for --backend ort")?;
+    let variant_name = o.variant.as_deref().unwrap_or("q4");
+    let variant = ModelVariant::parse(variant_name)
+        .ok_or_else(|| format!("unknown --variant `{variant_name}` (fp32, fp16, q8, q4, q4f16)"))?;
+    let device_name = o.device.as_deref().unwrap_or("cpu");
+    let device = Device::parse(device_name).ok_or_else(|| {
+        format!("unknown --device `{device_name}` (cpu, dml:<adapter>, dml:high, dml:low)")
+    })?;
+    let mut config = OrtConfig::new(model_dir, variant, device);
+    config.threads = o.threads;
+    OrtBackend::new(config)
+        .map(|b| Arc::new(b) as Arc<dyn EmbeddingBackend>)
+        .map_err(|e| e.to_string())
+}
+
+fn backend_config(opts: &EmbedOptions) -> serde_json::Value {
+    if opts.backend == "ort" {
+        serde_json::json!({
+            "variant": opts.ort.variant.as_deref().unwrap_or("q4"),
+            "device": opts.ort.device.as_deref().unwrap_or("cpu"),
+            "threads": opts.ort.threads,
+            "ort_dylib": opts.ort.dylib.as_ref().map(|p| p.display().to_string()),
+        })
+    } else {
+        serde_json::json!({ "mock_latency_ms": {
+            "load": opts.mock_latency.load.as_secs_f64() * 1000.0,
+            "per_call": opts.mock_latency.per_call.as_secs_f64() * 1000.0,
+            "per_item": opts.mock_latency.per_item.as_secs_f64() * 1000.0,
+        }})
     }
 }
 
@@ -171,6 +252,24 @@ pub(crate) fn run(opts: &EmbedOptions) -> Result<EmbedReport, String> {
     let warm = Summary::of(&samples).ok_or("no samples")?;
     let within_budget = warm.p50_ms <= BUDGET_P50_MS && warm.p95_ms <= BUDGET_P95_MS;
 
+    // Long single input: comparable with published 128-token figures.
+    let long_input = if opts.long_words > 0 {
+        let long = corpus::synthetic_document(999, opts.long_words);
+        let runs = (opts.iterations / 4).max(3);
+        let mut long_samples = Vec::with_capacity(runs);
+        for _ in 0..runs {
+            let started = Instant::now();
+            let v = embedder
+                .embed_query(&long, None)
+                .map_err(|e| e.to_string())?;
+            long_samples.push(ms(started.elapsed()));
+            std::hint::black_box(v);
+        }
+        Summary::of(&long_samples)
+    } else {
+        None
+    };
+
     // Document throughput per batch size: the indexing path.
     let docs: Vec<String> = (0..opts.docs)
         .map(|i| corpus::synthetic_document(i as u64 + 1, opts.doc_words))
@@ -206,6 +305,11 @@ pub(crate) fn run(opts: &EmbedOptions) -> Result<EmbedReport, String> {
         });
     }
 
+    let fidelity = match &opts.reference {
+        Some(reference) => Some(fidelity::evaluate(&embedder, &opts.corpus, reference)?),
+        None => None,
+    };
+
     let caps = embedder.backend().capabilities();
     Ok(EmbedReport {
         schema_version: 1,
@@ -228,6 +332,8 @@ pub(crate) fn run(opts: &EmbedOptions) -> Result<EmbedReport, String> {
         query: QueryLatency {
             first_query_ms,
             warm,
+            long_input,
+            long_words: opts.long_words,
             budget_p50_ms: BUDGET_P50_MS,
             budget_p95_ms: BUDGET_P95_MS,
             within_budget,
@@ -239,6 +345,8 @@ pub(crate) fn run(opts: &EmbedOptions) -> Result<EmbedReport, String> {
             after_throughput: machine::memory(),
         },
         doc_words: opts.doc_words,
+        fidelity,
+        config: backend_config(opts),
     })
 }
 
@@ -282,6 +390,13 @@ pub(crate) fn summarize(r: &EmbedReport) -> String {
         r.query.budget_p50_ms,
         r.query.budget_p95_ms
     );
+    if let Some(l) = &r.query.long_input {
+        let _ = writeln!(
+            s,
+            "  long input (~{} words, n={}): p50 {:.2} · p95 {:.2} ms",
+            r.query.long_words, l.n, l.p50_ms, l.p95_ms
+        );
+    }
     for t in &r.throughput {
         let _ = writeln!(
             s,
@@ -294,6 +409,13 @@ pub(crate) fn summarize(r: &EmbedReport) -> String {
             s,
             "  memory resident: {:.1} MiB before load → {:.1} MiB warm",
             a.resident_mib, b.resident_mib
+        );
+    }
+    if let Some(f) = &r.fidelity {
+        let _ = writeln!(
+            s,
+            "  fidelity vs reference: min cos {:.5} · mean {:.5} · recall@1 {:.3} (reference {:.3})",
+            f.min_cosine, f.mean_cosine, f.recall_at_1, f.reference_recall_at_1
         );
     }
     if r.machine.build_profile != "release" {
@@ -316,6 +438,7 @@ mod tests {
             batch_sizes: vec![1, 4],
             docs: 8,
             doc_words: 20,
+            long_words: 30,
             ..EmbedOptions::default()
         }
     }
@@ -336,6 +459,21 @@ mod tests {
         assert_eq!(json["schema_version"], 1);
         assert!(json["query"]["warm"]["p95_ms"].is_number());
         assert!(json["machine"]["build_profile"].is_string());
+        assert!(json["query"]["long_input"]["p50_ms"].is_number());
+        assert!(json["fidelity"].is_null());
+    }
+
+    #[test]
+    fn mock_fidelity_runs_against_committed_reference() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut opts = quick();
+        opts.corpus = root.join("fixtures/embedding/corpus.json");
+        opts.reference = Some(root.join("fixtures/embedding/reference-eg2-onnx-fp32-d256.json"));
+        let f = run(&opts).unwrap().fidelity.unwrap();
+        assert_eq!(f.texts, 60);
+        // The mock is not EmbeddingGemma: low cosine to the reference is expected.
+        assert!(f.min_cosine < 0.5);
+        assert!((f.reference_recall_at_1 - 1.0).abs() < 1e-9);
     }
 
     #[test]

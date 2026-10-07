@@ -14,7 +14,7 @@ Do not renumber task IDs. New tasks get new IDs.
 | T003 | TODO   | —      | Configurable global shortcut + conflict/error UX                                                                     | T002       |
 | T004 | TODO   | —      | Windows material/backdrop spike: Mica foundation, Acrylic/translucent fallback, shadows/rounding                     | T002       |
 | T005 | DONE   | claude | `EmbeddingBackend` interface + inference benchmark harness                                                           | T001       |
-| T006 | TODO   | —      | Benchmark viable Windows EmbeddingGemma runtimes; write ADR                                                          | T005       |
+| T006 | CLAIMED | claude | Benchmark viable Windows EmbeddingGemma runtimes; write ADR                                                          | T005       |
 | T007 | TODO   | —      | SQLite schema + migrations + WAL + FTS5 proof                                                                        | T001       |
 | T008 | TODO   | —      | USearch 256d 100k/1M benchmark; f32/f16 candidate comparison                                                         | T001       |
 | T009 | TODO   | —      | File enumeration + stable identity spike                                                                             | T001       |
