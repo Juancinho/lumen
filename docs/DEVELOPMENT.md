@@ -28,6 +28,9 @@ crates/
     src/action.rs          ActionDescriptor, ActionSafety, ActionGroup, ActionLookup
     src/contract.rs        validate_result — run it in every provider test
     src/execution.rs       ActionRequest -> ExecutionContext::authorize, CancellationToken
+  lumen-embedding/         EmbeddingBackend trait (sync), Embedder (prompts, batching,
+                           cancellation, 768->256 truncation + L2), EmbeddingSpace key, MockBackend
+  lumen-bench/             benchmark harness binary `lumen-bench` (release-mode, JSON reports)
 apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
   src/                     React UI
     app/                   overlay root (App.tsx) + placeholder styles
@@ -101,6 +104,18 @@ Run Rust commands from the repository root, frontend commands from `apps/desktop
 | Frontend typecheck | `npm run typecheck` |
 | Frontend tests (Vitest + Testing Library) | `npm test` |
 | All frontend checks | `npm run check` |
+
+Benchmarks (release builds only; debug runs are flagged in the report):
+
+| Purpose | Command |
+|---|---|
+| Embedding backend latency/throughput/memory | `cargo run --release -p lumen-bench -- embed --json target/bench/embed-<backend>.json` |
+| Options | `cargo run --release -p lumen-bench -- --help` (`--backend`, `--dim`, `--iterations`, `--batch-sizes`, `--label`, …) |
+
+Reports carry `schema_version`, machine/build metadata, the `EmbeddingSpace` key, cold load,
+first and warm query latency (p50/p95/p99 vs the 60/120 ms budget), per-batch-size document
+throughput and resident memory before/after load. Committed baselines belong under
+`docs/benchmarks/` with the hardware described in `--label`.
 
 Full local gate before committing:
 

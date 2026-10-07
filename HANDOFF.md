@@ -4,80 +4,69 @@
 
 ## Active branch
 
-`main`. Commits: spec baseline → T001 → T011 → T002.
+`main`. Commits: spec baseline → T001 → T011 → T002 → T005.
 
 ## Active task
 
-**T002 — REVIEW (owner: claude).** Implemented and Linux-smoke-tested; needs the interactive
-Windows checklist below, then set to `DONE`. T001 and T011 are DONE.
+None claimed. T001, T011, T002, T005 are DONE.
 
-## T002 — implemented behavior
+## T005 — implemented behavior
 
-- `apps/desktop/src-tauri/src/overlay/mod.rs`: `toggle`/`show`/`hide`; places window on the monitor
-  under the cursor (`placement.rs`: centered, top at 20% of work area, clamped; `to_physical` for
-  DPI), then `show` + `set_focus` + emits `lumen:overlay-shown`. `policy.rs`: shortcut decision
-  (hidden→Show, visible+unfocused→Focus, visible+focused→Hide).
-- `shortcut.rs`: Alt+Space via `tauri-plugin-global-shortcut` 2.4.0; registration failure is logged
-  and reflected in the tray tooltip, never fatal. Configurable shortcut + conflict UX is T003.
-- `tray.rs`: tray icon (default window icon), left click = show, menu Show Lumen / Quit Lumen.
-- `main.rs`: single-instance plugin first (second launch → show); `WindowEvent::Focused(false)` →
-  hide; `CloseRequested` → prevent + hide; `ShowWhenReady` state: first show only after the UI calls
-  `overlay_ready` (no blank frame, listener guaranteed); `--background` skips the first show.
-- `tauri.conf.json` window: `visible:false, decorations:false, resizable:false, alwaysOnTop:true,
-  skipTaskbar:true, shadow:true`, 800×64. Capabilities unchanged (`core:default`).
-- UI: `features/root-search/SearchField.tsx` (labelled `type=search` input, role=search);
-  `App.tsx` focuses/selects on mount and on `lumen:overlay-shown`, Escape → `hide_overlay` unless
-  composing (`isComposing` or keyCode 229). IPC wrappers in `src/ipc/{commands,events}.ts`.
+- `crates/lumen-embedding` (depends only on `lumen-core`):
+  - `EmbeddingBackend` (sync, `Send + Sync`): `capabilities`, `warm/unload/is_warm(Modality)`,
+    `embed_text(&[&str]) -> Vec<f32>` raw native-dim row-major. ADR-014 explains why sync.
+  - `Capabilities`/`ModelInfo` (native dim, Matryoshka dims, max batch, target cpu/gpu/npu,
+    preprocessing version, concurrent_calls).
+  - `Embedder::new(Arc<dyn EmbeddingBackend>, EmbeddingProfile)` validates the profile;
+    `embed(task, &[TextInput], Option<&CancellationToken>) -> EmbeddingBatch` and `embed_query`.
+    Empty inputs rejected up front; cancel checked before each backend batch; error indices are
+    caller indices.
+  - `PromptFormat::EMBEDDINGGEMMA_RETRIEVAL_V1` (`task: search result | query: …`,
+    `title: {title|none} | text: …`) and `RAW`. **T006 must verify against EmbeddingGemma 2.**
+  - `EmbeddingProfile::DEFAULT` = 256d + Gemma prompts; `EmbeddingSpace::key()` e.g.
+    `embeddinggemma-2@q8-1/pre1/embeddinggemma-retrieval@1/d256/l2`.
+  - `MockBackend` (FNV-1a feature hashing of words + trigrams, 768d) with `MockLatency`.
+  - `TextInput` Debug never prints content.
+- `crates/lumen-bench` (binary `lumen-bench`): `embed` subcommand; `make_backend()` in
+  `src/embed.rs` is where T006 adds real backends (behind cargo features).
 
-## Validation (Linux sandbox)
+## Validation (Linux sandbox, Rust 1.97.0)
 
 ```sh
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace     # core 32 + 3 doc, shell 7, xtask 8
-cargo xtask arch           # OK
+cargo test --workspace      # core 32+3 doc, embedding 25, bench 9, shell 7, xtask 8
+cargo xtask arch            # OK - lumen-bench, lumen-core, lumen-embedding
 cd apps/desktop && npm run check   # 10 tests
-cd apps/desktop && npx tauri build --debug --no-bundle  # + Xvfb/openbox smoke run
+cargo run --release -p lumen-bench -- embed --json target/bench/embed-mock.json
+cargo run --release -p lumen-bench -- embed --iterations 30 --batch-sizes 8 --docs 64 \
+  --mock-load-ms 300 --mock-call-ms 40 --mock-item-ms 2   # measured 300.2 / 42.2 / 56.9 ms
 ```
 
-Xvfb smoke results: window at (560,216) for a 1920×1080 work area ✓; typing reaches the input ✓;
-Escape hides ✓; Alt+Space owned by openbox → logged, app continued ✓. Not verifiable on Linux:
-foreground/focus rules, tray, single instance (needs D-Bus), exact 64px height (WebKitGTK min 200px).
-
-## Windows checklist (to close T002)
-
-`cd apps\desktop; npm run tauri dev` (or `npm run tauri build` → `target\release\lumen.exe`):
-
-1. Launch → overlay appears once, centered high on the monitor with the cursor, caret in the field,
-   no white flash; no taskbar button; tray icon present.
-2. Alt+Space hides; Alt+Space shows again with focus and previous text selected (type replaces it).
-3. Click another window → overlay hides. Escape hides. Alt+F4 hides (app keeps running in tray).
-4. With focus in another app (e.g. Explorer), Alt+Space → overlay gets keyboard focus immediately
-   (no taskbar flashing). Repeat 10×.
-5. Multi-monitor / mixed DPI (100% + 150%): show on each monitor; size looks identical.
-6. IME (e.g. Japanese/Chinese): while composing, Escape cancels composition, not the overlay.
-7. Launch a second `lumen.exe` → no second tray icon; the existing overlay shows.
-8. Tray: left click shows; menu Quit exits the process.
-9. If PowerToys Run/another launcher owns Alt+Space: tooltip reads "Alt+Space unavailable"; tray works.
-
-Report failures with the step number. Known risk: step 7 focus — Windows may refuse foreground
-to the first instance (taskbar flash); fix would be `AllowSetForegroundWindow` in a Windows adapter.
+Sandbox numbers are harness sanity checks only (2 vCPU Xeon), not evidence.
 
 ## Exact next steps
 
-1. Run the Windows checklist; fix regressions; mark T002 DONE.
-2. T012 (WebView lifecycle/RAM while hidden) and T004 (Mica/Acrylic, rounding) now unblocked;
-   T003 (configurable shortcut + conflict UX) builds on `shortcut.rs`.
-3. Parallel-safe: T007 SQLite/FTS, T008 USearch bench, T009 file identity, T010 CI, T005 embedding.
+1. **T006** (needs Windows hardware): pick candidate runtimes (e.g. ONNX Runtime CPU/DirectML,
+   OpenVINO CPU/NPU, llama.cpp/GGUF), implement each as an `EmbeddingBackend` behind a cargo
+   feature (separate crate per runtime keeps `lumen-embedding` runtime-free), verify
+   EmbeddingGemma 2 prompts, run
+   `cargo run --release -p lumen-bench --features <rt> -- embed --backend <rt> --label "<machine, power>"`
+   per target, compare against mock-independent reference vectors (cosine ≥ 0.99 vs reference
+   implementation), record license/size/packaging per docs/ARCHITECTURE.md §19, write the ADR.
+   Commit reports under `docs/benchmarks/`.
+2. Parallel-safe now: T007 (SQLite/FTS → `crates/lumen-storage`), T008 (USearch 256d bench — add
+   `lumen-bench ann`), T009 (file identity), T010 (CI: wire the gate + `lumen-bench`), T004, T012, T003.
 
 ## Known issues / notes
 
-- Window height 64 is a placeholder until T103 defines the results layout/resizing.
-- Debug builds print `overlay shown in …` (native calls only; first-paint latency needs T010/T012).
+- Windows memory in reports is the working set (memory-stats), not private working set.
+- `lumen-bench` measures in-process only; IPC/render latency belongs to T010/T012.
 - Plain `cargo run` of `lumen-desktop` loads the dev URL; use `npm run tauri dev|build`.
-- `ActionRequest.confirmed` trusted from UI (T011 note); capability-derived actions need T108.
+- Overlay height 64 is a placeholder until T103.
 
 ## Unresolved evidence-based decisions
 
-- production EmbeddingGemma runtime (T006); native backdrop path (T004); vector scalar profile
-  (T008); FastFrame/egui spike timing (TX01); TS binding generation (ADR-013 revisit).
+- production EmbeddingGemma runtime + verified prompts (T006); native backdrop path (T004);
+  vector scalar profile (T008); FastFrame/egui spike timing (TX01); TS binding generation
+  (ADR-013 revisit).

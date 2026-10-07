@@ -1,0 +1,15 @@
+[package]
+name = "lumen-embedding"
+description = "Embedding backend abstraction (ADR-005): runtime-agnostic trait, shared prompt/truncation/normalization layer, deterministic mock."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+# No inference runtime here. Real backends (selected in T006) live in their own
+# modules/crates behind features so the core stays runtime-agnostic.
+[dependencies]
+lumen-core.workspace = true
+
+[lints]
+workspace = true

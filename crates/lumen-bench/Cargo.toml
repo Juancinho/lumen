@@ -1,0 +1,21 @@
+[package]
+name = "lumen-bench"
+description = "Lumen benchmark harness (release-mode, machine-readable). Not shipped."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "lumen-bench"
+path = "src/main.rs"
+
+[dependencies]
+lumen-core.workspace = true
+lumen-embedding.workspace = true
+memory-stats.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -32,3 +32,10 @@ Append-only. Keep entries compact.
 - Window: hidden, undecorated, always-on-top, skip-taskbar, 800×64 logical, no resize; close hides.
 - UI: minimal `SearchField`; focus + select on show; Escape hides except during IME composition. 10 frontend tests, 7 shell tests.
 - Linux Xvfb smoke: placement (560,216 on 1920×1080), typing reaches input, Escape hides, Alt+Space conflict handled gracefully (openbox owns it). Native show path 0.3–3 ms. Windows interactive check pending → REVIEW.
+
+## 2026-10-07 — T005 embedding backend interface + benchmark harness (claude)
+
+- T002 confirmed on Windows by user → DONE.
+- New `crates/lumen-embedding`: sync `EmbeddingBackend` trait, `Embedder` (EmbeddingGemma retrieval prompts v1, batching, cancellation, shape/NaN/zero checks, Matryoshka 768→256 + L2 in f64), `EmbeddingSpace` key, deterministic feature-hashing `MockBackend` with simulated latency. 25 tests.
+- New `crates/lumen-bench`: `lumen-bench embed` (cold load, first/warm query p50/p95/p99 vs 60/120 ms, doc throughput per batch size, resident memory, machine metadata, JSON). 9 tests.
+- Release run in sandbox (mock): Embedder overhead ≈ 2 µs/query p50; simulated 40 ms call measured 42.2 ms (harness accuracy check). ADR-014.

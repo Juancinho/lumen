@@ -67,10 +67,14 @@ Benchmark/ADR required:
 - Crates: `crates/lumen-core`, `apps/desktop/src-tauri` (`lumen-desktop`, bin `lumen`), `xtask`.
 - Shell → core direction enforced by `cargo xtask arch` and ESLint `no-restricted-imports`.
 - Commands/layout: `docs/DEVELOPMENT.md`. Contract summary: `docs/COMMAND_MODEL.md` §0.
-- **T002 REVIEW:** resident overlay — hidden borderless window, Alt+Space toggle, Escape/blur/
-  Alt+F4 hide, cursor-monitor placement, tray (Show/Quit), single instance, focus-on-show. Built
-  and smoke-tested on Linux; awaiting interactive Windows verification (checklist in HANDOFF).
-- Not yet: provider trait/registry, storage, ANN, embedding, design tokens/material (T004/T103).
+- **T002 DONE:** resident overlay — hidden borderless window, Alt+Space toggle, Escape/blur/
+  Alt+F4 hide, cursor-monitor placement, tray (Show/Quit), single instance, focus-on-show.
+  Verified on Windows by the user.
+- **T005 DONE:** `crates/lumen-embedding` (sync `EmbeddingBackend`, `Embedder` with prompts,
+  batching, cancellation, 768→256 + L2, `EmbeddingSpace` key, deterministic `MockBackend`) and
+  `crates/lumen-bench` (`lumen-bench embed` JSON reports vs 60/120 ms budget). ADR-014.
+- Not yet: real inference runtime (T006), provider trait/registry, storage, ANN, design tokens/
+  material (T004/T103).
 
 ## Immediate objective
 
