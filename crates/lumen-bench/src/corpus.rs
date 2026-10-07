@@ -38,60 +38,62 @@ pub(crate) const QUERIES: &[&str] = &[
     "unit tests for the ranking fusion",
 ];
 
+/// Vocabulary of [`synthetic_document`].
+pub(crate) const VOCAB: &[&str] = &[
+    "the",
+    "index",
+    "search",
+    "result",
+    "file",
+    "model",
+    "vector",
+    "query",
+    "latency",
+    "windows",
+    "overlay",
+    "semantic",
+    "document",
+    "project",
+    "meeting",
+    "budget",
+    "error",
+    "connection",
+    "retry",
+    "request",
+    "function",
+    "returns",
+    "value",
+    "user",
+    "local",
+    "privacy",
+    "embedding",
+    "chunk",
+    "page",
+    "image",
+    "screenshot",
+    "code",
+    "test",
+    "and",
+    "of",
+    "to",
+    "in",
+    "with",
+    "for",
+    "is",
+    "datos",
+    "proyecto",
+    "reunión",
+    "factura",
+    "de",
+    "la",
+    "el",
+    "configuración",
+    "rendimiento",
+    "memoria",
+];
+
 /// Deterministic pseudo-document of about `words` words (xorshift64 over a vocabulary).
 pub(crate) fn synthetic_document(seed: u64, words: usize) -> String {
-    const VOCAB: &[&str] = &[
-        "the",
-        "index",
-        "search",
-        "result",
-        "file",
-        "model",
-        "vector",
-        "query",
-        "latency",
-        "windows",
-        "overlay",
-        "semantic",
-        "document",
-        "project",
-        "meeting",
-        "budget",
-        "error",
-        "connection",
-        "retry",
-        "request",
-        "function",
-        "returns",
-        "value",
-        "user",
-        "local",
-        "privacy",
-        "embedding",
-        "chunk",
-        "page",
-        "image",
-        "screenshot",
-        "code",
-        "test",
-        "and",
-        "of",
-        "to",
-        "in",
-        "with",
-        "for",
-        "is",
-        "datos",
-        "proyecto",
-        "reunión",
-        "factura",
-        "de",
-        "la",
-        "el",
-        "configuración",
-        "rendimiento",
-        "memoria",
-    ];
     let mut state = seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1;
     let mut out = String::with_capacity(words * 8);
     for i in 0..words {
@@ -111,6 +113,21 @@ pub(crate) fn synthetic_document(seed: u64, words: usize) -> String {
     out
 }
 
+/// Multi-word queries made of [`VOCAB`] terms, so they match synthetic documents (the
+/// realistic [`QUERIES`] mostly do not, which would time empty result sets).
+pub(crate) fn vocabulary_queries(n: usize) -> Vec<String> {
+    let v = VOCAB.len();
+    (0..n)
+        .map(|i| {
+            let words = 1 + i % 3;
+            (0..words)
+                .map(|w| VOCAB[(i * 7 + w * 13 + 3) % v])
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,6 +139,14 @@ mod tests {
         assert_ne!(a, synthetic_document(2, 200));
         let words = a.split_whitespace().count();
         assert_eq!(words, 200);
+    }
+
+    #[test]
+    fn vocabulary_queries_use_vocabulary_words() {
+        let q = vocabulary_queries(9);
+        assert_eq!(q.len(), 9);
+        assert!(q.iter().all(|q| q.split(' ').all(|w| VOCAB.contains(&w))));
+        assert_eq!(q[2].split(' ').count(), 3);
     }
 
     #[test]

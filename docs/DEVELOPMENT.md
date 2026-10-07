@@ -103,7 +103,7 @@ Run Rust commands from the repository root, frontend commands from `apps/desktop
 | Build app (release exe, no installer) | `cd apps/desktop && npm run tauri build` → `target/release/lumen.exe` |
 | Rust format | `cargo fmt --all` / check: `cargo fmt --all -- --check` |
 | Rust lint | `cargo clippy --workspace --all-targets -- -D warnings` |
-| Rust tests | `cargo test --workspace` |
+| Rust tests | `cargo xtask test` (two cargo calls; plain `cargo test --workspace` breaks doctests on Windows) |
 | Architecture check | `cargo xtask arch` |
 | Frontend format | `npm run format` / check: `npm run format:check` |
 | Frontend lint (type-aware, a11y strict) | `npm run lint` |
@@ -139,7 +139,7 @@ Full local gate before committing:
 ```sh
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+cargo xtask test            # = cargo test, split in two calls (Windows doctest link issue, see xtask/src/test.rs)
 cargo xtask arch
 cd apps/desktop && npm run check
 ```
@@ -160,7 +160,7 @@ cargo xtask bench --out DIR        # custom output directory
 - **rust** (Ubuntu 24.04 + Windows Server 2025): builds the UI first (the shell embeds
   `apps/desktop/dist`), then `cargo fmt --check` (Linux), `cargo clippy --workspace
   --all-targets --locked -D warnings`, clippy for `lumen-bench --features directml`,
-  `cargo test --workspace --locked`, `cargo xtask arch`;
+  `cargo xtask test --locked`, `cargo xtask arch`;
 - **bench** (both OSes, after rust): `cargo xtask bench --quick`; reports uploaded as the
   `bench-quick-<os>` artifact (90 days). Numbers are not gating yet (PERFORMANCE.md §12): add
   thresholds only once run-to-run noise on hosted runners is known.

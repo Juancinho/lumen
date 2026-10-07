@@ -1,0 +1,69 @@
+{
+  "schema_version": 2,
+  "kind": "storage",
+  "label": null,
+  "machine": {
+    "os": "linux",
+    "arch": "x86_64",
+    "logical_cpus": 2,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791416559
+  },
+  "sqlite": "3.53.2",
+  "chunks": 100000,
+  "items": 10000,
+  "words_per_chunk": 120,
+  "insert_s": 13.076808765,
+  "chunks_per_s": 7647.125670878464,
+  "db_mib_after_checkpoint": 156.44921875,
+  "fts_typing": {
+    "n": 852,
+    "min_ms": 0.026563999999999997,
+    "mean_ms": 8.756242458920186,
+    "p50_ms": 0.071805,
+    "p95_ms": 96.75789999999999,
+    "p99_ms": 113.362253,
+    "max_ms": 128.83435200000002
+  },
+  "fts_final": {
+    "n": 60,
+    "min_ms": 90.896533,
+    "mean_ms": 105.05581611666663,
+    "p50_ms": 105.989901,
+    "p95_ms": 116.786271,
+    "p99_ms": 121.897199,
+    "max_ms": 121.897199
+  },
+  "fts_final_no_hits": {
+    "n": 32,
+    "min_ms": 0.029547,
+    "mean_ms": 0.07784640625,
+    "p50_ms": 0.075467,
+    "p95_ms": 0.12651900000000002,
+    "p99_ms": 0.218026,
+    "max_ms": 0.218026
+  },
+  "fts_mean_hits": 50.0,
+  "fts_typing_budgeted": {
+    "n": 852,
+    "min_ms": 0.026555,
+    "mean_ms": 1.874292463615023,
+    "p50_ms": 0.06509,
+    "p95_ms": 20.224828,
+    "p99_ms": 20.425924000000002,
+    "max_ms": 20.635964
+  },
+  "fts_typing_interrupted": 73,
+  "budget_ms": 20.0,
+  "path_lookup": {
+    "n": 500,
+    "min_ms": 0.002186,
+    "mean_ms": 0.0031110780000000006,
+    "p50_ms": 0.002543,
+    "p95_ms": 0.003985,
+    "p99_ms": 0.007606,
+    "max_ms": 0.060519
+  }
+}

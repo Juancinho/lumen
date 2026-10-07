@@ -50,7 +50,10 @@ pub(crate) struct StorageReport {
     chunks_per_s: f64,
     db_mib_after_checkpoint: f64,
     fts_typing: Summary,
+    /// Final (not typing) queries over vocabulary terms: they return hits.
     fts_final: Summary,
+    /// Final realistic queries; mostly no hits in the synthetic corpus.
+    fts_final_no_hits: Summary,
     fts_mean_hits: f64,
     /// Per-keystroke queries stopped by the interactive budget (`budget_ms`).
     fts_typing_budgeted: Summary,
@@ -118,6 +121,7 @@ pub(crate) fn run(opts: &StorageOptions) -> Result<StorageReport, String> {
     let mut typing = Vec::new();
     let mut finals = Vec::new();
     let mut hits = 0_usize;
+    let mut finals_miss = Vec::new();
     let mut budgeted = Vec::new();
     let mut interrupted = 0_usize;
     for q in corpus::QUERIES {
@@ -139,6 +143,16 @@ pub(crate) fn run(opts: &StorageOptions) -> Result<StorageReport, String> {
             }
         }
         if let Some(fq) = FtsQuery::from_user(q, false) {
+            let t = Instant::now();
+            reader
+                .search_chunks(&fq, 50, &SearchBudget::unbounded())
+                .map_err(|e| e.to_string())?;
+            finals_miss.push(ms(t));
+        }
+    }
+    // Final queries that do match the synthetic corpus: ranking + snippets on real hits.
+    for q in corpus::vocabulary_queries(60) {
+        if let Some(fq) = FtsQuery::from_user(&q, false) {
             let t = Instant::now();
             hits += reader
                 .search_chunks(&fq, 50, &SearchBudget::unbounded())
@@ -163,7 +177,7 @@ pub(crate) fn run(opts: &StorageOptions) -> Result<StorageReport, String> {
 
     #[allow(clippy::cast_precision_loss)]
     Ok(StorageReport {
-        schema_version: 1,
+        schema_version: 2,
         kind: "storage",
         label: opts.label.clone(),
         machine: MachineInfo::collect(),
@@ -176,6 +190,7 @@ pub(crate) fn run(opts: &StorageOptions) -> Result<StorageReport, String> {
         db_mib_after_checkpoint: db_mib,
         fts_typing: Summary::of(&typing).ok_or("no queries")?,
         fts_final: Summary::of(&finals).ok_or("no queries")?,
+        fts_final_no_hits: Summary::of(&finals_miss).ok_or("no queries")?,
         fts_mean_hits: hits as f64 / finals.len().max(1) as f64,
         fts_typing_budgeted: Summary::of(&budgeted).ok_or("no queries")?,
         fts_typing_interrupted: interrupted,
@@ -189,7 +204,7 @@ pub(crate) fn summarize(r: &StorageReport) -> String {
         "storage · sqlite {} · {} chunks ({} items, {} words) · insert {:.0} chunks/s · db {:.0} MiB\n  \
          fts per keystroke (n={}): p50 {:.3} · p95 {:.3} · max {:.3} ms\n  \
          fts per keystroke with {:.0} ms budget: p95 {:.3} · max {:.3} ms ({} interrupted)\n  \
-         fts final query: p50 {:.3} · p95 {:.3} ms ({:.1} hits avg, capped 50)\n  \
+         fts final query: p50 {:.3} · p95 {:.3} ms ({:.1} hits avg, capped 50; no-hit queries p95 {:.3} ms)\n  \
          path lookup: p50 {:.4} · p95 {:.4} ms{}\n",
         r.sqlite,
         r.chunks,
@@ -208,6 +223,7 @@ pub(crate) fn summarize(r: &StorageReport) -> String {
         r.fts_final.p50_ms,
         r.fts_final.p95_ms,
         r.fts_mean_hits,
+        r.fts_final_no_hits.p95_ms,
         r.path_lookup.p50_ms,
         r.path_lookup.p95_ms,
         if r.machine.build_profile == "release" {
@@ -234,6 +250,11 @@ mod tests {
         let r = run(&opts).unwrap();
         assert_eq!(r.items, 30);
         assert!(r.fts_typing.n > 100);
+        assert!(
+            r.fts_mean_hits > 1.0,
+            "final queries must hit: {}",
+            r.fts_mean_hits
+        );
         assert!(summarize(&r).contains("chunks/s"));
     }
 }

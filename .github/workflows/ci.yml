@@ -75,8 +75,10 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: cargo clippy (lumen-bench, directml)
         run: cargo clippy -p lumen-bench --features directml --all-targets --locked -- -D warnings
+      # Two invocations: tauri-build's empty msvcrt.lib breaks other crates' doctests on
+      # Windows when everything is tested in one cargo call (xtask/src/test.rs).
       - name: cargo test
-        run: cargo test --workspace --locked
+        run: cargo xtask test --locked
       - name: architecture boundary
         run: cargo xtask arch
 

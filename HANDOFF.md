@@ -103,7 +103,7 @@ DONE: T001, T002, T005, T006, T007, T008, T009, T011.
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo clippy -p lumen-bench --features directml --all-targets -- -D warnings
-cargo test --workspace
+cargo xtask test            # cargo test in two calls (Windows doctests, xtask/src/test.rs)
 cargo xtask arch            # 6 core crates + bench OK
 LUMEN_EG2_MODEL_DIR=… LUMEN_ORT_DYLIB=… cargo test -p lumen-embedding-ort --release --test fidelity
 cd apps/desktop && npm run check

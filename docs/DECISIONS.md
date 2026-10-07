@@ -257,7 +257,11 @@ Data: synthetic 256d vectors calibrated on real EmbeddingGemma 2 geometry (mean 
   the final query is re-issued with a generous budget so complete lexical results always
   appear (T107 must test this).
 - Very common terms remain the cost driver; T205 may drop high-document-frequency terms
-  (fts5vocab) when selective terms exist.
+  (fts5vocab) when selective terms exist. **Measured (bench schema v2, 100k chunks, sandbox):**
+  final queries whose every term is in ~all chunks take p50 106 / p95 117 ms with 50 hits —
+  the worst case (50-word synthetic vocabulary). It scales with matching rows, so at 1M chunks
+  T205/T107 must either drop high-df terms or bound the final query too. Earlier "final query"
+  numbers (0.05 ms) timed queries with no hits and were not evidence.
 - `0001_initial.sql` may still change until the first release; afterwards only new migrations.
 
 ## ADR-018 — Inventory coverage guarantee and stable file identity

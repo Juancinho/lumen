@@ -5,6 +5,7 @@
 
 mod arch;
 mod bench;
+mod test;
 
 use std::process::{Command, ExitCode};
 
@@ -13,6 +14,8 @@ Usage: cargo xtask <command>
 
 Commands:
   arch    Verify the shell -> core dependency direction (ADR-002)
+  test    cargo test for the whole workspace, Windows-safe (see xtask/src/test.rs)
+          [extra cargo test args, e.g. --locked]
   bench   Release-mode benchmark suite, JSON reports in target/bench/ (T010)
           [--quick] [--out DIR]
 ";
@@ -22,6 +25,7 @@ fn main() -> ExitCode {
     match args.next().as_deref() {
         Some("arch") => run_arch(),
         Some("bench") => bench::run(args),
+        Some("test") => test::run(args),
         Some("-h" | "--help") => {
             print!("{USAGE}");
             ExitCode::SUCCESS

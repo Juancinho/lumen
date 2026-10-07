@@ -79,3 +79,9 @@ Append-only. Keep entries compact.
 - `lumen_embedding::probe::measure` via the production Embedder; `EmbeddingBatch::try_from_flat`.
 - `lumen-bench probe` / `device-policy`; `scripts/t013/run-windows-device-probe.ps1` (process per device, GPU memory from perf counters, iGPU only with -IncludeIntegrated).
 - First CI run (repo pushed by the user): frontend + Linux green, Windows `cargo test` red (log needs repo admin).
+
+## 2026-10-08 — CI fix (Windows doctests) + storage bench correction (claude)
+
+- Windows CI `cargo test` failure reproduced by the user: lumen-core doctests fail to link (`__CxxFrameHandler3`, `memmove`, `mainCRTStartup`). Cause: tauri-build's static VC runtime writes an empty `msvcrt.lib` into lumen-desktop's OUT_DIR and cargo gives that search path to every doctest of the same invocation. Fix: `cargo xtask test` runs the workspace without the shell, then the shell; CI and the documented gate use it. Static VC runtime kept for releases.
+- `lumen-bench storage` final queries never matched the synthetic corpus (0 hits, 0.05 ms = empty result sets). Schema v2 times vocabulary queries with hits (`fts_final`) and keeps the realistic no-hit ones (`fts_final_no_hits`). 100k worst case: p50 106 / p95 117 ms → ADR-017 consequence updated.
+- First Windows `cargo xtask bench --quick` (joao-pc): ANN 20k f16 R@10 0.997, ef256 p95 0.31 ms (numkong haswell dispatch active); FTS keystroke p95 31.8 ms → 20.2 ms with budget.
