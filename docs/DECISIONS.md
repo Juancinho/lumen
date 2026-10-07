@@ -325,7 +325,8 @@ Data: synthetic 256d vectors calibrated on real EmbeddingGemma 2 geometry (mean 
 
 ## ADR-019 — Embedding device policy: CPU by default, accelerators only on measured proof
 
-**Status:** Proposed (T013) until `scripts/t013/run-windows-device-probe.ps1` runs on joao-pc.
+**Status:** Accepted (T013). Evidence: `docs/benchmarks/t013/2026-10-08-joao-pc/` (Ryzen 5 5600H,
+GTX 1650 4 GB, driver 32.0.15.9227, ORT CPU 1.30 / DirectML 1.24.4, q4).
 Refines ADR-015 §3–4. Code: `lumen_embedding::policy` (pure rules), `lumen_embedding::probe`
 (measurement through the production `Embedder`), `lumen-bench probe` / `device-policy`.
 
@@ -352,11 +353,21 @@ Refines ADR-015 §3–4. Code: `lumen_embedding::policy` (pure rules), `lumen_em
 - Probes run once per device per `runtime_key`, each in its own process; device memory comes
   from the platform layer (Windows: GPU Process Memory perf counters).
 
+**Evidence (joao-pc)**
+
+| probe | query p50/p95 ms | indexing chunks/s | cos vs CPU | offloaded | GPU memory |
+|---|---:|---:|---:|---:|---:|
+| cpu | 29.9 / 34.2 | 3.10 | 1 | — | — |
+| dml:high (GTX 1650) | 417.8 / 513.8 | 7.28 (2.35×) | 0.9999995 | 94 % | 2,296 of 4,096 MiB |
+
+The GPU passes stability, fidelity and placement and is fast enough for indexing, but needs
+2.3 GB of a 4 GB card (limit min(1.5 GiB, 50 %)) → rejected; all 7 scenarios run on CPU
+(Balanced AC idle 6 threads, active 3, battery 1, battery 15 % paused, Eco 1, Turbo 11, low
+memory paused). Vectors from DirectML are interchangeable with CPU ones (cos ≥ 0.9999995), so a
+future accelerator can join an existing index generation.
+
 **Consequences**
 
-- With T006's numbers (GTX 1650 q4: ~300 ms queries, 2–3× indexing) the policy would keep
-  queries on CPU and index on the GPU only when plugged in and idle — if placement, memory and
-  fidelity checks pass.
 - The probe compares against CPU at the runtime's default threads (all cores): conservative.
 - `lumen-windows` (M1+) must supply power source, battery %, available memory, user activity
   and per-process GPU memory; the shell persists probes and the quarantine in settings.

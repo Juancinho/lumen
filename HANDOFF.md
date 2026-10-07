@@ -11,8 +11,8 @@
 **T010 REVIEW** — `.github/workflows/ci.yml` (actionlint-clean; every command it runs passes
 locally) and `cargo xtask bench [--quick]`. Becomes DONE after the first green GitHub run, which
 needs a remote (the repo has none yet — the user decides where to host it).
-**T013 REVIEW** — needs `scripts/t013/run-windows-device-probe.ps1` on joao-pc (CPU +
-dml:high probes with GPU memory sampling, then the policy matrix).
+**T013 DONE** — joao-pc: GTX 1650 2.35x indexing, cos 0.9999995, 94 % offloaded, but 2.3 GB
+VRAM (> 1.5 GiB cap) → CPU everywhere. Open product question: may Turbo relax the VRAM cap?
 DONE: T001, T002, T005, T006, T007, T008, T009, T011.
 
 ## T013 — outcome (ADR-019)

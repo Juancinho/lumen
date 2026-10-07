@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "kind": "device-policy",
+  "label": "JOAO-PC",
+  "space_key": "embeddinggemma-2@onnx-community-q4/pre1/embeddinggemma-retrieval@1/d256/l2",
+  "devices": [
+    "cpu",
+    "dml:high"
+  ],
+  "logical_cpus": 12,
+  "plans": [
+    {
+      "scenario": "balanced, AC, idle",
+      "query_device": "cpu",
+      "indexing": "cpu x6 threads",
+      "rejected": [
+        "dml:high: uses 2296 MiB device memory (limit 1536)"
+      ]
+    },
+    {
+      "scenario": "balanced, AC, user active",
+      "query_device": "cpu",
+      "indexing": "cpu x3 threads",
+      "rejected": [
+        "dml:high: uses 2296 MiB device memory (limit 1536)"
+      ]
+    },
+    {
+      "scenario": "balanced, battery 70%",
+      "query_device": "cpu",
+      "indexing": "cpu x1 threads",
+      "rejected": [
+        "dml:high: uses 2296 MiB device memory (limit 1536)"
+      ]
+    },
+    {
+      "scenario": "balanced, battery 15%",
+      "query_device": "cpu",
+      "indexing": "paused (LowBattery)",
+      "rejected": [
+        "dml:high: uses 2296 MiB device memory (limit 1536)"
+      ]
+    },
+    {
+      "scenario": "eco, AC",
+      "query_device": "cpu",
+      "indexing": "cpu x1 threads",
+      "rejected": [
+        "dml:high: uses 2296 MiB device memory (limit 1536)"
+      ]
+    },
+    {
+      "scenario": "turbo, battery 70%",
+      "query_device": "cpu",
+      "indexing": "cpu x11 threads",
+      "rejected": [
+        "dml:high: uses 2296 MiB device memory (limit 1536)"
+      ]
+    },
+    {
+      "scenario": "balanced, AC, low memory",
+      "query_device": "cpu",
+      "indexing": "paused (MemoryPressure)",
+      "rejected": [
+        "dml:high: uses 2296 MiB device memory (limit 1536)"
+      ]
+    }
+  ]
+}

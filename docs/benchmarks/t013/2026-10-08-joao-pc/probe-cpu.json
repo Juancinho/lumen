@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "kind": "probe",
+  "label": "cpu",
+  "machine": {
+    "arch": "x86_64",
+    "build_profile": "release",
+    "cpu": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "logical_cpus": 12,
+    "lumen_version": "0.1.0",
+    "os": "windows",
+    "unix_time_s": 1791416585
+  },
+  "device": "cpu",
+  "target": "cpu",
+  "integrated": false,
+  "space_key": "embeddinggemma-2@onnx-community-q4/pre1/embeddinggemma-retrieval@1/d256/l2",
+  "runtime_key": "onnxruntime-cpu-ORT Build Info: git-branch=HEAD, git-commit-id=f2c39fe, fp8-kv-cache=1, build type=Release/cpu",
+  "failed": null,
+  "metrics": {
+    "query_p50_ms": 29.9131,
+    "query_p95_ms": 34.175999999999995,
+    "index_chunks_per_s": 3.0995785522414883,
+    "min_cosine_vs_cpu": 1.0,
+    "stable": true,
+    "offloaded_fraction": null,
+    "device_memory_mib": null,
+    "device_memory_total_mib": null
+  }
+}

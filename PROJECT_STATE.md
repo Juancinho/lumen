@@ -90,9 +90,10 @@ Benchmark/ADR required:
   (7.3k/s with identity); all edge cases reported. Also fixed usearch MSVC link (ADR-016).
 - **T010 REVIEW:** GitHub Actions CI (frontend; Rust gate on Linux + Windows; quick release
   benches as artifacts) + `cargo xtask bench [--quick]`. Pending first run on a remote.
-- **T013 REVIEW (ADR-019):** device policy — CPU default/fallback, accelerators only with a
+- **T013 DONE (ADR-019):** device policy — CPU default/fallback, accelerators only with a
   passing probe (same space, stable, cos ≥ 0.999 vs CPU, ≥ 90 % offloaded, memory budget,
-  no iGPU), lane rules by power/profile/activity, quarantine per runtime key.
+  no iGPU), lane rules by power/profile/activity, quarantine per runtime key. joao-pc: GTX
+  1650 indexes 2.35x faster but needs 2.3 GB VRAM -> rejected; CPU in every scenario.
 - Not yet: provider trait/registry, design tokens/material (T004/T103).
 
 ## Immediate objective
