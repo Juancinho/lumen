@@ -4,12 +4,22 @@
 
 ## Active branch
 
-`main`. Commits: spec baseline → T001 → T011 → T002 → T005 → T006 (wip + final).
+`main`. Commits: spec baseline → T001 → T011 → T002 → T005 → T006 → T008.
 
 ## Active task
 
-None claimed. T001, T002, T005, T006, T011 are DONE. New tasks: **T013** (device policy),
-**T014** (indexing-throughput runtime spike).
+None claimed. DONE: T001, T002, T005, T006, T008, T011. Next: **T007** (SQLite/FTS5).
+
+## T008 — outcome (ADR-016)
+
+- `crates/lumen-vector`: `VectorIndex::{new, reserve, add, search, remove, save, load, view}`,
+  `IndexConfig { dim, metric, scalar, params }`, `Scalar::{F32,F16,BF16,I8}`. Keys = VectorId u64.
+- Decision: f16, cosine, M=16, ef_construction=128, **ef_search=256** (0.99 recall at 1M,
+  ~1.3 ms). i8 rejected (0.85 recall), bf16 0.995.
+- `lumen-bench ann [--sizes --scalars --efs --dataset --vectors D.f32,Q.f32 ...]`; results in
+  `docs/benchmarks/t008/2026-10-08-cloud-sandbox/`. Optional: `scripts/t008/run-windows-ann.ps1`
+  (Windows latencies), real-embedding recall via `scripts/embedding/embed_corpus.py`.
+- T203 must add a mutable delta index next to the mmap'ed (read-only) generation file.
 
 ## T006 — outcome (ADR-015)
 
@@ -54,8 +64,8 @@ Windows: `run-windows-bench.ps1` ran on joao-pc (results above).
 1. **T013** device policy (CPU q4 default; probe + placement before ever using a GPU; profiles).
 2. **T014** if indexing speed matters before M2: LiteRT-LM (int4 QAT, 270M text model),
    llama.cpp GGUF (CPU/Vulkan/CUDA), Windows ML EPs, WebGPU EP — same harness/fidelity bar.
-3. Unblocked foundation tasks: T007 (SQLite/FTS), T008 (USearch 256d), T009 (file identity),
-   T010 (CI), T003/T004/T012 (shell). T201/T204 can now target `OrtBackend`.
+3. Unblocked foundation tasks: T007 (SQLite/FTS), T009 (file identity), T010 (CI),
+   T003/T004/T012 (shell). T201/T204 can target `OrtBackend`; T203 can target `lumen-vector`.
 
 ## Known issues / notes
 
@@ -67,5 +77,5 @@ Windows: `run-windows-bench.ps1` ran on joao-pc (results above).
 
 ## Unresolved evidence-based decisions
 
-- native backdrop path (T004); vector scalar profile (T008); GPU/NPU embedding path (T013/T014);
+- native backdrop path (T004); GPU/NPU embedding path (T013/T014);
   q4 vs fp32 relevance at scale (T205); FastFrame/egui spike timing (TX01); TS bindings (ADR-013).

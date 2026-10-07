@@ -7,11 +7,13 @@
 #![forbid(unsafe_code)]
 #![allow(clippy::print_stdout)] // CLI output
 
+mod ann;
 mod corpus;
 mod embed;
 mod fidelity;
 mod machine;
 mod stats;
+mod synth;
 
 use std::process::ExitCode;
 use std::time::Duration;
@@ -21,6 +23,7 @@ Usage: lumen-bench <command> [options]
 
 Commands:
   embed     Embedding backend latency/throughput/memory (T005/T006)
+  ann       ANN index (USearch/HNSW) build/search/recall/memory/persistence (T008)
 
 embed options:
   --backend NAME         backend to measure (default: mock)
@@ -48,43 +51,37 @@ ort backend (build with --features ort, or directml on Windows):
   --threads N            intra-op threads (default: runtime default)
   --placement            report which execution provider runs each graph node
   --no-cpu-fallback      fail instead of running unsupported GPU nodes on CPU
+
+ann options:
+  --sizes A,B,..         vector counts (default: 100000)
+  --dim N                dimension (default: 256)
+  --dataset NAME         embedding-like | uniform (default: embedding-like)
+  --scalars A,B,..       f32,f16,bf16,i8 (default: all)
+  --connectivity N       HNSW M (default: 16)
+  --expansion-add N      ef_construction (default: 128)
+  --efs A,B,..           search ef sweep (default: 16,32,64,128,256)
+  --queries N            measured queries (default: 500)
+  --k N                  neighbours per query (default: 10)
+  --threads N            build threads (default: all logical CPUs)
+  --work-dir DIR         where index files are saved/loaded (default: temp dir)
+  --vectors D.f32,Q.f32  real vectors (raw LE f32, --dim per row) instead of synthetic data
+  --label TEXT / --json PATH   as for embed
 ";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("embed") => match parse_embed(&args[1..]).and_then(|(opts, json)| {
-            let report = embed::run(&opts)?;
-            Ok((report, json))
+            embed::run(&opts).map(|r| (embed::summarize(&r), to_json(&r), json))
         }) {
-            Ok((report, json_path)) => {
-                eprint!("{}", embed::summarize(&report));
-                let json = match serde_json::to_string_pretty(&report) {
-                    Ok(json) => json,
-                    Err(err) => {
-                        eprintln!("error: serialize report: {err}");
-                        return ExitCode::FAILURE;
-                    }
-                };
-                match json_path {
-                    Some(path) => {
-                        if let Some(parent) = std::path::Path::new(&path).parent() {
-                            let _ = std::fs::create_dir_all(parent);
-                        }
-                        if let Err(err) = std::fs::write(&path, json + "\n") {
-                            eprintln!("error: write {path}: {err}");
-                            return ExitCode::FAILURE;
-                        }
-                        eprintln!("  report: {path}");
-                    }
-                    None => println!("{json}"),
-                }
-                ExitCode::SUCCESS
-            }
-            Err(err) => {
-                eprintln!("error: {err}\n\n{USAGE}");
-                ExitCode::FAILURE
-            }
+            Ok((summary, json, path)) => emit(&summary, json, path),
+            Err(err) => usage_error(&err),
+        },
+        Some("ann") => match parse_ann(&args[1..]).and_then(|(opts, json)| {
+            ann::run(&opts).map(|r| (ann::summarize(&r), to_json(&r), json))
+        }) {
+            Ok((summary, json, path)) => emit(&summary, json, path),
+            Err(err) => usage_error(&err),
         },
         Some("-h" | "--help") => {
             print!("{USAGE}");
@@ -95,6 +92,102 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+fn to_json<T: serde::Serialize>(report: &T) -> Result<String, String> {
+    serde_json::to_string_pretty(report).map_err(|e| format!("serialize report: {e}"))
+}
+
+fn usage_error(err: &str) -> ExitCode {
+    eprintln!("error: {err}\n\n{USAGE}");
+    ExitCode::FAILURE
+}
+
+/// Prints the summary to stderr and the JSON report to `path` (or stdout).
+fn emit(summary: &str, json: Result<String, String>, path: Option<String>) -> ExitCode {
+    eprint!("{summary}");
+    let json = match json {
+        Ok(json) => json,
+        Err(err) => {
+            eprintln!("error: {err}");
+            return ExitCode::FAILURE;
+        }
+    };
+    match path {
+        Some(path) => {
+            if let Some(parent) = std::path::Path::new(&path).parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            if let Err(err) = std::fs::write(&path, json + "\n") {
+                eprintln!("error: write {path}: {err}");
+                return ExitCode::FAILURE;
+            }
+            eprintln!("  report: {path}");
+        }
+        None => println!("{json}"),
+    }
+    ExitCode::SUCCESS
+}
+
+fn parse_list(flag: &str, v: &str) -> Result<Vec<usize>, String> {
+    v.split(',')
+        .map(|s| {
+            s.trim()
+                .replace('_', "")
+                .parse::<usize>()
+                .map_err(|_| format!("{flag}: `{s}` is not a non-negative integer"))
+        })
+        .collect()
+}
+
+fn parse_ann(args: &[String]) -> Result<(ann::AnnOptions, Option<String>), String> {
+    let mut opts = ann::AnnOptions::default();
+    let mut json = None;
+    let mut it = args.iter();
+    while let Some(flag) = it.next() {
+        let value = it
+            .next()
+            .cloned()
+            .ok_or_else(|| format!("{flag} needs a value"))?;
+        let one = |v: &str| {
+            parse_list(flag, v)
+                .and_then(|l| l.first().copied().ok_or_else(|| format!("{flag}: empty")))
+        };
+        match flag.as_str() {
+            "--sizes" => opts.sizes = parse_list(flag, &value)?,
+            "--dim" => opts.dim = one(&value)?,
+            "--dataset" => {
+                opts.dataset = synth::Dataset::parse(&value)
+                    .ok_or_else(|| format!("--dataset: `{value}` (embedding-like, uniform)"))?;
+            }
+            "--scalars" => {
+                opts.scalars = value
+                    .split(',')
+                    .map(|s| {
+                        lumen_vector::Scalar::parse(s.trim())
+                            .ok_or_else(|| format!("--scalars: `{s}` (f32, f16, bf16, i8)"))
+                    })
+                    .collect::<Result<_, _>>()?;
+            }
+            "--connectivity" => opts.connectivity = one(&value)?,
+            "--expansion-add" => opts.expansion_add = one(&value)?,
+            "--efs" => opts.efs = parse_list(flag, &value)?,
+            "--queries" => opts.queries = one(&value)?,
+            "--k" => opts.k = one(&value)?,
+            "--threads" => opts.threads = one(&value)?.max(1),
+            "--work-dir" => opts.work_dir = value.into(),
+            "--vectors" => {
+                let (docs, queries) = value
+                    .split_once(',')
+                    .ok_or("--vectors needs DOCS.f32,QUERIES.f32")?;
+                opts.vectors = Some((docs.into(), queries.into()));
+            }
+            "--label" => opts.label = Some(value),
+            "--json" => json = Some(value),
+            other => return Err(format!("unknown option `{other}`")),
+        }
+    }
+    Ok((opts, json))
 }
 
 fn parse_embed(args: &[String]) -> Result<(embed::EmbedOptions, Option<String>), String> {
@@ -188,6 +281,36 @@ mod tests {
         assert_eq!(opts.mock_latency.per_call, Duration::from_millis(3));
         assert_eq!(opts.label.as_deref(), Some("XPS on battery"));
         assert_eq!(json.as_deref(), Some("out.json"));
+    }
+
+    #[test]
+    fn parses_ann_options() {
+        let (opts, json) = parse_ann(&args(&[
+            "--sizes",
+            "100_000,1000000",
+            "--scalars",
+            "f32,i8",
+            "--efs",
+            "32,64",
+            "--k",
+            "5",
+            "--dataset",
+            "uniform",
+            "--json",
+            "a.json",
+        ]))
+        .unwrap();
+        assert_eq!(opts.sizes, [100_000, 1_000_000]);
+        assert_eq!(
+            opts.scalars,
+            [lumen_vector::Scalar::F32, lumen_vector::Scalar::I8]
+        );
+        assert_eq!(opts.efs, [32, 64]);
+        assert_eq!(opts.k, 5);
+        assert_eq!(opts.dataset, synth::Dataset::Uniform);
+        assert_eq!(json.as_deref(), Some("a.json"));
+        assert!(parse_ann(&args(&["--scalars", "f8"])).is_err());
+        assert!(parse_ann(&args(&["--sizes"])).is_err());
     }
 
     #[test]

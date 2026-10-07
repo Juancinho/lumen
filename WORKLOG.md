@@ -47,3 +47,9 @@ Append-only. Keep entries compact.
 - `lumen-bench`: `--backend ort`, long-input probe, `--reference`, `--placement`. Windows matrix script `scripts/t006/run-windows-bench.ps1`.
 - Windows results (Ryzen 5 5600H / GTX 1650 / Vega): CPU q4 30 ms p50, 168 MiB; fp32 33 ms, 627 MiB; q8 221 ms. DirectML 293–572 ms (dispatch-bound, Gelu on CPU for fp32/q4), fp16 zero-norm, iGPU device hang. First DML run failed by over-strict `disable_cpu_ep_fallback` (fixed: fallback allowed + placement report).
 - ADR-015: ORT + CPU + q4 default; GPU deferred to T013/T014.
+
+## 2026-10-08 — T008 ANN benchmark (claude)
+
+- `crates/lumen-vector`: typed USearch 2.26.4 wrapper (Scalar f32/f16/bf16/i8, cosine/IP, HNSW params, add/search/remove/save/load/view).
+- `lumen-bench ann`: embedding-like synthetic data calibrated on real EmbeddingGemma 2 vectors, exact ground truth, ef sweep, persistence, deletes; `--vectors` for real embeddings; `scripts/t008/run-windows-ann.ps1`.
+- Sandbox: 100k f16 = f32 recall (1.000 @ef64), half memory; 1M needs ef 256 for 0.99 (1.3 ms); i8 caps at 0.85; bf16 0.995. ADR-016. Windows latency run and real-vector recall left as optional evidence.

@@ -21,6 +21,8 @@ directml = ["ort", "lumen-embedding-ort/directml"]
 lumen-core.workspace = true
 lumen-embedding.workspace = true
 lumen-embedding-ort = { workspace = true, optional = true }
+lumen-vector.workspace = true
+usearch.workspace = true
 memory-stats.workspace = true
 serde.workspace = true
 serde_json.workspace = true

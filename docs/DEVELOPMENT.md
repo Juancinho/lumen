@@ -32,6 +32,7 @@ crates/
                            cancellation, 768->256 truncation + L2), EmbeddingSpace key, MockBackend
   lumen-embedding-ort/     EmbeddingGemma 2 on ONNX Runtime (ADR-015): dynamic onnxruntime.dll,
                            CPU (default) / DirectML (feature `directml`), placement diagnostics
+  lumen-vector/            ANN index (USearch HNSW, ADR-016): f16, cosine, add/search/remove/save/view
   lumen-bench/             benchmark harness binary `lumen-bench` (release-mode, JSON reports)
 apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
   src/                     React UI
@@ -112,6 +113,7 @@ Benchmarks (release builds only; debug runs are flagged in the report):
 | Purpose | Command |
 |---|---|
 | Embedding backend latency/throughput/memory | `cargo run --release -p lumen-bench -- embed --json target/bench/embed-<backend>.json` |
+| ANN index build/recall/latency/persistence | `cargo run --release -p lumen-bench -- ann --sizes 100000 --json target/bench/ann.json` |
 | Options | `cargo run --release -p lumen-bench -- --help` (`--backend`, `--dim`, `--iterations`, `--batch-sizes`, `--label`, …) |
 
 Real model (ADR-015): `cargo run --release -p lumen-bench --features ort -- embed --backend ort

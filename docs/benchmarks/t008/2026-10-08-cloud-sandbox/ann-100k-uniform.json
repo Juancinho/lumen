@@ -1,0 +1,228 @@
+{
+  "schema_version": 1,
+  "kind": "ann",
+  "label": "cloud sandbox 2 vCPU, uniform worst case",
+  "machine": {
+    "os": "linux",
+    "arch": "x86_64",
+    "logical_cpus": 2,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791408651
+  },
+  "usearch": "2.26.4",
+  "hardware_acceleration": "serial, haswell, skylake, icelake, genoa, sapphire, sapphireamx, alder",
+  "dim": 256,
+  "dataset": "uniform",
+  "metric": "cos",
+  "connectivity": 16,
+  "expansion_add": 128,
+  "queries": 500,
+  "k": 10,
+  "build_threads": 2,
+  "sizes": [
+    {
+      "n": 100000,
+      "generate_s": 0.529967163,
+      "ground_truth_s": 6.272679668,
+      "raw_f32_mib": 97.65625,
+      "scalars": [
+        {
+          "scalar": "f32",
+          "build_s": 59.57773935,
+          "vectors_per_s": 1678.4792624059173,
+          "index_memory_mib": 144.76318359375,
+          "resident_after_build": {
+            "resident_mib": 227.38671875,
+            "virtual_mib": 392.23828125
+          },
+          "file_mib": 111.82019424438477,
+          "save_ms": 74.41644699999999,
+          "load_ms": 96.254538,
+          "view_ms": 8.800203,
+          "view_first_query_ms": 4.9519910000000005,
+          "view_warm": {
+            "n": 500,
+            "min_ms": 0.5257839999999999,
+            "mean_ms": 0.7935719159999994,
+            "p50_ms": 0.783214,
+            "p95_ms": 1.001703,
+            "p99_ms": 1.144857,
+            "max_ms": 1.905063
+          },
+          "per_ef": [
+            {
+              "ef": 16,
+              "recall_at_k": 0.033,
+              "latency": {
+                "n": 500,
+                "min_ms": 0.12239799999999999,
+                "mean_ms": 0.21275403199999995,
+                "p50_ms": 0.204854,
+                "p95_ms": 0.297288,
+                "p99_ms": 0.358531,
+                "max_ms": 0.444643
+              }
+            },
+            {
+              "ef": 32,
+              "recall_at_k": 0.0574,
+              "latency": {
+                "n": 500,
+                "min_ms": 0.23810199999999998,
+                "mean_ms": 0.35943973999999973,
+                "p50_ms": 0.34735499999999997,
+                "p95_ms": 0.46360999999999997,
+                "p99_ms": 0.5208619999999999,
+                "max_ms": 0.5714290000000001
+              }
+            },
+            {
+              "ef": 64,
+              "recall_at_k": 0.1102,
+              "latency": {
+                "n": 500,
+                "min_ms": 0.531055,
+                "mean_ms": 0.7419649539999995,
+                "p50_ms": 0.730755,
+                "p95_ms": 0.908559,
+                "p99_ms": 1.022729,
+                "max_ms": 1.0852959999999998
+              }
+            },
+            {
+              "ef": 128,
+              "recall_at_k": 0.1848,
+              "latency": {
+                "n": 500,
+                "min_ms": 1.006182,
+                "mean_ms": 1.2540512139999997,
+                "p50_ms": 1.239823,
+                "p95_ms": 1.471975,
+                "p99_ms": 1.5789440000000001,
+                "max_ms": 1.746011
+              }
+            },
+            {
+              "ef": 256,
+              "recall_at_k": 0.3048,
+              "latency": {
+                "n": 500,
+                "min_ms": 2.056596,
+                "mean_ms": 2.4329124960000006,
+                "p50_ms": 2.397681,
+                "p95_ms": 2.782605,
+                "p99_ms": 3.0529319999999998,
+                "max_ms": 3.2368789999999996
+              }
+            }
+          ],
+          "deletes": {
+            "removed": 1000,
+            "remove_us_per_key": 0.44673700000000005,
+            "removed_keys_returned": 0,
+            "re_added": 200
+          }
+        },
+        {
+          "scalar": "f16",
+          "build_s": 34.530498219,
+          "vectors_per_s": 2895.9906505193767,
+          "index_memory_mib": 80.76318359375,
+          "resident_after_build": {
+            "resident_mib": 179.4296875,
+            "virtual_mib": 329.1484375
+          },
+          "file_mib": 62.9918098449707,
+          "save_ms": 41.237292000000004,
+          "load_ms": 53.249907,
+          "view_ms": 5.068726,
+          "view_first_query_ms": 2.9033420000000003,
+          "view_warm": {
+            "n": 500,
+            "min_ms": 0.308161,
+            "mean_ms": 0.42455883400000044,
+            "p50_ms": 0.40942,
+            "p95_ms": 0.550306,
+            "p99_ms": 0.6640189999999999,
+            "max_ms": 0.710971
+          },
+          "per_ef": [
+            {
+              "ef": 16,
+              "recall_at_k": 0.032,
+              "latency": {
+                "n": 500,
+                "min_ms": 0.0979,
+                "mean_ms": 0.152442482,
+                "p50_ms": 0.14501299999999998,
+                "p95_ms": 0.21739,
+                "p99_ms": 0.26421300000000003,
+                "max_ms": 0.322509
+              }
+            },
+            {
+              "ef": 32,
+              "recall_at_k": 0.0616,
+              "latency": {
+                "n": 500,
+                "min_ms": 0.18154099999999998,
+                "mean_ms": 0.27110462999999974,
+                "p50_ms": 0.26319,
+                "p95_ms": 0.361936,
+                "p99_ms": 0.419028,
+                "max_ms": 0.49657100000000004
+              }
+            },
+            {
+              "ef": 64,
+              "recall_at_k": 0.106,
+              "latency": {
+                "n": 500,
+                "min_ms": 0.37144,
+                "mean_ms": 0.4914553140000003,
+                "p50_ms": 0.485625,
+                "p95_ms": 0.612412,
+                "p99_ms": 0.6533370000000001,
+                "max_ms": 0.691423
+              }
+            },
+            {
+              "ef": 128,
+              "recall_at_k": 0.1918,
+              "latency": {
+                "n": 500,
+                "min_ms": 0.7237629999999999,
+                "mean_ms": 0.912119568,
+                "p50_ms": 0.900325,
+                "p95_ms": 1.091347,
+                "p99_ms": 1.1745709999999998,
+                "max_ms": 1.529163
+              }
+            },
+            {
+              "ef": 256,
+              "recall_at_k": 0.3188,
+              "latency": {
+                "n": 500,
+                "min_ms": 1.25695,
+                "mean_ms": 1.6105598660000005,
+                "p50_ms": 1.5930829999999998,
+                "p95_ms": 1.913739,
+                "p99_ms": 2.0560560000000003,
+                "max_ms": 2.280303
+              }
+            }
+          ],
+          "deletes": {
+            "removed": 1000,
+            "remove_us_per_key": 0.40645600000000004,
+            "removed_keys_returned": 0,
+            "re_added": 200
+          }
+        }
+      ]
+    }
+  ]
+}

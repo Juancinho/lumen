@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/lumen-core", "crates/lumen-embedding", "crates/lumen-embedding-ort", "crates/lumen-bench", "apps/desktop/src-tauri", "xtask"]
+members = ["crates/lumen-core", "crates/lumen-embedding", "crates/lumen-embedding-ort", "crates/lumen-vector", "crates/lumen-bench", "apps/desktop/src-tauri", "xtask"]
 
 [workspace.package]
 version = "0.1.0"
@@ -13,7 +13,10 @@ publish = false
 lumen-core = { path = "crates/lumen-core" }
 lumen-embedding = { path = "crates/lumen-embedding" }
 lumen-embedding-ort = { path = "crates/lumen-embedding-ort" }
+lumen-vector = { path = "crates/lumen-vector" }
 memory-stats = "1.2.0"
+# HNSW ANN (ADR-004). C++ core compiled by cargo (MSVC on Windows).
+usearch = "=2.26.4"
 # ONNX Runtime loaded dynamically (onnxruntime.dll shipped next to the exe); API level 24 so the
 # DirectML build (frozen at ORT 1.24) and newer CPU builds both load. See ADR-015.
 ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "load-dynamic", "api-24"] }
