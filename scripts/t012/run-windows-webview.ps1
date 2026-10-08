@@ -109,8 +109,10 @@ try {
         npm run build
         if ($LASTEXITCODE -ne 0) { throw "frontend build failed" }
         Pop-Location
-        Write-Step "cargo build --release -p lumen-desktop"
-        cargo build --release -p lumen-desktop
+        # tauri/custom-protocol embeds apps/desktop/dist; without it the exe loads the dev
+        # server URL and the UI never starts (docs/DEVELOPMENT.md, profiles).
+        Write-Step "cargo build --release -p lumen-desktop --features tauri/custom-protocol"
+        cargo build --release -p lumen-desktop --features tauri/custom-protocol
         if ($LASTEXITCODE -ne 0) { throw "build failed" }
     }
     $running = Get-Process -Name lumen -ErrorAction SilentlyContinue
@@ -128,7 +130,10 @@ try {
         $deadline = (Get-Date).AddSeconds(30)
         while (-not (Get-Events $log "ready_ms") -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 50 }
         $ready = Get-Events $log "ready_ms" | Select-Object -First 1
-        if (-not $ready) { Write-Warning "  no ready event in 30 s"; $proc | Stop-Process -Force; continue }
+        if (-not $ready) {
+            Write-Warning "  no ready event in 30 s (UI did not start: was lumen.exe built with tauri/custom-protocol?)"
+            $proc | Stop-Process -Force; continue
+        }
         $startupWall = $ready.unix - $launchedAt
         Write-Host ("  ready: {0:N0} ms after launch ({1:N0} ms inside the process)" -f $startupWall, $ready.value)
 
