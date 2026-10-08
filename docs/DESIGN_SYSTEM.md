@@ -296,15 +296,15 @@ Do not:
 - copy macOS traffic-light controls;
 - ship a custom font merely to imitate Apple;
 - make search results wait for semantic inference before rendering anything.
-# Refinement — command-center interaction design
+## 17. Command-center interaction design
 
-## Root surface
+### Root surface
 
 The default state is one visually calm search surface. Do not show category tabs, dashboard cards or permanent sidebars in the initial overlay.
 
 Provider diversity is communicated subtly through iconography/metadata, not by fragmenting the interface.
 
-## Action Panel
+### Action Panel
 
 `Ctrl+K` opens contextual actions for the selected result. The panel should feel like a continuation of the same surface, not a modal settings dialog.
 
@@ -317,11 +317,11 @@ Requirements:
 - no layout jump of the selected source item;
 - closing returns focus exactly where it was.
 
-## Quick Look
+### Quick Look
 
 Preview expansion should preserve spatial context. Prefer one smooth width/height/layout transition over popping a second unrelated window.
 
-## Semantic Drop
+### Semantic Drop
 
 Dragging/pasting a query object should create a clear but restrained state:
 
@@ -331,7 +331,7 @@ Dragging/pasting a query object should create a clear but restrained state:
 
 The object chip is removable with keyboard and mouse. Do not turn the root field into a chat-composer UI.
 
-## Semantic refinement
+### Semantic refinement
 
 When semantic results arrive:
 
@@ -340,11 +340,11 @@ When semantic results arrive:
 - once the user moves selection, preserve the selected item and avoid reordering under it;
 - never animate every row independently with exaggerated spring motion.
 
-## Density
+### Density
 
 Lumen is information-dense but not cramped. Favor compact premium rows over giant cards. A launcher should let users scan 6–10 useful results immediately at normal desktop sizes.
 
-## Apple-level quality interpretation
+### Apple-level quality interpretation
 
 Target:
 

@@ -4,13 +4,17 @@
 
 Codex, Claude Code or another agent must be able to stop and resume work without relying on chat memory.
 
-Canonical continuity files:
+Canonical continuity files, each with one role (do not duplicate content across them):
 
-- `PROJECT_STATE.md` — milestone snapshot;
-- `TASKS.md` — ownership/status/dependencies;
-- `HANDOFF.md` — exact current continuation;
-- `WORKLOG.md` — append-only compact history;
-- `DECISIONS.md` — architecture decisions.
+| File | Owns | Update rule |
+|---|---|---|
+| `PROJECT_STATE.md` | what exists now: milestone, per-task outcome in 1–3 lines, top risks | when a task changes status; ≤ 180 lines |
+| `TASKS.md` | task table (status, owner, dependencies) and the ordered **Next** list | when claiming/finishing; Next re-ordered when priorities change |
+| `HANDOFF.md` | the live continuation: active task, pending human checks with exact commands, per-task REVIEW notes (files, commands, known issues) | rewritten every session; DONE tasks are removed |
+| `WORKLOG.md` | dated history, a few lines per task/session | append-only, never edited |
+| `docs/DECISIONS.md` + `docs/adr/` | decisions: index table + one file per ADR | new ADR or dated amendment note |
+
+Reading order: `AGENTS.md`. Crate/module layout: `docs/DEVELOPMENT.md` §2.
 
 ## 2. Claiming work
 

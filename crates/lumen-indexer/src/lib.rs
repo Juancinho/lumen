@@ -1,4 +1,4 @@
-//! Indexing pipeline, starting with Pass 0: inventory (docs/SEARCH_AND_INDEXING.md §20).
+//! Indexing pipeline, starting with Pass 0: inventory (docs/SEARCH_AND_INDEXING.md §21).
 //!
 //! **Coverage guarantee (T009):** every file system entry under an indexed root is either
 //! emitted as a [`ScanEntry`] (at least path + name, even when its metadata cannot be read) or

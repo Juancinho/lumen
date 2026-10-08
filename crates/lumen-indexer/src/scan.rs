@@ -1,4 +1,4 @@
-//! Pass 0 inventory: walk indexed roots and emit every entry (docs/SEARCH_AND_INDEXING.md §20).
+//! Pass 0 inventory: walk indexed roots and emit every entry (docs/SEARCH_AND_INDEXING.md §21).
 //!
 //! Invariant (ADR-018): for every directory entry the walk reaches, exactly one of these holds:
 //! - it is emitted as a [`ScanEntry`] (metadata, flags and identity are best-effort: a failure

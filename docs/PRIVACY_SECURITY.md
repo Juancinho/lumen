@@ -1,5 +1,17 @@
 # PRIVACY_SECURITY.md
 
+## 0. Implementation status (2026-10-08)
+
+- Stores on device only: `%APPDATA%\dev.lumen.desktop\lumen.db` (catalog, settings, usage).
+  Usage is aggregates only — frecency, learned query prefix → item, pins; no raw event log;
+  retention/clear functions exist without UI yet (ADR-023).
+- The UI can only act on results Lumen produced: requests carry ids, payloads stay in Rust,
+  the core policy checks every action (ADR-013/026). The opener plugin is used from Rust only;
+  no file-system or shell permission is granted to the WebView (CSP + Tauri capabilities).
+- Benchmarks and scripts store counts and timings, never file/app names or queries; material
+  screenshots stay in git-ignored `target/t004/`; diag logs are opt-in (`LUMEN_DIAG_LOG`).
+- No network use in the app. Not built yet: exclusions UI, clipboard history, Rewind.
+
 ## 1. Default posture
 
 Core Lumen works offline. Local files, queries, embeddings, clipboard history, activity events and usage ranking stay on device by default.

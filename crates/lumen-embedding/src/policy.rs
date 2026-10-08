@@ -81,7 +81,7 @@ pub enum PowerSource {
     Unknown,
 }
 
-/// User-facing resource profile (docs/SEARCH_AND_INDEXING.md §21).
+/// User-facing resource profile (docs/SEARCH_AND_INDEXING.md §22).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ResourceProfile {
     /// Low concurrency, nothing heavy on battery.

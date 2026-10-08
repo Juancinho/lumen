@@ -65,7 +65,9 @@ apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
     src/dto.rs             wire DTOs mapped from core types
     capabilities/          Tauri permission sets (minimal: core:default)
     tauri.conf.json        window, CSP, build hooks
-xtask/                     repo tooling (`cargo xtask arch`)
+xtask/                     repo tooling (`cargo xtask arch|test|bench`)
+docs/                      specs (each starts with §0 status); DECISIONS.md = ADR index,
+                           one file per ADR in docs/adr/; benchmarks/ = JSON evidence
 ```
 
 New domain crates (`lumen-storage`, `lumen-search`, `lumen-embedding`, …) go under `crates/`

@@ -1,5 +1,17 @@
 # TESTING.md
 
+## 0. Implementation status (2026-10-08)
+
+- Gate (`docs/DEVELOPMENT.md` §4, CI on Linux + Windows): `cargo fmt`, `cargo clippy --locked
+  -D warnings`, `cargo xtask test` (workspace, then the shell separately), `cargo xtask arch`,
+  `npm run check` (Prettier, ESLint strict + jsx-a11y, `tsc`, Vitest).
+- Relevance: `crates/lumen-catalog/tests/relevance.rs` over `fixtures/search/` (MRR ≥ 0.95
+  gate). Embedding fidelity: `lumen-embedding-ort/tests/fidelity.rs` vs a committed fp32
+  reference. Contrast: `src/design/material.test.ts`.
+- Windows evidence scripts: `scripts/t0xx|t1xx/run-windows-*.ps1` (release builds; JSON into
+  `docs/benchmarks/`). Linux Xvfb smoke runs of the real app are used for UI flows.
+- Not yet: end-to-end Windows UI automation, workflow tests, failure-injection suite.
+
 ## 1. Test pyramid
 
 ### Unit

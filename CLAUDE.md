@@ -4,15 +4,7 @@ Claude Code must follow `AGENTS.md` and `docs/AGENT_PROTOCOL.md`.
 
 ## Start of every session
 
-Read:
-
-1. `PROJECT_STATE.md`
-2. `TASKS.md`
-3. `HANDOFF.md`
-4. last 3–5 entries of `WORKLOG.md`
-5. `docs/DECISIONS.md`
-6. `docs/PRODUCT.md`
-7. relevant specs
+Read the files in the order listed in `AGENTS.md` ("Before touching code").
 
 Then inspect `git status` and recent commits.
 

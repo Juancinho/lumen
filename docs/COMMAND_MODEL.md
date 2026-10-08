@@ -17,7 +17,15 @@ conceptual sketches below. Notable concrete choices:
 - `ExecutionContext::authorize` turns an id-only `ActionRequest` into an authorized context:
   action must be offered by the result, Enter runs only the primary, destructive/privileged need
   explicit confirmation.
-- `Payload` never crosses to the UI (ADR-013). `PreviewRef` is deferred to T105.
+- `Payload` never crosses to the UI (ADR-013). Quick Look (T105) asks the shell for a preview
+  by result id instead of a `PreviewRef`.
+
+Built on top (M1): the `Provider` trait with latency classes (`provider.rs`); one provider,
+`lumen.catalog` (apps + files, ADR-021/022); the coordinator and latest-wins search thread
+in `crates/lumen-search` (ADR-025); built-in actions `lumen.open`, `lumen.launch`,
+`lumen.reveal`, `lumen.copy-path` (`builtin.rs`) with Action Panel ordering and executors
+(ADR-026). Not yet: calculator/settings/quicklink providers (T402+), workflows (T501+),
+pin/open-with actions.
 
 ## 1. Mental model
 

@@ -1,4 +1,4 @@
-//! The provider contract (docs/COMMAND_MODEL.md §3, docs/ARCHITECTURE.md §C).
+//! The provider contract (docs/COMMAND_MODEL.md §3, docs/ARCHITECTURE.md §20.C).
 //!
 //! A provider turns a root query into [`ResultItem`]s. It is synchronous like the
 //! embedding backend (ADR-014): the coordinator (T107) owns threads, deadlines and

@@ -10,15 +10,17 @@ Do not reduce Lumen to a vector-search demo. Do not turn it into an overloaded d
 
 ## Before touching code
 
-Read in order:
+Read in order (this is the only reading list; other files point here):
 
-1. `PROJECT_STATE.md`
-2. `TASKS.md`
-3. `HANDOFF.md`
-4. `docs/DECISIONS.md`
-5. `docs/AGENT_PROTOCOL.md`
-6. `docs/PRODUCT.md`
-7. the relevant domain spec
+1. `PROJECT_STATE.md` — what exists now
+2. `TASKS.md` — status, owners, the ordered **Next** list
+3. `HANDOFF.md` — the live continuation and pending checks
+4. the last 3–5 entries of `WORKLOG.md`
+5. `docs/DECISIONS.md` — ADR index; open the ADRs (`docs/adr/`) your task touches
+6. `docs/AGENT_PROTOCOL.md`
+7. `docs/PRODUCT.md`
+8. `docs/DEVELOPMENT.md` (layout, commands) and the relevant domain spec (each starts with
+   a §0 implementation status)
 
 Then inspect `git status`, recent commits and relevant tests. Claim a task before substantial work.
 

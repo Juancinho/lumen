@@ -166,3 +166,16 @@ Append-only. Keep entries compact.
 - `lumen-bench storage` now inserts a Zipf(1) corpus over VOCAB + every realistic query term and reports hits for keystroke, vocabulary-final and realistic-final queries (schema v3), warning on zero-hit sets.
 - Sandbox 100k chunks: keystroke FTS p50 13.3 / p95 67.6 ms with real hits, 44 % interrupted at the 20 ms budget -> ADR-017 corrected; content FTS moves to the settled-query lane in M2.
 
+
+## 2026-10-08 — T111 specified: indexed locations + exclusions (claude)
+
+- User request: index other drives besides the standard folders on C:, and exclude folders. Today roots are hard-coded in the shell (`catalog.rs`).
+- Spec `docs/specs/T111-indexed-locations.md` (reuses `ScanOptions`/`Exclusions`/`sync_files`; tray UI + Action Panel "Exclude this folder"; versioned `index.locations` setting; marker-based build exclusions; whole-drive scale measurement). Added as T111 TODO in M1. Kept out of SEARCH_AND_INDEXING.md while T015 edits it.
+
+## 2026-10-08 — T015 docs consolidation (claude)
+
+- ADRs split into `docs/adr/adr-NNN-*.md`; `docs/DECISIONS.md` is now the index table.
+- §0 implementation status in ARCHITECTURE, SEARCH_AND_INDEXING, PERFORMANCE (measured-vs-budget table), COMMAND_MODEL, PRIVACY_SECURITY, TESTING (DESIGN_SYSTEM already had one).
+- Fixed sections contradicted by ADR-014..018/023/025: sync embedding trait, f16 decided, literal schema pointer, keystroke vs settled lanes, initial roots; crate layout only in DEVELOPMENT.md; Refinement appendices merged as numbered sections (code comments re-pointed).
+- One reading order (AGENTS.md), fixed roles table (AGENT_PROTOCOL §1), ordered Next list (TASKS.md), HANDOFF trimmed to live REVIEW items; PERFORMANCE §9 throughput budget (>= 8 chunks/s @ <= 50 % CPU, proposed) and §5 single memory metric.
+

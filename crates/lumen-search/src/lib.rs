@@ -1,4 +1,4 @@
-//! Root-search coordination (docs/ARCHITECTURE.md §B–§C, docs/COMMAND_MODEL.md §4).
+//! Root-search coordination (docs/ARCHITECTURE.md §20.B–C, docs/COMMAND_MODEL.md §4).
 //!
 //! - [`Coordinator`]: runs the registered providers for one query in latency-class order,
 //!   merges their results and reports each improvement as an [`Update`].

@@ -5,6 +5,24 @@ Owners: `codex`, `claude`, `human`, or explicit agent/worktree.
 
 Do not renumber task IDs. New tasks get new IDs.
 
+This file owns **status, ownership, dependencies and what comes next**. Current state lives
+in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLOG.md`.
+
+## Next (ordered)
+
+1. **Close REVIEW tasks on Windows (human):** T003, T004 (Acrylic vs Mica default), T103,
+   T104, T105, T107, T108/T109, T110 — checklists in `HANDOFF.md`.
+2. **T111** user-configurable indexed locations + exclusions (files on other drives such as
+   `D:\Proyectos` are not found today). Open questions for the user are in its spec.
+3. **T201** text/code extractor + chunker (~128-token chunks, ADR-015 consequence).
+4. **T014** indexing-throughput runtime spike on Windows — candidates now known:
+   llama.cpp with `ggml-org/embeddinggemma-2-GGUF` (Q8_0 310 MB, BF16; CPU/Vulkan/CUDA) and
+   LiteRT-LM `litert-community/embeddinggemma-2-740m-litert-lm` (QAT int4/int8; Windows support
+   unconfirmed). Gate: fidelity vs the fp32 reference, then chunks/s @ CPU % (PERFORMANCE §9).
+5. **T202** background embedding queue (needs T201; uses T014's verdict).
+6. **T204** warm query embedding service, then **T203** persistent ANN generations.
+7. **T205** hybrid fusion + evaluation harness (content FTS on the settled query, T016).
+
 # M0 — technical spikes and foundation
 
 | ID   | Status | Owner  | Task                                                                                                                 | Depends on |
@@ -23,7 +41,7 @@ Do not renumber task IDs. New tasks get new IDs.
 | T012 | DONE   | claude | WebView lifecycle/RAM spike: one WebView, hidden state, timers, optional suspension/low-memory path                  | T002       |
 | T013 | DONE   | claude | Embedding device selection + fallback policy: CPU default; GPU/NPU only when placement + probe beat CPU; battery/memory profiles; never switch weights inside an index generation | T006       |
 | T014 | TODO   | —      | Indexing-throughput runtime spike: LiteRT-LM (QAT int4, 270M text model), llama.cpp GGUF (CPU/Vulkan/CUDA), Windows ML EPs (TensorRT-RTX/OpenVINO/WebGPU); reuse fidelity harness | T006       |
-| T015 | TODO   | —      | Docs consolidation (no code): §0 implementation status in each spec + fix sections contradicted by ADR-014..018; merge "Refinement" appendices; crate layout only in DEVELOPMENT.md; reading order only in AGENTS.md; split ADRs into docs/adr/ with DECISIONS.md as index; fixed roles for TASKS/HANDOFF/WORKLOG/PROJECT_STATE; indexing-throughput (chunks/s @ CPU %) budget and one memory metric in PERFORMANCE.md; ordered "Next" list in TASKS.md. Start after T013 merges (touches shared docs) | T013       |
+| T015 | DONE   | claude | Docs consolidation (no code): §0 implementation status in each spec + fix sections contradicted by ADR-014..018; merge "Refinement" appendices; crate layout only in DEVELOPMENT.md; reading order only in AGENTS.md; split ADRs into docs/adr/ with DECISIONS.md as index; fixed roles for TASKS/HANDOFF/WORKLOG/PROJECT_STATE; indexing-throughput (chunks/s @ CPU %) budget and one memory metric in PERFORMANCE.md; ordered "Next" list in TASKS.md. Start after T013 merges (touches shared docs) | T013       |
 | T016 | DONE   | claude | Fix `lumen-bench storage` corpus: no query is covered by the 50-word synthetic vocabulary, so final FTS queries always return 0 hits and typing p50 is optimistic (p95/budget worst case stays valid). Mix query terms in with a skewed distribution, report hits per query, warn when mean hits = 0; re-measure and correct ADR-017 numbers. After T013 (may touch lumen-bench) | T007,T010  |
 
 # M1 — instant launcher and universal surface
@@ -40,6 +58,7 @@ Do not renumber task IDs. New tasks get new IDs.
 | T108 | REVIEW | claude | Universal Action Panel (`Ctrl+K`/Tab policy) with contextual action discovery | T104,T011      |
 | T109 | REVIEW | claude | Core actions: open, reveal, copy path/value, pin/favorite, open with          | T108           |
 | T110 | REVIEW | claude | Provider/result diagnostics mode for development only                         | T107           |
+| T111 | TODO   | —     | User-configurable indexed locations (folders/whole drives) + exclusions (folder, name, dev-noise defaults); spec `docs/specs/T111-indexed-locations.md` | T107,T108      |
 
 # M2 — text/code semantic search
 

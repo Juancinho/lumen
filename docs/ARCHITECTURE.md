@@ -1,5 +1,17 @@
 # ARCHITECTURE.md — system architecture
 
+## 0. Implementation status (2026-10-08)
+
+Built (M0 + M1, see `PROJECT_STATE.md`): one resident process — Tauri shell
+(`apps/desktop`) over shell-agnostic crates; catalog (files + Start-menu apps) in SQLite
+(ADR-017/021); name matching with usage priors (ADR-022/023); root-search coordinator with a
+latest-wins search thread (ADR-025); built-in actions behind the core policy (ADR-026);
+embedding backend on ONNX Runtime with a device policy (ADR-014/015/019); ANN wrapper
+(ADR-016). Not built yet: extraction/chunking (T201), embedding queue (T202), persistent ANN
+generations (T203), semantic/hybrid lanes (T204/T205), watcher (T207).
+The crate/module layout lives only in `docs/DEVELOPMENT.md` §2; decisions in
+`docs/DECISIONS.md` (one file per ADR in `docs/adr/`).
+
 ## 1. Architectural goals
 
 Lumen must optimize for:
@@ -45,36 +57,9 @@ The initial implementation can run as one resident process with isolated worker 
 
 ## 3. Workspace layout
 
-Suggested Rust/desktop organization:
-
-```text
-/apps/desktop/                 # Tauri app + React UI
-/crates/lumen-core/            # shared domain types
-/crates/lumen-search/          # query parsing, fusion, ranking
-/crates/lumen-storage/         # SQLite repositories + migrations
-/crates/lumen-vector/          # USearch wrapper/index generations
-/crates/lumen-indexer/         # enumeration, watcher, queues
-/crates/lumen-extract/         # text/PDF/image/media extractors
-/crates/lumen-embedding/       # EmbeddingBackend abstraction
-/crates/lumen-windows/         # Windows-specific APIs
-/crates/lumen-bench/           # benchmark harness/tools
-```
-
-React UI:
-
-```text
-/apps/desktop/src/
-  app/
-  components/
-  features/search/
-  features/preview/
-  features/settings/
-  design-system/
-  ipc/
-  state/
-```
-
-Avoid dumping Tauri commands into one file.
+The authoritative crate and module layout is `docs/DEVELOPMENT.md` §2 (kept current by
+each task). Crates still to come are created by the task that needs them (e.g.
+`lumen-extract` with T201). Keep Tauri commands grouped by feature, never in one file.
 
 ## 4. UI ↔ Rust boundary
 
@@ -139,81 +124,29 @@ Use WAL mode. Migrations are versioned and tested.
 
 Do not make the ANN index the source of truth. SQLite remains canonical; vector index can be rebuilt.
 
-## 7. Suggested schema
+## 7. Schema
 
-Conceptual, not literal final SQL:
-
-```text
-items(
-  id,
-  kind,
-  volume_id,
-  file_id,
-  canonical_path,
-  display_name,
-  extension,
-  size_bytes,
-  modified_at,
-  created_at,
-  indexed_at,
-  extractor_version,
-  content_fingerprint,
-  status,
-  error_code
-)
-
-chunks(
-  id,
-  item_id,
-  ordinal,
-  chunk_kind,
-  start_offset,
-  end_offset,
-  page_number,
-  media_start_ms,
-  media_end_ms,
-  symbol_name,
-  text,
-  embedding_generation
-)
-
-fts_chunks USING fts5(...)
-
-usage_events(
-  item_id,
-  event_kind,
-  occurred_at
-)
-
-pins(...)
-settings(...)
-```
+The literal schema is `crates/lumen-storage/migrations/0001_initial.sql` (ADR-017; editable
+until the first release, then only new migrations): `items` (files, folders and apps:
+stable identity, exact + case-insensitive path, name tokens, status), `scans`, `chunks` +
+`chunks_fts`, `names_fts`, `settings`, and the usage aggregates `usage_stats`,
+`query_choices`, `pins` (ADR-023 — no raw event log).
 
 Large binary previews/thumbnails should not be stored directly in SQLite unless benchmark evidence favors it. Prefer a bounded cache directory with content-addressed keys.
 
 ## 8. Embedding abstraction
 
-Define a backend trait/interface early:
-
-```rust
-trait EmbeddingBackend {
-    fn capabilities(&self) -> Capabilities;
-    async fn embed_text(&self, batch: &[TextInput], task: EmbeddingTask) -> Result<Vec<Embedding>>;
-    async fn embed_image(&self, batch: &[ImageInput], task: EmbeddingTask) -> Result<Vec<Embedding>>;
-    async fn embed_audio(&self, batch: &[AudioInput], task: EmbeddingTask) -> Result<Vec<Embedding>>;
-    async fn embed_video(&self, batch: &[VideoInput], task: EmbeddingTask) -> Result<Vec<Embedding>>;
-    async fn warm(&self, modality: Modality) -> Result<()>;
-    async fn unload(&self, modality: Modality) -> Result<()>;
-}
-```
-
-Exact async/threading form may differ by runtime, but the core must not import runtime-specific types.
+`EmbeddingBackend` (crate `lumen-embedding`) is **synchronous** (ADR-014): backends embed a
+batch of already-formatted inputs; the shared `Embedder` adds prompts, batching,
+cancellation, shape/NaN checks and the 768→256 truncation + L2. Callers own threads.
+Image/audio/video methods arrive with their tasks (T303, T701, T702).
 
 ### Backends
 
-- `NativeBackend` — selected after M0 benchmark; intended production default.
-- `DevBackend` — optional Python/sentence-transformers or test stub for development only.
+- `lumen-embedding-ort` — EmbeddingGemma 2 on ONNX Runtime, CPU + q4 by default (ADR-015);
+  DirectML only behind a feature for diagnostics.
 - `MockBackend` — deterministic test embeddings.
+- No Python backend in any shipped path (`scripts/embedding/` only produces references).
 
 ### Model configuration
 
@@ -243,10 +176,10 @@ Default Lumen profile:
 
 - truncate to 256d;
 - re-normalize after truncation;
-- use search-specific task instruction/prefix defined by the model docs;
+- use the retrieval prompts verified in ADR-015 (`PromptFormat::EMBEDDINGGEMMA_RETRIEVAL_V1`);
 - keep text path warm while tray resident;
 - load vision/audio encoders only during relevant indexing/query operations;
-- benchmark f16 vector storage before making it default.
+- store vectors as f16 in USearch HNSW, cosine (ADR-016); index space key per ADR-014.
 
 ## 10. Search pipeline
 
@@ -254,9 +187,10 @@ Default Lumen profile:
 Query arrives
    │
    ├─ parse deterministic operators
-   ├─ lexical filename/path search ─┐
-   ├─ FTS search -------------------┼─► immediate fusion ► UI batch A
-   └─ schedule semantic embedding --┘
+   ├─ name/path search (every keystroke) ─► UI batch A
+   │      typing settles (~50–90 ms)
+   ├─ content FTS (budgeted) ─────────────┐
+   └─ semantic embedding ─────────────────┤
                   │
                   ▼
             vector ANN search
@@ -268,7 +202,11 @@ Query arrives
           UI semantic batch B
 ```
 
-Important: do not await semantic embedding before sending lexical results.
+Important: do not await semantic embedding before sending lexical results. Content FTS is
+not an every-keystroke lane: at 100k chunks it costs 13/68 ms p50/p95 (T016, ADR-017 note),
+so it runs on the settled query with a generous budget; names (ADR-022, p95 ≈ 5 ms) carry
+every keystroke. The coordinator already gates non-instant providers on `typing == false`
+(ADR-025).
 
 ## 11. Ranking
 
@@ -352,7 +290,11 @@ Rename handling should use stable file IDs when possible.
 
 ## 16. Windows integration
 
-Responsibilities of `lumen-windows`:
+Split today: the shell (`apps/desktop/src-tauri`) owns the global shortcut, tray, placement,
+focus, WebView2 lifecycle and action executors; `lumen-windows` owns OS adapters the core
+uses (AppsFolder enumeration) and the window-material plan + DWM calls (ADR-024);
+`lumen-indexer` owns file identity. Move a piece down into `lumen-windows` when a second
+consumer needs it. Target responsibilities of `lumen-windows`:
 
 - global shortcut registration;
 - active-monitor placement;
@@ -383,6 +325,10 @@ Use one typed settings model with migrations. Example groups:
 
 Do not use scattered JSON files for subsystem-specific settings.
 
+Indexed locations and exclusions are one typed, versioned settings value
+(`index.locations`, T111 spec `docs/specs/T111-indexed-locations.md`); a saved list is never
+silently replaced (same rule as the shortcut, T003).
+
 ## 18. Observability
 
 Local structured logs:
@@ -409,9 +355,9 @@ Prefer mature, narrow dependencies. For every native binary/runtime dependency d
 - security maintenance.
 
 Do not add a large framework merely to solve one small OS API.
-# Refinement — command-center architecture
+## 20. Command-center architecture
 
-## A. Shell independence is mandatory
+### A. Shell independence is mandatory
 
 The current shell is Tauri + React/TypeScript, but the dependency direction is strictly:
 
@@ -429,7 +375,7 @@ storage / search / index / OS adapter interfaces
 
 Do not split into multiple executables merely to prove this separation. One process is preferred initially; architectural independence is achieved through module/crate boundaries.
 
-## B. Universal command architecture
+### B. Universal command architecture
 
 Lumen is no longer modeled as `SearchEngine -> FileResult` only.
 
@@ -456,7 +402,7 @@ Root Query
 
 Workflows later compose actions. The public extension SDK is explicitly deferred.
 
-## C. Provider latency classes
+### C. Provider latency classes
 
 Providers declare a rough class:
 
@@ -467,17 +413,17 @@ Providers declare a rough class:
 
 The coordinator may skip or delay providers based on query intent and cancellation state. Never wait for all providers before painting useful results.
 
-## D. Result/action boundary
+### D. Result/action boundary
 
 Use the canonical model in `COMMAND_MODEL.md`. The UI asks for valid actions; it does not hard-code business rules like "PDFs have these seven actions" where that rule belongs in Rust/domain code.
 
 The primary action is safe and predictable. Destructive actions are never primary.
 
-## E. Workflow boundary
+### E. Workflow boundary
 
 The workflow engine executes registered actions using typed inputs/capabilities. It must not bypass permission logic by directly calling random shell code. See `EXTENSIONS_AND_WORKFLOWS.md`.
 
-## F. Context/memory architecture
+### F. Context/memory architecture
 
 Temporal/context features use a separate local event store/table family linked to stable item IDs. They must remain optional and retention-controlled.
 
@@ -490,7 +436,7 @@ Possible event types:
 
 Do not make screen recording a prerequisite for Rewind.
 
-## G. Process evolution
+### G. Process evolution
 
 Initial: one resident process with worker pools.
 

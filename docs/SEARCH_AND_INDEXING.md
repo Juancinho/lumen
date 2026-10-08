@@ -1,5 +1,17 @@
 # SEARCH_AND_INDEXING.md — retrieval, extraction and indexing
 
+## 0. Implementation status (2026-10-08)
+
+- **Navigational (built):** Pass 0 inventory with a coverage guarantee and stable identity
+  (ADR-018), app + file catalog (ADR-021), tokenized name/path matching with typo,
+  initials and folder context plus usage priors (ADR-022/023); every keystroke, p95 ≈ 5 ms
+  on 26.5k entries + 330 apps (Windows).
+- **Lexical content (storage only):** `chunks` + `chunks_fts` with budgeted queries
+  (ADR-017); no extractor fills them yet (T201).
+- **Semantic (components only):** embedding backend + device policy (ADR-014/015/019), ANN
+  wrapper (ADR-016); no queue, generations or query lane yet (T202–T205).
+- **Coordination (built):** latency-class lanes and latest-wins search thread (ADR-025).
+
 ## 1. Retrieval philosophy
 
 Lumen combines three different kinds of retrieval because each solves a different user memory pattern:
@@ -17,12 +29,14 @@ A high-quality product fuses them. Pure vector search is not enough.
 On every meaningful input change:
 
 - parse filters synchronously and cheaply;
-- cancel stale pending semantic request;
-- run filename/path + FTS query immediately;
-- show results;
-- schedule semantic embedding after a short adaptive delay or on a stable word boundary;
-- run ANN retrieval;
+- cancel the running/stale query (latest wins, ADR-025);
+- run name/path matching immediately and show results (instant lane);
+- once typing settles (short adaptive delay or a stable word boundary): content FTS with a
+  generous budget, query embedding + ANN retrieval;
 - fuse and send refined results.
+
+Content FTS is not run per keystroke: with real hits it costs 13/68 ms p50/p95 at 100k
+chunks on a 2-vCPU machine (T016, ADR-017 note).
 
 Suggested initial semantic trigger: 50–90 ms after last keystroke, adaptive based on typing cadence. Benchmark; do not hard-code without testing.
 
@@ -55,7 +69,10 @@ Use normalization that respects Windows case-insensitive behavior while preservi
 
 ### FTS5
 
-Index extracted text and optional symbol names.
+Index extracted text and optional symbol names. Implemented (ADR-017): external-content
+FTS5 over `chunks`, `unicode61 remove_diacritics 2`, prefix indexes 3/4, bm25, user input
+always quoted (`FtsQuery::from_user`), every interactive query under a `SearchBudget`. Names
+use their own token index (`names_fts`, ADR-022).
 
 Store only what is needed for retrieval/snippets; large full bodies may be stored in a separate content cache if required.
 
@@ -79,11 +96,8 @@ Cosine similarity over normalized vectors. If vectors are normalized and the ANN
 
 ### Vector scalar type
 
-Benchmark:
-
-- f32 baseline;
-- f16 preferred compact candidate;
-- i8 only if measured relevance remains acceptable.
+Decided (ADR-016): **f16** storage in USearch HNSW, cosine, M=16, ef_search=256 — recall@10
+1.000 at 100k / 0.988 at 1M. i8 rejected (recall 0.85). f32 stays the reference.
 
 Never change index scalar type without generation/version migration.
 
@@ -130,6 +144,17 @@ Initial roots:
 - user-selected locations;
 - optional Documents/Desktop/Downloads/Pictures defaults;
 - optional developer roots.
+
+Implemented (T107): the standard folders Desktop, Documents, Downloads, Pictures, Music and
+Videos, nested/duplicate roots collapsed, synced at start-up and every 30 min until the
+watcher (T207) and configurable roots exist.
+
+User-configurable locations and exclusions are **T111** (spec:
+`docs/specs/T111-indexed-locations.md`): folders or whole drives as locations with a visible
+state (ok / not available / partial — unavailable drives keep their items), exclusions by
+folder, by name anywhere, and toggleable defaults (OS set + developer noise; build folders
+only next to a project marker), one versioned settings value `index.locations`, any change
+restarts the pass, per-root `lumen:catalog-changed`.
 
 Default exclusions should include obvious high-noise locations such as caches/temp and optionally:
 
@@ -350,9 +375,7 @@ Measure:
 - latency by stage.
 
 Every ranking-weight change should run this suite.
-# Refinement — universal providers and first-index strategy
-
-## 19. Search is broader than files
+## 20. Search is broader than files
 
 The retrieval engine feeds the universal provider coordinator. File lexical/vector scores are not directly comparable to calculator/app/settings/workflow confidence. Normalize per-provider before global fusion; strong intent rules may override numerical fusion.
 
@@ -365,7 +388,7 @@ Examples:
 
 See `COMMAND_MODEL.md`.
 
-## 20. Multi-pass initial indexing
+## 21. Multi-pass initial indexing
 
 The first index must become useful progressively and must survive shutdown.
 
@@ -396,7 +419,7 @@ Optional improved OCR, richer visual sampling, re-chunking after algorithm upgra
 
 Persist checkpoint/job state. If shutdown occurs after 732,814 units, continuation should not restart from zero.
 
-## 21. Resource profiles
+## 22. Resource profiles
 
 Expose at least conceptual profiles:
 
@@ -406,7 +429,7 @@ Expose at least conceptual profiles:
 
 Interactive query embeddings always outrank background indexing.
 
-## 22. 1 TB planning target
+## 23. 1 TB planning target
 
 For ~1 TB of genuinely indexable personal content, design for roughly hundreds of thousands to low millions of semantic units, not one vector per file and never one vector per byte/frame.
 

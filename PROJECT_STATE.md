@@ -51,12 +51,9 @@ Accepted:
 - multi-pass, resumable, value-prioritized indexing
 - one WebView target
 
-Benchmark/ADR required:
-
-- Windows EmbeddingGemma runtime
-- f16/f32/i8 vector profile
-- Mica/Acrylic implementation (T004 built, ADR-024 proposed; Windows measurement pending)
-- optional FastFrame/egui shell spike after baseline exists; no migration by intuition
+Decided with evidence: runtime ONNX Runtime CPU q4 (ADR-015), f16 HNSW (ADR-016), device
+policy (ADR-019), window material (ADR-024). Still open: faster indexing runtime (T014),
+optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
 
 ## Implementation status
 
@@ -129,6 +126,8 @@ Benchmark/ADR required:
 - **T108/T109 REVIEW (ADR-026):** Enter opens/launches, Ctrl+Enter reveals, click runs,
   Ctrl+K Action Panel (Open / Reveal in Explorer / Copy path); ids-only requests checked by
   the core policy against recently shown results; uses recorded for ranking.
+- **T015/T016 DONE:** docs consolidated (ADR files in `docs/adr/`, §0 status per spec, one
+  reading order, fixed file roles, throughput + memory budgets); storage bench with real hits.
 - **T110 REVIEW:** `LUMEN_DIAGNOSTICS=1` shows provider/match kind/confidence per row and
   logs per-query timings; absent from the wire otherwise.
 - **T105 REVIEW:** Quick Look (Alt+Enter): window widens right, preview beside the list
@@ -138,27 +137,17 @@ Benchmark/ADR required:
 
 ## Immediate objective
 
-Complete M0 without overbuilding:
+1. Close M1 on Windows: the REVIEW checklists in `HANDOFF.md` (search, keys, actions, Quick
+   Look, look and material, shortcut).
+2. Start M2 (text/code semantic search) with T201, and settle the indexing runtime (T014) —
+   ordered in `TASKS.md` → **Next**.
 
-1. workspace baseline;
-2. hotkey → overlay → focus/hide;
-3. shell-agnostic core contracts;
-4. embedding runtime benchmark;
-5. ANN benchmark;
-6. SQLite/FTS proof;
-7. file identity/enumeration proof;
-8. performance baseline.
+## M1 gate (instant launcher)
 
-## Success gate to M1
-
-- overlay reliable and focus-correct;
-- shell/domain dependency boundary enforced;
-- universal result/action contracts compiled/tested;
-- cold/warm measurements captured;
-- embedding runtime direction selected;
-- ANN target validated;
-- schema migration baseline;
-- CI baseline.
+- type → name/app results every keystroke within budget ✔ (Windows: p95 5.3 ms provider);
+- Enter/Ctrl+Enter/Ctrl+K actions, Quick Look, stable keyboard selection ✔ (REVIEW);
+- premium surface + native material ✔ measured, visual verdict pending;
+- catalog kept current without user action ✔ (sync at start-up + 30 min; watcher is T207).
 
 ## Top risks
 

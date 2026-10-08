@@ -1,5 +1,19 @@
 # PERFORMANCE.md — latency and resource budgets
 
+## 0. Measured status (release builds, joao-pc unless noted)
+
+| Budget | Target p50 / p95 | Measured | Evidence |
+|---|---|---|---|
+| Shortcut → painted overlay | 35 / 70 ms | 22.6 / 26.0 ms; ~22 ms with every window material | ADR-020, ADR-024 |
+| Keystroke → name results | 16 / 40 ms | provider p50 1.1 / p95 5.3 ms (26.5k entries + 330 apps) | ADR-021/022 |
+| Keystroke → content FTS | 16 / 40 ms | **13 / 68 ms at 100k chunks (sandbox)** → runs on the settled query | ADR-017 note (T016) |
+| Warm text query embedding | 60 / 120 ms | 30.0 / 36.9 ms (CPU, q4) | ADR-015 |
+| Idle memory (§5 metric) | < 400 MB | ~7 MiB WebView + 3–4 MiB shell hidden; 168 MiB with the model warm | ADR-020, ADR-015 |
+| Indexing throughput (§9) | ≥ 8 chunks/s @ ≤ 50 % CPU | **~7 chunks/s @ 100 % CPU** (128-token estimate) | ADR-015 — top risk, T014 |
+
+Not measured yet: keystroke → painted results end to end, arrow-key response, Quick Look
+cached preview, semantic results after settle.
+
 ## 1. Principle
 
 Performance is not a later optimization pass. Lumen's product value depends on invoking it reflexively. If opening or searching feels slower than opening Explorer, the product loses its reason to exist.
@@ -67,6 +81,13 @@ If query changes from `trans` → `transformer`, stale embedding/search work mus
 ## 5. Memory budgets
 
 Initial goals, not hard guarantees across runtimes:
+
+### The memory metric
+
+One metric for every memory budget: **private working set of `lumen.exe` plus its WebView2
+process tree** (what `scripts/t012/run-windows-webview.ps1` reports, and the sum Task
+Manager shows for Lumen). Commit charge is reported next to it as the reserve indicator,
+never as the budget figure; VRAM is reported separately for accelerated inference (ADR-019).
 
 ### Idle/tray, text search ready
 
@@ -140,6 +161,20 @@ Run `EXPLAIN QUERY PLAN` for hot queries.
 
 Initial bulk indexing is allowed to take time; it is not allowed to make the computer unpleasant to use.
 
+### Budget (proposed in T015; confirm with T014/T202 evidence)
+
+Throughput is stated as **chunks/s at a CPU share**, for ~128-token text chunks on the
+reference machine (Ryzen 5 5600H, 6C/12T) in the Balanced profile:
+
+- **≥ 8 chunks/s while using ≤ 50 % of logical cores** for embedding, with the user active;
+- Turbo (user-chosen) may use all cores and an approved accelerator (ADR-019);
+- on battery or under user activity the scheduler may drop below the budget, never above
+  the CPU share.
+
+Measured today: ~3–4 chunks/s of ~260 tokens at ~100 % CPU (ADR-015) ≈ 7 chunks/s of 128
+tokens at 100 % — **the budget is not met**; T014 (runtimes) and T202 (chunk size,
+thread caps, value-priority) must close the gap or revise it with evidence.
+
 Track:
 
 - files/s discovered;
@@ -201,8 +236,6 @@ Use appropriate tools rather than guessing:
 - backend-specific inference profiling.
 
 Optimization PRs should say what measurement improved.
-# Refinement — shell and full-index budgets
-
 ## 14. WebView discipline
 
 Tauri/React is acceptable only if the shell remains lightweight.

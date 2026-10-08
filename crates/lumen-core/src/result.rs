@@ -42,7 +42,7 @@ pub enum IconRef {
 ///
 /// Raw provider scores (BM25, cosine, fuzzy distance) are not comparable across
 /// providers; each provider maps its raw score into this range before global
-/// fusion (docs/SEARCH_AND_INDEXING.md §19). Never shown in normal UI.
+/// fusion (docs/SEARCH_AND_INDEXING.md §20). Never shown in normal UI.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Confidence(f32);
 
