@@ -8,6 +8,7 @@
 #![allow(clippy::print_stdout)] // CLI output
 
 mod ann;
+mod catalog;
 mod corpus;
 mod device;
 mod embed;
@@ -30,6 +31,7 @@ Commands:
   storage   SQLite/FTS5 insert throughput, per-keystroke lexical latency, size (T007)
   scan      File inventory over real folders: counts, coverage, speed (T009; no paths stored)
   identity-check  Stable file identity under rename/move/copy/save/hard link (T009)
+  catalog   App/file catalog: inventory -> SQLite, app discovery, keystroke name lookup (T101)
   probe     Measure one embedding device for the device policy (T013), JSON probe
   device-policy   Device decisions from probe files across power/profile scenarios (T013)
 
@@ -91,6 +93,14 @@ scan options:
   --show-issues N        print the first N issue paths to stderr (default: 10)
   --label TEXT / --json PATH
 
+catalog options:
+  --root DIR             folder to inventory (repeatable)
+  --apps                 also discover Start-menu applications
+  --sample N             names sampled for keystroke queries (default: 300)
+  --show QUERY           print the top results for QUERY to stderr (repeatable)
+  --work-dir DIR         database location (default: temp dir; deleted afterwards)
+  --label TEXT / --json PATH
+
 probe options (plus every embed option: --backend, --ort-dylib, --model-dir, --variant,
 --device, --threads, --placement, --dim, --label, --json):
   --device-id NAME       policy device id (default: --device, or cpu)
@@ -142,6 +152,12 @@ fn main() -> ExitCode {
         Some("identity-check") => match parse_identity(&args[1..]).and_then(|(dir, label, json)| {
             scan::identity_check(&dir, label)
                 .map(|r| (scan::summarize_identity(&r), to_json(&r), json))
+        }) {
+            Ok((summary, json, path)) => emit(&summary, json, path),
+            Err(err) => usage_error(&err),
+        },
+        Some("catalog") => match parse_catalog(&args[1..]).and_then(|(opts, json)| {
+            catalog::run(&opts).map(|r| (catalog::summarize(&r), to_json(&r), json))
         }) {
             Ok((summary, json, path)) => emit(&summary, json, path),
             Err(err) => usage_error(&err),
@@ -355,6 +371,39 @@ fn parse_identity(args: &[String]) -> Result<IdentityArgs, String> {
         }
     }
     Ok((dir, label, json))
+}
+
+fn parse_catalog(args: &[String]) -> Result<(catalog::CatalogOptions, Option<String>), String> {
+    let mut opts = catalog::CatalogOptions {
+        sample: 300,
+        ..catalog::CatalogOptions::default()
+    };
+    let mut json = None;
+    let mut it = args.iter();
+    while let Some(flag) = it.next() {
+        if flag == "--apps" {
+            opts.apps = true;
+            continue;
+        }
+        let value = it
+            .next()
+            .cloned()
+            .ok_or_else(|| format!("{flag} needs a value"))?;
+        match flag.as_str() {
+            "--root" => opts.roots.push(value.into()),
+            "--sample" => {
+                opts.sample = value
+                    .parse()
+                    .map_err(|_| format!("{flag}: not a non-negative integer"))?;
+            }
+            "--show" => opts.show.push(value),
+            "--work-dir" => opts.work_dir = Some(value.into()),
+            "--label" => opts.label = Some(value),
+            "--json" => json = Some(value),
+            other => return Err(format!("unknown option `{other}`")),
+        }
+    }
+    Ok((opts, json))
 }
 
 fn parse_probe(args: &[String]) -> Result<(device::ProbeOptions, Option<String>), String> {

@@ -1,0 +1,17 @@
+[package]
+name = "lumen-catalog"
+description = "App/file catalog (T101): inventory -> SQLite items, Start-menu apps, instant name provider."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+lumen-core.workspace = true
+lumen-indexer.workspace = true
+lumen-storage.workspace = true
+lumen-windows.workspace = true
+unicode-normalization.workspace = true
+
+[lints]
+workspace = true

@@ -24,6 +24,7 @@ lumen-embedding-ort = { workspace = true, optional = true }
 lumen-vector.workspace = true
 lumen-storage.workspace = true
 lumen-indexer.workspace = true
+lumen-catalog.workspace = true
 usearch.workspace = true
 memory-stats.workspace = true
 serde.workspace = true

@@ -99,7 +99,11 @@ Benchmark/ADR required:
   passing probe (same space, stable, cos ≥ 0.999 vs CPU, ≥ 90 % offloaded, memory budget,
   no iGPU), lane rules by power/profile/activity, quarantine per runtime key. joao-pc: GTX
   1650 indexes 2.35x faster but needs 2.3 GB VRAM -> rejected; CPU in every scenario.
-- Not yet: provider trait/registry, design tokens/material (T004/T103).
+- **T101 REVIEW (ADR-021):** `lumen-core::provider` + `builtin` actions; `lumen-catalog`
+  (inventory → items with move detection and safe removal, Start-menu apps via
+  `lumen-windows` AppsFolder, `CatalogProvider` exact/prefix, accent-insensitive); 245k
+  entries synced in 6 s, keystroke lookup p50 0.09 ms. Awaiting the Windows run.
+- Not yet: provider registry/coordinator (T107), design tokens/material (T004/T103).
 
 ## Immediate objective
 

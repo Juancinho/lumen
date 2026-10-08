@@ -94,3 +94,10 @@ Append-only. Keep entries compact.
 - joao-pc, 4 modes: keep 72 MiB hidden / 22.6 ms p50 show->paint; invisible no saving; low-memory 7.4 MiB / 27.1 ms; suspend worse (94-160 MiB). Start-up ~0.4-0.5 s to UI ready.
 - Default `idle-low-memory` (trim after 30 s hidden), approved by the user. ADR-020. CI compiled the WebView2 COM code on windows-2025 (74d2bcd green).
 - T010 DONE (CI green). M0 done for the M1 gate.
+
+## 2026-10-08 — T101 app/file catalog provider (claude)
+
+- Provider contract + built-in action ids in lumen-core; schema 0001 extended (pre-release); catalog storage API with move detection by identity+size+mtime and coverage-safe removal (not after cancel, not under unlistable dirs/missing roots).
+- New crates: lumen-windows (AppsFolder enumeration, COM), lumen-catalog (fold, lossless paths, sync_files, sync_apps with Start-menu fallback, CatalogProvider exact/prefix, apps first). 15 + 6 + 3 new tests.
+- Sandbox 245k entries: first sync 112 s -> found the planner using items_modified for the identity lookup; INDEXED BY items_identity -> 6.1 s (40k/s); writer cache_size tested and reverted (no gain). Keystroke lookup p50 0.086 ms.
+- `scripts/t101/run-windows-catalog.ps1` for the Windows validation (user asleep; REVIEW).

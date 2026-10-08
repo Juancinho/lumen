@@ -16,7 +16,10 @@
 //! - [`execution`]: [`ActionRequest`] → [`ExecutionContext`] authorization, and
 //!   [`CancellationToken`].
 //!
-//! Deliberately absent (owned by later tasks): provider trait/registry (T101/T401),
+//! - [`provider`]: the [`Provider`] contract and [`LatencyClass`] (T101).
+//! - [`builtin`]: built-in action ids and descriptors (open, launch, reveal, copy path).
+//!
+//! Deliberately absent (owned by later tasks): provider registry/coordinator (T107/T401),
 //! action registry and executors (T108/T109), preview references (T105), workflow
 //! permissions (T501), serialization (shell DTOs, ADR-013).
 
@@ -24,10 +27,12 @@
 
 pub mod action;
 mod build_info;
+pub mod builtin;
 pub mod capability;
 pub mod contract;
 pub mod execution;
 pub mod ids;
+pub mod provider;
 pub mod result;
 
 pub use action::{ActionDescriptor, ActionGroup, ActionLookup, ActionSafety};
@@ -38,4 +43,5 @@ pub use execution::{
     ActionRequest, AuthorizationError, CancellationToken, ExecutionContext, Invocation,
 };
 pub use ids::{ActionId, IdError, ProviderId, QueryId, ResultId};
+pub use provider::{LatencyClass, Provider, ProviderError, ProviderQuery};
 pub use result::{Confidence, IconRef, MatchKind, Payload, ResultItem, ResultKind, Score};

@@ -10,6 +10,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod catalog;
 mod fts;
 pub mod migrations;
 
@@ -21,6 +22,7 @@ use lumen_core::CancellationToken;
 
 use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
 
+pub use catalog::{CatalogEntry, CatalogItem, NameHit, Source, UpsertStats};
 pub use fts::{FtsQuery, MIN_PREFIX_CHARS};
 pub use migrations::{MIGRATIONS, Migration, latest_version};
 
@@ -134,11 +136,20 @@ pub enum ItemKind {
 }
 
 impl ItemKind {
-    const fn as_str(self) -> &'static str {
+    pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::File => "file",
             Self::Folder => "folder",
             Self::Application => "application",
+        }
+    }
+
+    pub(crate) fn parse(s: &str) -> Option<Self> {
+        match s {
+            "file" => Some(Self::File),
+            "folder" => Some(Self::Folder),
+            "application" => Some(Self::Application),
+            _ => None,
         }
     }
 }
@@ -354,6 +365,15 @@ impl Store {
         limit: usize,
         budget: &SearchBudget,
     ) -> Result<Vec<ChunkHit>> {
+        self.bounded(budget, |store| store.search_chunks_inner(query, limit))
+    }
+
+    /// Runs `f` with SQLite's progress handler enforcing `budget`.
+    pub(crate) fn bounded<T>(
+        &self,
+        budget: &SearchBudget,
+        f: impl FnOnce(&Self) -> Result<T>,
+    ) -> Result<T> {
         if budget.is_bounded() {
             let deadline = budget.deadline;
             let cancel = budget.cancel.clone();
@@ -365,7 +385,7 @@ impl Store {
                 }),
             )?;
         }
-        let result = self.search_chunks_inner(query, limit);
+        let result = f(self);
         if budget.is_bounded() {
             self.conn.progress_handler(0, None::<fn() -> bool>)?;
         }
@@ -603,7 +623,7 @@ mod tests {
     }
 
     #[test]
-    fn paths_are_unique_case_insensitively_and_indexed() {
+    fn paths_are_unique_exactly_and_found_case_insensitively() {
         let db = TempDb::new("paths");
         let (store, notes, _) = seeded(&db);
         assert_eq!(
@@ -612,16 +632,23 @@ mod tests {
                 .unwrap(),
             Some(notes)
         );
-        let dup = store.insert_item(&NewItem::file(
-            r"C:\USERS\JOAO\NOTAS\reunion.md",
+        let exact_dup = store.insert_item(&NewItem::file(
+            r"C:\Users\Joao\Notas\reunion.md",
             "reunion.md",
         ));
-        assert!(dup.is_err(), "case-insensitive duplicate path accepted");
+        assert!(exact_dup.is_err(), "duplicate path accepted");
+        // A case-sensitive directory can hold both; neither may be dropped.
+        store
+            .insert_item(&NewItem::file(
+                r"C:\USERS\JOAO\NOTAS\reunion.md",
+                "reunion.md",
+            ))
+            .unwrap();
         let plan = store
             .query_plan("SELECT id FROM items WHERE canonical_path = 'x' COLLATE NOCASE")
             .unwrap()
             .join(" | ");
-        assert!(plan.contains("items_path"), "{plan}");
+        assert!(plan.contains("items_path_nocase"), "{plan}");
         let plan = store
             .query_plan("SELECT id FROM chunks WHERE embedding_generation IS NULL AND item_id = 1")
             .unwrap()

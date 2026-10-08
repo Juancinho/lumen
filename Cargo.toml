@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/lumen-core", "crates/lumen-embedding", "crates/lumen-embedding-ort", "crates/lumen-vector", "crates/lumen-storage", "crates/lumen-indexer", "crates/lumen-bench", "apps/desktop/src-tauri", "xtask"]
+members = ["crates/lumen-core", "crates/lumen-embedding", "crates/lumen-embedding-ort", "crates/lumen-vector", "crates/lumen-storage", "crates/lumen-indexer", "crates/lumen-windows", "crates/lumen-catalog", "crates/lumen-bench", "apps/desktop/src-tauri", "xtask"]
 
 [workspace.package]
 version = "0.1.0"
@@ -16,6 +16,9 @@ lumen-embedding-ort = { path = "crates/lumen-embedding-ort" }
 lumen-vector = { path = "crates/lumen-vector" }
 lumen-storage = { path = "crates/lumen-storage" }
 lumen-indexer = { path = "crates/lumen-indexer" }
+lumen-windows = { path = "crates/lumen-windows" }
+lumen-catalog = { path = "crates/lumen-catalog" }
+unicode-normalization = "0.1.24"
 memory-stats = "1.2.0"
 # SQLite canonical store (ADR-003). Bundled: same SQLite (with FTS5) on every machine.
 rusqlite = { version = "0.40.2", features = ["bundled", "hooks"] }

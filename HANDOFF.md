@@ -8,10 +8,23 @@
 
 ## Active task
 
-None claimed. **M0 complete** (all M0 tasks DONE except T003/T004/T014, which do not gate M1:
-shortcut UX and backdrop belong with T103, T014 with M2). Next: **T101** (app/file catalog
-provider: T009 inventory → T007 store → `ResultItem`s), then T102 (filename search).
-DONE: T001, T002, T005, T006, T007, T008, T009, T010, T011, T012, T013.
+**T101 REVIEW** — needs `powershell -ExecutionPolicy Bypass -File scripts\t101\run-windows-catalog.ps1`
+(native tests incl. AppsFolder enumeration; catalog bench over user folders + apps; prints
+results for calc/spotify/visual/config/notas). Then DONE, ADR-021 Accepted, next T102.
+DONE: T001, T002, T005–T013. M0 gate met; M1 in progress.
+
+## T101 — outcome (ADR-021)
+
+- `lumen_core::{Provider, ProviderQuery, LatencyClass, ProviderError}`; `lumen_core::builtin`
+  (OPEN, LAUNCH, REVEAL, COPY_PATH + DESCRIPTORS).
+- `lumen_storage`: schema 0001 edited (source, raw_path, name_key, launch_target, attributes,
+  seen_scan, `scans`; exact-unique path, non-unique identity); `Store::{begin_scan,
+  upsert_entries, unseen_items, delete_items, finish_scan, search_names, catalog_item,
+  count_items}`; `bounded()` budget helper.
+- `crates/lumen-windows`: `start_apps()` (AppsFolder via COM; `deny(unsafe_code)` + module allow).
+- `crates/lumen-catalog`: `text::fold`, `path::{encode, decode}` (lossless non-Unicode),
+  `sync_files`, `sync_apps`/`discover`/`write_apps`, `CatalogProvider`.
+- Bench: `lumen-bench catalog --root DIR --apps [--show Q]` (counts only in JSON).
 
 ## T012 — outcome (ADR-020)
 

@@ -2350,6 +2350,7 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 name = "lumen-bench"
 version = "0.1.0"
 dependencies = [
+ "lumen-catalog",
  "lumen-core",
  "lumen-embedding",
  "lumen-embedding-ort",
@@ -2360,6 +2361,17 @@ dependencies = [
  "serde",
  "serde_json",
  "usearch",
+]
+
+[[package]]
+name = "lumen-catalog"
+version = "0.1.0"
+dependencies = [
+ "lumen-core",
+ "lumen-indexer",
+ "lumen-storage",
+ "lumen-windows",
+ "unicode-normalization",
 ]
 
 [[package]]
@@ -2419,6 +2431,14 @@ name = "lumen-vector"
 version = "0.1.0"
 dependencies = [
  "usearch",
+]
+
+[[package]]
+name = "lumen-windows"
+version = "0.1.0"
+dependencies = [
+ "windows",
+ "windows-core",
 ]
 
 [[package]]
@@ -4741,6 +4761,15 @@ name = "unicode-ident"
 version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954"
+
+[[package]]
+name = "unicode-normalization"
+version = "0.1.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fd4f6878c9cb28d874b009da9e8d183b5abc80117c40bbd187a1fde336be6e8"
+dependencies = [
+ "tinyvec",
+]
 
 [[package]]
 name = "unicode-normalization-alignments"

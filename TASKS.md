@@ -30,7 +30,7 @@ Do not renumber task IDs. New tasks get new IDs.
 
 | ID   | Status | Owner | Task                                                                          | Depends on     |
 | ---- | ------ | ----- | ----------------------------------------------------------------------------- | -------------- |
-| T101 | CLAIMED | claude | App/file catalog provider                                                     | T007,T009,T011 |
+| T101 | REVIEW | claude | App/file catalog provider                                                     | T007,T009,T011 |
 | T102 | TODO   | —     | Filename/path exact/prefix/fuzzy retrieval                                    | T101           |
 | T103 | TODO   | —     | Premium root-search overlay from design system                                | T002,T004      |
 | T104 | TODO   | —     | Keyboard navigation, stable selection, root/action-panel shortcuts            | T103,T011      |
