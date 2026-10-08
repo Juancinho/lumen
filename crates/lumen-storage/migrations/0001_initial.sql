@@ -144,11 +144,32 @@ CREATE TABLE settings (
     value TEXT NOT NULL  -- JSON
 ) STRICT;
 
-CREATE TABLE usage_events (
-    id          INTEGER PRIMARY KEY,
-    item_id     INTEGER NOT NULL REFERENCES items (id) ON DELETE CASCADE,
-    event_kind  TEXT    NOT NULL,
-    occurred_at INTEGER NOT NULL
+-- Usage signals (T106). Aggregates only, no raw event log (docs/PRIVACY_SECURITY.md §2:
+-- least retention). Frecency decays exponentially; `rank_key` = ln(score) + lambda * t is
+-- time-independent, so "most used lately" is an index scan.
+CREATE TABLE usage_stats (
+    item_id      INTEGER PRIMARY KEY REFERENCES items (id) ON DELETE CASCADE,
+    uses         INTEGER NOT NULL,
+    last_used_at INTEGER NOT NULL,
+    rank_key     REAL    NOT NULL
 ) STRICT;
 
-CREATE INDEX usage_item_time ON usage_events (item_id, occurred_at);
+CREATE INDEX usage_rank ON usage_stats (rank_key);
+
+-- Which item the user picked for a (folded, truncated) query: learned results. Sensitive:
+-- pruned by age and cleared with the usage history.
+CREATE TABLE query_choices (
+    query_key    TEXT    NOT NULL,
+    item_id      INTEGER NOT NULL REFERENCES items (id) ON DELETE CASCADE,
+    uses         INTEGER NOT NULL,
+    last_used_at INTEGER NOT NULL,
+    PRIMARY KEY (query_key, item_id)
+) STRICT, WITHOUT ROWID;
+
+CREATE INDEX query_choices_item ON query_choices (item_id);
+
+-- Pins never expire (separate from history).
+CREATE TABLE pins (
+    item_id   INTEGER PRIMARY KEY REFERENCES items (id) ON DELETE CASCADE,
+    pinned_at INTEGER NOT NULL
+) STRICT;

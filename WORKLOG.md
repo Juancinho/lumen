@@ -107,3 +107,9 @@ Append-only. Keep entries compact.
 - Code-aware tokenizer (camel/acronym/digit splits, words, stem initials), parent-folder tokens, `names_fts` (external content, change-only update trigger).
 - Ranking module with bounded priors; typo matching by OSA distance with a length-based budget; candidate gathering in three stages, stages 2-3 best-effort with own time slices.
 - Committed relevance fixture (40 queries): MRR@10 1.000. Sandbox 247k entries: first measurements p95 25 ms (FTS bm25 over 1-2 char prefixes, path tokens on single words, fuzzy DP allocations) -> fixes -> p95 7.9 ms / max 10.4 ms.
+
+## 2026-10-08 — T106 recent/frequency/pin signals + local usage store (claude)
+
+- Aggregate-only usage store (privacy): decayed frecency with time-independent rank key, learned choices per typed prefix, pins; retention + clear; cascade on item removal. 5 storage tests.
+- Ranking: bounded usage priors; learned items surface without a name match; empty query suggestions. Provider test: Calculator becomes the top result for "s" after 5 picks; pins lead suggestions.
+- Latency impact +0.3 ms p50 (sandbox, 247k entries). ADR-023.

@@ -103,11 +103,11 @@ pub struct NameHit {
 /// Upper bound for `name_key` prefix ranges (largest scalar value).
 const KEY_MAX: char = '\u{10FFFF}';
 
-const ITEM_COLUMNS: &str = "items.id, items.kind, items.source, items.canonical_path, \
+pub(crate) const ITEM_COLUMNS: &str = "items.id, items.kind, items.source, items.canonical_path, \
      items.raw_path, items.display_name, items.name_key, items.name_parts, items.path_parts, \
      items.extension, items.launch_target, items.attributes, items.modified_at";
 
-fn item_from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<CatalogItem> {
+pub(crate) fn item_from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<CatalogItem> {
     let kind: String = r.get(1)?;
     let source: String = r.get(2)?;
     Ok(CatalogItem {

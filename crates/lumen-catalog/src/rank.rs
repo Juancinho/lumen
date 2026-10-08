@@ -8,7 +8,7 @@
 //! files, shallow paths; hidden/system entries sink.
 
 use lumen_core::MatchKind;
-use lumen_storage::{CatalogItem, Source};
+use lumen_storage::{CatalogItem, Source, UsageSignal};
 
 use crate::text::{fold, tokens};
 
@@ -234,6 +234,20 @@ const DAY_MS: i64 = 86_400_000;
 #[must_use]
 pub fn score(q: &ParsedQuery, item: &CatalogItem, now_ms: i64) -> Option<Scored> {
     let (base, kind) = base_match(q, item)?;
+    Some(with_priors(base, kind, item, now_ms))
+}
+
+/// Base of an item the user picked for this query before but whose name does not match it
+/// (e.g. Calculator chosen for "s"); usage priors decide whether it surfaces.
+pub const LEARNED_BASE: f32 = 0.6;
+
+/// [`score`] for a previously chosen item without a name match.
+#[must_use]
+pub fn score_learned(item: &CatalogItem, now_ms: i64) -> Scored {
+    with_priors(LEARNED_BASE, MatchKind::Suggestion, item, now_ms)
+}
+
+fn with_priors(base: f32, kind: MatchKind, item: &CatalogItem, now_ms: i64) -> Scored {
     let mut prior = 0.0_f32;
     if item.source == Source::Apps {
         prior += 0.06;
@@ -254,11 +268,30 @@ pub fn score(q: &ParsedQuery, item: &CatalogItem, now_ms: i64) -> Option<Scored>
     {
         prior -= (depth.saturating_sub(4) as f32 * 0.004).min(0.04);
     }
-    Some(Scored {
+    Scored {
         base: base.clamp(0.0, 1.0),
         rank: base + prior,
         kind,
-    })
+    }
+}
+
+/// Usage priors (T106): pins, frecency and — strongest — having picked this item for this
+/// very query before ("learned results"), which may lift a token match above another item's
+/// exact name after a handful of picks. All bounded.
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+pub fn usage_prior(usage: &UsageSignal) -> f32 {
+    let mut prior = 0.0_f32;
+    if usage.pinned {
+        prior += 0.05;
+    }
+    if usage.frecency > 0.0 {
+        prior += (0.025 * (1.0 + usage.frecency).ln() as f32).min(0.08);
+    }
+    if usage.query_uses > 0 {
+        prior += (0.12 + 0.08 * (usage.query_uses as f32).ln()).min(0.35);
+    }
+    prior
 }
 
 #[cfg(test)]
@@ -367,6 +400,29 @@ mod tests {
         let mut recent = item("spotify tools", "/r/spotify tools");
         recent.modified_at = Some(10);
         assert!(score(&q, &file, 20).unwrap().rank > score(&q, &recent, 20).unwrap().rank);
+    }
+
+    #[test]
+    fn learned_choices_lift_after_a_few_picks_and_stay_bounded() {
+        let q = ParsedQuery::parse("code").unwrap();
+        let folder = score(&q, &item("code", "/r/code"), 0).unwrap();
+        let app = score(&q, &item("Visual Studio Code", "/r/vsc"), 0).unwrap();
+        let picked = |n| {
+            usage_prior(&UsageSignal {
+                query_uses: n,
+                ..UsageSignal::default()
+            })
+        };
+        assert!(app.rank + picked(1) < folder.rank, "one pick is not enough");
+        assert!(app.rank + picked(8) > folder.rank, "a habit wins");
+        assert!(picked(1_000_000) <= 0.35);
+        let heavy = UsageSignal {
+            frecency: 1e9,
+            pinned: true,
+            ..UsageSignal::default()
+        };
+        assert!(usage_prior(&heavy) <= 0.13 + f32::EPSILON);
+        assert!(usage_prior(&UsageSignal::default()).abs() < f32::EPSILON);
     }
 
     #[test]

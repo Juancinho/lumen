@@ -9,13 +9,14 @@ use std::time::{Duration, Instant};
 
 use lumen_core::builtin::{COPY_PATH, LAUNCH, OPEN, REVEAL};
 use lumen_core::{
-    CancellationToken, Capability, CapabilitySet, Confidence, IconRef, LatencyClass, Payload,
-    Provider, ProviderError, ProviderId, ProviderQuery, ResultId, ResultItem, ResultKind, Score,
+    CancellationToken, Capability, CapabilitySet, Confidence, IconRef, LatencyClass, MatchKind,
+    Payload, Provider, ProviderError, ProviderId, ProviderQuery, ResultId, ResultItem, ResultKind,
+    Score,
 };
 use lumen_storage::{CatalogItem, ItemKind, SearchBudget, StorageError, Store};
 
 use crate::path::decode;
-use crate::rank::{ParsedQuery, Scored, score, typo_budget};
+use crate::rank::{ParsedQuery, Scored, score, score_learned, typo_budget, usage_prior};
 
 pub const PROVIDER_ID: ProviderId = ProviderId::from_static("lumen.catalog");
 
@@ -28,6 +29,10 @@ const OVERFETCH: usize = 4;
 const TOKEN_CANDIDATES: usize = 300;
 /// Typo candidates (same first two characters), in key order.
 const FUZZY_CANDIDATES: usize = 1_000;
+/// Learned (previously chosen) items added as candidates.
+const LEARNED_CANDIDATES: usize = 5;
+/// Usage priors are fetched for this many results per result returned.
+const USAGE_HEAD: usize = 5;
 /// Time slices of the best-effort stages (see `gather`).
 const TOKEN_SLICE: Duration = Duration::from_millis(8);
 const FUZZY_SLICE: Duration = Duration::from_millis(4);
@@ -134,31 +139,52 @@ impl Provider for CatalogProvider {
         query: &ProviderQuery<'_>,
         cancel: &CancellationToken,
     ) -> Result<Vec<ResultItem>, ProviderError> {
-        let Some(q) = ParsedQuery::parse(query.text) else {
-            return Ok(Vec::new());
-        };
         if query.limit == 0 {
             return Ok(Vec::new());
         }
         if cancel.is_cancelled() {
             return Err(ProviderError::Cancelled);
         }
-        let budget = SearchBudget::within(BUDGET).with_cancel(cancel.clone());
-        let candidates = {
-            let store = self
-                .store
-                .lock()
-                .map_err(|_| ProviderError::Unavailable("catalog lock poisoned".into()))?;
-            gather(&store, &q, query.limit, &budget)?
+        let store = self
+            .store
+            .lock()
+            .map_err(|_| ProviderError::Unavailable("catalog lock poisoned".into()))?;
+        let Some(q) = ParsedQuery::parse(query.text) else {
+            return suggestions(&store, query.limit);
         };
+        let budget = SearchBudget::within(BUDGET).with_cancel(cancel.clone());
+        let (candidates, learned) = gather(&store, &q, query.limit, &budget)?;
         if cancel.is_cancelled() {
             return Err(ProviderError::Cancelled);
         }
         let now = now_ms();
         let mut scored: Vec<(Scored, &CatalogItem)> = candidates
             .values()
-            .filter_map(|item| score(&q, item, now).map(|s| (s, item)))
+            .filter_map(|item| {
+                score(&q, item, now)
+                    .or_else(|| learned.contains(&item.id).then(|| score_learned(item, now)))
+                    .map(|s| (s, item))
+            })
             .collect();
+        // Usage priors for the strongest matches only (one indexed lookup each).
+        scored.sort_by(|a, b| b.0.rank.total_cmp(&a.0.rank));
+        let mut head: Vec<i64> = scored
+            .iter()
+            .take(query.limit * USAGE_HEAD)
+            .map(|(_, i)| i.id)
+            .collect();
+        for id in &learned {
+            if !head.contains(id) {
+                head.push(*id);
+            }
+        }
+        let usage = store.usage_for(&head, &q.key, now).map_err(unavailable)?;
+        drop(store);
+        for (s, item) in &mut scored {
+            if let Some(u) = usage.get(&item.id) {
+                s.rank += usage_prior(u);
+            }
+        }
         scored.sort_by(|a, b| {
             b.0.rank
                 .total_cmp(&a.0.rank)
@@ -173,6 +199,28 @@ impl Provider for CatalogProvider {
             })
             .collect())
     }
+}
+
+fn unavailable(e: StorageError) -> ProviderError {
+    ProviderError::Unavailable(e.to_string())
+}
+
+/// Empty query: pinned items, then the most used lately (T106).
+fn suggestions(store: &Store, limit: usize) -> Result<Vec<ResultItem>, ProviderError> {
+    Ok(store
+        .suggestions(limit)
+        .map_err(unavailable)?
+        .iter()
+        .enumerate()
+        .filter_map(|(i, (item, _pinned))| {
+            #[allow(clippy::cast_precision_loss)]
+            let c = 1.0 - 0.01 * i as f32;
+            to_result(
+                item,
+                Score::new(Confidence::saturating(c), MatchKind::Suggestion),
+            )
+        })
+        .collect())
 }
 
 fn now_ms() -> i64 {
@@ -191,12 +239,21 @@ fn gather(
     q: &ParsedQuery,
     limit: usize,
     budget: &SearchBudget,
-) -> Result<HashMap<i64, CatalogItem>, ProviderError> {
+) -> Result<(HashMap<i64, CatalogItem>, Vec<i64>), ProviderError> {
     let interrupted = |e: StorageError| match e {
         StorageError::Interrupted => ProviderError::Cancelled,
         other => ProviderError::Unavailable(other.to_string()),
     };
     let mut out: HashMap<i64, CatalogItem> = HashMap::new();
+    // Items picked for this query before, even if no index stage would surface them first.
+    let learned = store
+        .learned_choices(&q.key, LEARNED_CANDIDATES)
+        .map_err(interrupted)?;
+    for &id in &learned {
+        if let Some(item) = store.catalog_item(id).map_err(interrupted)? {
+            out.insert(id, item);
+        }
+    }
     for hit in store
         .search_names(&q.key, limit * OVERFETCH, budget)
         .map_err(interrupted)?
@@ -236,7 +293,7 @@ fn gather(
             Err(e) => return Err(interrupted(e)),
         }
     }
-    Ok(out)
+    Ok((out, learned))
 }
 
 #[cfg(test)]
@@ -244,7 +301,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use lumen_core::{MatchKind, QueryId, builtin, validate_result};
+    use lumen_core::{QueryId, builtin, validate_result};
     use lumen_indexer::{Exclusions, ScanOptions};
 
     use super::*;
@@ -362,5 +419,51 @@ mod tests {
         );
         assert_eq!(p.id(), &PROVIDER_ID);
         assert_eq!(p.latency_class(), LatencyClass::Instant);
+    }
+
+    #[test]
+    fn learned_choices_and_empty_query_suggestions() {
+        use lumen_storage::UseKind;
+        let (t, p) = setup("usage");
+        assert!(
+            p.search(&query(""), &CancellationToken::new())
+                .unwrap()
+                .is_empty()
+        );
+        let mut writer = Store::open_writer(&t.0.join("c.db")).unwrap();
+        let calc = writer
+            .item_id_by_path("shell:AppsFolder\\Microsoft.WindowsCalculator!App")
+            .unwrap()
+            .unwrap();
+        // "s" lists Spotify first (prefix + app); after picking Calculator for "s" a few
+        // times, the learned choice leads even though "Calculator" does not start with "s".
+        let before = p.search(&query("s"), &CancellationToken::new()).unwrap();
+        assert_eq!(before[0].title, "Spotify");
+        assert!(before.iter().all(|r| r.title != "Calculator"));
+        let now = now_ms();
+        for _ in 0..5 {
+            writer
+                .record_use(calc, UseKind::Primary, Some("s"), now)
+                .unwrap();
+        }
+        let after = p.search(&query("s"), &CancellationToken::new()).unwrap();
+        assert_eq!(after[0].title, "Calculator", "{after:?}");
+        let empty = p.search(&query(""), &CancellationToken::new()).unwrap();
+        assert_eq!(empty[0].title, "Calculator");
+        assert_eq!(empty[0].score.match_kind, MatchKind::Suggestion);
+        writer
+            .pin(
+                writer
+                    .item_id_by_path("shell:AppsFolder\\SpotifyAB.SpotifyMusic!Spotify")
+                    .unwrap()
+                    .unwrap(),
+                now,
+            )
+            .unwrap();
+        let empty = p.search(&query(""), &CancellationToken::new()).unwrap();
+        assert_eq!(
+            empty.iter().map(|r| r.title.as_str()).collect::<Vec<_>>(),
+            ["Spotify", "Calculator"]
+        );
     }
 }

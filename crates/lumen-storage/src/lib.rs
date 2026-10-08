@@ -13,6 +13,7 @@
 pub mod catalog;
 mod fts;
 pub mod migrations;
+pub mod usage;
 
 use std::fmt;
 use std::path::Path;
@@ -25,6 +26,7 @@ use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
 pub use catalog::{CatalogEntry, CatalogItem, NameHit, Source, UpsertStats};
 pub use fts::{FtsQuery, MIN_PREFIX_CHARS};
 pub use migrations::{MIGRATIONS, Migration, latest_version};
+pub use usage::{UsageSignal, UseKind};
 
 /// Marks the start/end of a matched term in [`ChunkHit::snippet`] (Unicode private-use
 /// characters, so they never collide with real text; the UI maps them to highlight spans).

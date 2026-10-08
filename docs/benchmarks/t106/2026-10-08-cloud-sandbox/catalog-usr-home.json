@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "kind": "catalog",
+  "label": "cloud-sandbox T106",
+  "machine": {
+    "os": "linux",
+    "arch": "x86_64",
+    "logical_cpus": 2,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791421070
+  },
+  "roots": 2,
+  "entries": 247994,
+  "complete": true,
+  "blocking_issues": 0,
+  "first_sync": {
+    "seconds": 19.982310488,
+    "entries_per_s": 12410.67694093374
+  },
+  "resync": {
+    "seconds": 10.808979351,
+    "entries_per_s": 22943.33183059108
+  },
+  "inserted": 247994,
+  "resync_updated": 247994,
+  "resync_removed": 0,
+  "apps_discovered": 0,
+  "apps_source": null,
+  "apps_folder_error": false,
+  "apps_seconds": 0.0,
+  "db_mib": 174.61328125,
+  "queries": 2329,
+  "keystroke": {
+    "n": 2329,
+    "min_ms": 0.06305,
+    "mean_ms": 2.112925397595533,
+    "p50_ms": 1.015145,
+    "p95_ms": 8.26754,
+    "p99_ms": 8.792261000000002,
+    "max_ms": 10.10951
+  },
+  "keystroke_p95_by_chars": [
+    0.5802729999999999,
+    0.546933,
+    8.579044,
+    8.53192,
+    8.528519,
+    8.534742999999999,
+    8.557265999999998,
+    8.620296
+  ],
+  "mean_results": 8.94031773293259,
+  "full_name_found_in_top10": 0.8733333333333333,
+  "memory_after": {
+    "resident_mib": 13.43359375,
+    "virtual_mib": 19.1328125
+  }
+}

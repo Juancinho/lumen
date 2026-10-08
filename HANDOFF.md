@@ -13,7 +13,16 @@
 (native tests incl. AppsFolder COM; catalog bench over user folders + apps with the T102
 ranking; prints top results for calc/spotify/visual/config/notas). Then both DONE, ADR-021/022
 Accepted. Next after that: T103 (premium overlay) or T106/T107 (signals, result stream).
-DONE: T001, T002, T005–T013. M0 gate met; M1 in progress.
+DONE: T001, T002, T005–T013, T106. M0 gate met; M1 in progress.
+
+## T106 — outcome (ADR-023)
+
+- `lumen_storage::usage`: `Store::{record_use, usage_for, learned_choices, suggestions, pin,
+  unpin, prune_usage, clear_usage}`, `UseKind`, `UsageSignal`; tables `usage_stats`,
+  `query_choices`, `pins` (replace `usage_events`).
+- `lumen_catalog::rank::{usage_prior, score_learned}`; provider adds learned candidates,
+  usage priors on the top 50, empty query → suggestions.
+- To wire in T109: call `record_use` after an action runs (query key = folded query).
 
 ## T102 — outcome (ADR-022)
 
