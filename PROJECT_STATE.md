@@ -103,6 +103,9 @@ Benchmark/ADR required:
   (inventory → items with move detection and safe removal, Start-menu apps via
   `lumen-windows` AppsFolder, `CatalogProvider` exact/prefix, accent-insensitive); 245k
   entries synced in 6 s, keystroke lookup p50 0.09 ms. Awaiting the Windows run.
+- **T102 REVIEW (ADR-022):** code-aware name/folder tokens in FTS5 + Rust scoring (exact,
+  stem, prefix, token-prefix, initials, folder+name, typos, priors); relevance set MRR@10
+  1.000 over 40 queries; keystroke p95 7.9 ms at 247k entries (bounded best-effort stages).
 - Not yet: provider registry/coordinator (T107), design tokens/material (T004/T103).
 
 ## Immediate objective

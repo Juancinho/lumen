@@ -1,29 +1,36 @@
 //! Instant name provider over the catalog (`lumen.catalog`).
 //!
-//! T101 scope: exact and prefix matches on the folded name, apps first. Token-prefix,
-//! fuzzy and path matching, plus real ranking signals, are T102.
+//! Candidates come from three bounded index lookups (see `gather`); [`crate::rank`] decides
+//! the order. T101 built the provider, T102 the matching and ranking.
 
+use std::collections::HashMap;
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use lumen_core::builtin::{COPY_PATH, LAUNCH, OPEN, REVEAL};
 use lumen_core::{
-    CancellationToken, Capability, CapabilitySet, Confidence, IconRef, LatencyClass, MatchKind,
-    Payload, Provider, ProviderError, ProviderId, ProviderQuery, ResultId, ResultItem, ResultKind,
-    Score,
+    CancellationToken, Capability, CapabilitySet, Confidence, IconRef, LatencyClass, Payload,
+    Provider, ProviderError, ProviderId, ProviderQuery, ResultId, ResultItem, ResultKind, Score,
 };
-use lumen_storage::{CatalogItem, ItemKind, NameHit, SearchBudget, Source, StorageError, Store};
+use lumen_storage::{CatalogItem, ItemKind, SearchBudget, StorageError, Store};
 
 use crate::path::decode;
-use crate::text::fold;
+use crate::rank::{ParsedQuery, Scored, score, typo_budget};
 
 pub const PROVIDER_ID: ProviderId = ProviderId::from_static("lumen.catalog");
 
 /// Per-call safety net on top of the coordinator's cancellation (instant class).
 const BUDGET: Duration = Duration::from_millis(25);
 
-/// Candidates fetched per result returned (room for apps-first ordering).
+/// Name-prefix candidates fetched per result returned.
 const OVERFETCH: usize = 4;
+/// Token-prefix (FTS) candidates, best bm25 first.
+const TOKEN_CANDIDATES: usize = 300;
+/// Typo candidates (same first two characters), in key order.
+const FUZZY_CANDIDATES: usize = 1_000;
+/// Time slices of the best-effort stages (see `gather`).
+const TOKEN_SLICE: Duration = Duration::from_millis(8);
+const FUZZY_SLICE: Duration = Duration::from_millis(4);
 
 pub struct CatalogProvider {
     id: ProviderId,
@@ -39,16 +46,6 @@ impl CatalogProvider {
             store: Mutex::new(store),
         }
     }
-}
-
-fn confidence(hit: &NameHit, key_chars: usize) -> f32 {
-    let app = hit.item.source == Source::Apps;
-    if hit.exact {
-        return if app { 1.0 } else { 0.95 };
-    }
-    #[allow(clippy::cast_precision_loss)]
-    let coverage = key_chars as f32 / hit.item.name.chars().count().max(key_chars).max(1) as f32;
-    0.4 + 0.5 * coverage + if app { 0.05 } else { 0.0 }
 }
 
 /// Builds the universal result for one catalog item.
@@ -137,42 +134,109 @@ impl Provider for CatalogProvider {
         query: &ProviderQuery<'_>,
         cancel: &CancellationToken,
     ) -> Result<Vec<ResultItem>, ProviderError> {
-        let key = fold(query.text);
-        if key.is_empty() || query.limit == 0 {
+        let Some(q) = ParsedQuery::parse(query.text) else {
+            return Ok(Vec::new());
+        };
+        if query.limit == 0 {
             return Ok(Vec::new());
         }
+        if cancel.is_cancelled() {
+            return Err(ProviderError::Cancelled);
+        }
         let budget = SearchBudget::within(BUDGET).with_cancel(cancel.clone());
-        let hits = {
+        let candidates = {
             let store = self
                 .store
                 .lock()
                 .map_err(|_| ProviderError::Unavailable("catalog lock poisoned".into()))?;
-            store
-                .search_names(&key, query.limit * OVERFETCH, &budget)
-                .map_err(|e| match e {
-                    StorageError::Interrupted => ProviderError::Cancelled,
-                    other => ProviderError::Unavailable(other.to_string()),
-                })?
+            gather(&store, &q, query.limit, &budget)?
         };
-        let key_chars = key.chars().count();
-        let mut scored: Vec<(f32, usize, &NameHit)> = hits
-            .iter()
-            .map(|h| (confidence(h, key_chars), h.item.name.chars().count(), h))
+        if cancel.is_cancelled() {
+            return Err(ProviderError::Cancelled);
+        }
+        let now = now_ms();
+        let mut scored: Vec<(Scored, &CatalogItem)> = candidates
+            .values()
+            .filter_map(|item| score(&q, item, now).map(|s| (s, item)))
             .collect();
-        scored.sort_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)));
+        scored.sort_by(|a, b| {
+            b.0.rank
+                .total_cmp(&a.0.rank)
+                .then_with(|| a.1.name.chars().count().cmp(&b.1.name.chars().count()))
+                .then_with(|| a.1.id.cmp(&b.1.id))
+        });
         Ok(scored
             .into_iter()
             .take(query.limit)
-            .filter_map(|(c, _, h)| {
-                let kind = if h.exact {
-                    MatchKind::Exact
-                } else {
-                    MatchKind::Prefix
-                };
-                to_result(&h.item, Score::new(Confidence::saturating(c), kind))
+            .filter_map(|(s, item)| {
+                to_result(item, Score::new(Confidence::saturating(s.base), s.kind))
             })
             .collect())
     }
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+}
+
+/// Candidate items for `q`, deduplicated by id:
+/// 1. exact + prefix on the whole name key (index range, always);
+/// 2. token-prefix over names and parent folders (FTS5, tokens of 3+ characters; skipped if
+///    the budget runs out — step 1 already has the strongest matches);
+/// 3. typo candidates sharing the first two characters, only while results are scarce.
+fn gather(
+    store: &Store,
+    q: &ParsedQuery,
+    limit: usize,
+    budget: &SearchBudget,
+) -> Result<HashMap<i64, CatalogItem>, ProviderError> {
+    let interrupted = |e: StorageError| match e {
+        StorageError::Interrupted => ProviderError::Cancelled,
+        other => ProviderError::Unavailable(other.to_string()),
+    };
+    let mut out: HashMap<i64, CatalogItem> = HashMap::new();
+    for hit in store
+        .search_names(&q.key, limit * OVERFETCH, budget)
+        .map_err(interrupted)?
+    {
+        out.insert(hit.item.id, hit.item);
+    }
+    // Stages 2 and 3 are best-effort: each gets its own short slice of time so a pathological
+    // corpus (100k `lib*` files) degrades to stage-1 results instead of a slow keystroke.
+    let slice = |limit: Duration| {
+        let deadline = Instant::now() + limit;
+        SearchBudget {
+            deadline: Some(budget.deadline.map_or(deadline, |d| d.min(deadline))),
+            cancel: budget.cancel.clone(),
+        }
+    };
+    if let Some(matcher) = q.fts_matcher() {
+        match store.search_name_tokens(&matcher, TOKEN_CANDIDATES, &slice(TOKEN_SLICE)) {
+            Ok(items) => {
+                for item in items {
+                    out.entry(item.id).or_insert(item);
+                }
+            }
+            Err(StorageError::Interrupted) if !budget.is_cancelled() => {}
+            Err(e) => return Err(interrupted(e)),
+        }
+    }
+    if out.len() < limit && typo_budget(q.chars()) > 0 {
+        let lo: String = q.key.chars().take(2).collect();
+        let hi = format!("{lo}\u{10FFFF}");
+        match store.name_key_range(&lo, &hi, FUZZY_CANDIDATES, &slice(FUZZY_SLICE)) {
+            Ok(items) => {
+                for item in items {
+                    out.entry(item.id).or_insert(item);
+                }
+            }
+            Err(StorageError::Interrupted) if !budget.is_cancelled() => {}
+            Err(e) => return Err(interrupted(e)),
+        }
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -180,7 +244,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use lumen_core::{QueryId, builtin, validate_result};
+    use lumen_core::{MatchKind, QueryId, builtin, validate_result};
     use lumen_indexer::{Exclusions, ScanOptions};
 
     use super::*;

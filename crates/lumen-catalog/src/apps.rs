@@ -12,7 +12,7 @@ use lumen_indexer::{EntryKind, Exclusions, ScanOptions, scan};
 use lumen_storage::{CatalogEntry, ItemKind, Source, StorageError, Store, UpsertStats};
 
 use crate::path::encode;
-use crate::text::fold;
+use crate::text::{fold, name_parts};
 
 /// Shortcut extensions treated as applications in Start-menu folders.
 pub const SHORTCUT_EXTENSIONS: &[&str] = &["lnk", "url", "appref-ms"];
@@ -155,17 +155,22 @@ pub fn write_apps(
         .iter()
         .filter(|a| seen.insert(a.location.clone()))
         .collect();
-    let keys: Vec<String> = unique.iter().map(|a| fold(&a.name)).collect();
+    let keys: Vec<(String, String)> = unique
+        .iter()
+        .map(|a| (fold(&a.name), name_parts(&a.name)))
+        .collect();
     let entries: Vec<CatalogEntry<'_>> = unique
         .iter()
         .zip(&keys)
-        .map(|(a, key)| CatalogEntry {
+        .map(|(a, (key, parts))| CatalogEntry {
             kind: ItemKind::Application,
             source: Source::Apps,
             path: &a.location,
             raw_path: None,
             name: &a.name,
             name_key: key,
+            name_parts: parts,
+            path_parts: "",
             extension: None,
             volume_id: None,
             file_id: None,

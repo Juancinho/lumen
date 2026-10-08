@@ -19,6 +19,10 @@ CREATE TABLE items (
     display_name        TEXT    NOT NULL,
     -- Search key: display_name case-folded with diacritics removed (T101/T102).
     name_key            TEXT    NOT NULL DEFAULT '',
+    -- Space-separated folded tokens of the name (code-aware split, words, initials) and of
+    -- the nearest parent folders; indexed by names_fts (T102).
+    name_parts          TEXT    NOT NULL DEFAULT '',
+    path_parts          TEXT    NOT NULL DEFAULT '',
     extension           TEXT,
     -- Applications: what to launch (AppsFolder parsing name, shortcut path).
     launch_target       TEXT,
@@ -46,6 +50,36 @@ CREATE INDEX items_name_key ON items (name_key);
 CREATE INDEX items_modified ON items (modified_at);
 CREATE INDEX items_status ON items (status) WHERE status <> 'indexed';
 CREATE INDEX items_seen ON items (source, seen_scan);
+
+-- Token-prefix search over names and parent folders (T102). External content: the text
+-- lives once, in `items`. Updates only touch the index when the token text changed, so a
+-- resync that refreshes metadata does not rewrite it.
+CREATE VIRTUAL TABLE names_fts USING fts5 (
+    name_parts,
+    path_parts,
+    content = 'items',
+    content_rowid = 'id',
+    tokenize = 'unicode61 remove_diacritics 2',
+    prefix = '1 2 3'
+);
+
+CREATE TRIGGER items_names_insert AFTER INSERT ON items BEGIN
+    INSERT INTO names_fts (rowid, name_parts, path_parts)
+    VALUES (new.id, new.name_parts, new.path_parts);
+END;
+
+CREATE TRIGGER items_names_delete AFTER DELETE ON items BEGIN
+    INSERT INTO names_fts (names_fts, rowid, name_parts, path_parts)
+    VALUES ('delete', old.id, old.name_parts, old.path_parts);
+END;
+
+CREATE TRIGGER items_names_update AFTER UPDATE OF name_parts, path_parts ON items
+WHEN old.name_parts IS NOT new.name_parts OR old.path_parts IS NOT new.path_parts BEGIN
+    INSERT INTO names_fts (names_fts, rowid, name_parts, path_parts)
+    VALUES ('delete', old.id, old.name_parts, old.path_parts);
+    INSERT INTO names_fts (rowid, name_parts, path_parts)
+    VALUES (new.id, new.name_parts, new.path_parts);
+END;
 
 -- One inventory pass (T101). `complete` = no cancellation and no directory failed to list.
 CREATE TABLE scans (

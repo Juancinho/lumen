@@ -8,10 +8,21 @@
 
 ## Active task
 
-**T101 REVIEW** — needs `powershell -ExecutionPolicy Bypass -File scripts\t101\run-windows-catalog.ps1`
-(native tests incl. AppsFolder enumeration; catalog bench over user folders + apps; prints
-results for calc/spotify/visual/config/notas). Then DONE, ADR-021 Accepted, next T102.
+**T101 + T102 REVIEW** — one Windows run validates both:
+`powershell -ExecutionPolicy Bypass -File scripts\t101\run-windows-catalog.ps1`
+(native tests incl. AppsFolder COM; catalog bench over user folders + apps with the T102
+ranking; prints top results for calc/spotify/visual/config/notas). Then both DONE, ADR-021/022
+Accepted. Next after that: T103 (premium overlay) or T106/T107 (signals, result stream).
 DONE: T001, T002, T005–T013. M0 gate met; M1 in progress.
+
+## T102 — outcome (ADR-022)
+
+- `lumen_catalog::text::{tokens, name_parts, path_parts}`; `lumen_catalog::rank::{ParsedQuery,
+  score, edit_distance, typo_budget}`; provider `gather` = 3 bounded stages.
+- Storage: `items.name_parts/path_parts`, `names_fts` + triggers; `Store::{search_name_tokens,
+  name_key_range}`; `SearchBudget::is_cancelled`.
+- Relevance gate: `cargo test -p lumen-catalog --test relevance` (fixture in `fixtures/search/`).
+- Bench `catalog` now reports p95 by prefix length.
 
 ## T101 — outcome (ADR-021)
 

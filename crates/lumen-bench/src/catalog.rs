@@ -57,6 +57,8 @@ pub(crate) struct CatalogReport {
     queries: usize,
     /// One provider call per keystroke prefix of each sampled name.
     keystroke: Summary,
+    /// p95 by prefix length (index 0 = 1 character).
+    keystroke_p95_by_chars: Vec<f64>,
     mean_results: f64,
     /// Share of sampled names whose full-name query returns that exact item in the top 10.
     full_name_found_in_top10: f64,
@@ -191,6 +193,7 @@ pub(crate) fn run(opts: &CatalogOptions) -> Result<CatalogReport, String> {
     }
 
     let mut latencies = Vec::new();
+    let mut by_len: Vec<Vec<f64>> = vec![Vec::new(); 8];
     let mut results_total = 0usize;
     let mut found = 0usize;
     for (id, name) in &sample {
@@ -199,7 +202,9 @@ pub(crate) fn run(opts: &CatalogOptions) -> Result<CatalogReport, String> {
             let prefix: String = chars[..end].iter().collect();
             let t = Instant::now();
             let n = ask(&prefix).map(|r| r.len()).unwrap_or(0);
-            latencies.push(t.elapsed().as_secs_f64() * 1000.0);
+            let ms = t.elapsed().as_secs_f64() * 1000.0;
+            latencies.push(ms);
+            by_len[end - 1].push(ms);
             results_total += n;
         }
         let wanted = format!("item:{id}");
@@ -231,6 +236,10 @@ pub(crate) fn run(opts: &CatalogOptions) -> Result<CatalogReport, String> {
         db_mib,
         queries: latencies.len(),
         keystroke: Summary::of(&latencies).ok_or("no names to query (empty catalog)")?,
+        keystroke_p95_by_chars: by_len
+            .iter()
+            .map(|v| Summary::of(v).map_or(0.0, |s| s.p95_ms))
+            .collect(),
         mean_results: results_total as f64 / latencies.len().max(1) as f64,
         full_name_found_in_top10: found as f64 / sample.len().max(1) as f64,
         memory_after: memory(),
@@ -244,6 +253,7 @@ pub(crate) fn summarize(r: &CatalogReport) -> String {
          {} updated, {} removed)\n  \
          apps: {} discovered via {} in {:.2} s\n  \
          db {:.1} MiB | keystroke lookup (n={}): p50 {:.3} p95 {:.3} max {:.3} ms, {:.1} results avg\n  \
+         p95 by prefix length 1..8: {}\n  \
          full name found in top 10: {:.1}%{}\n",
         r.roots,
         r.entries,
@@ -269,6 +279,11 @@ pub(crate) fn summarize(r: &CatalogReport) -> String {
         r.keystroke.p95_ms,
         r.keystroke.max_ms,
         r.mean_results,
+        r.keystroke_p95_by_chars
+            .iter()
+            .map(|v| format!("{v:.2}"))
+            .collect::<Vec<_>>()
+            .join(" / "),
         r.full_name_found_in_top10 * 100.0,
         if r.machine.build_profile == "release" {
             ""

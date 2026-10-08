@@ -7,6 +7,7 @@ pub mod apps;
 pub mod files;
 pub mod path;
 pub mod provider;
+pub mod rank;
 pub mod text;
 
 pub use apps::{AppsReport, sync_apps};

@@ -12,10 +12,13 @@ use lumen_indexer::{EntryKind, ScanEntry, ScanOptions, ScanReport, scan};
 use lumen_storage::{CatalogEntry, ItemKind, Source, StorageError, Store, UpsertStats};
 
 use crate::path::encode;
-use crate::text::fold;
+use crate::text::{fold, name_parts, path_parts};
 
 /// Entries written per transaction.
 pub const BATCH: usize = 2_000;
+
+/// Parent folders whose names are searchable with an item (`items.path_parts`).
+pub const PATH_SEGMENTS: usize = 3;
 
 /// Outcome of [`sync_files`].
 #[derive(Debug, Clone, Default)]
@@ -36,6 +39,8 @@ struct Owned {
     raw: Option<Vec<u8>>,
     name: String,
     key: String,
+    name_parts: String,
+    path_parts: String,
     extension: Option<String>,
     volume: Option<String>,
     file: Option<String>,
@@ -69,6 +74,8 @@ impl Owned {
         Self {
             kind,
             key: fold(&name),
+            name_parts: name_parts(&name),
+            path_parts: path_parts(&encoded.text, PATH_SEGMENTS),
             name,
             path: encoded.text,
             raw: encoded.raw,
@@ -93,6 +100,8 @@ impl Owned {
             raw_path: self.raw.as_deref(),
             name: &self.name,
             name_key: &self.key,
+            name_parts: &self.name_parts,
+            path_parts: &self.path_parts,
             extension: self.extension.as_deref(),
             volume_id: self.volume.as_deref(),
             file_id: self.file.as_deref(),

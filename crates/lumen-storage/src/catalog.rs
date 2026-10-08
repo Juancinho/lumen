@@ -48,6 +48,9 @@ pub struct CatalogEntry<'a> {
     pub name: &'a str,
     /// Normalized search key of `name` (case-folded, diacritics removed).
     pub name_key: &'a str,
+    /// Token text of the name and of its nearest parent folders (`names_fts`).
+    pub name_parts: &'a str,
+    pub path_parts: &'a str,
     pub extension: Option<&'a str>,
     pub volume_id: Option<&'a str>,
     pub file_id: Option<&'a str>,
@@ -80,8 +83,12 @@ pub struct CatalogItem {
     pub path: String,
     pub raw_path: Option<Vec<u8>>,
     pub name: String,
+    pub name_key: String,
+    pub name_parts: String,
+    pub path_parts: String,
     pub extension: Option<String>,
     pub launch_target: Option<String>,
+    pub attributes: i64,
     pub modified_at: Option<i64>,
 }
 
@@ -96,7 +103,9 @@ pub struct NameHit {
 /// Upper bound for `name_key` prefix ranges (largest scalar value).
 const KEY_MAX: char = '\u{10FFFF}';
 
-const ITEM_COLUMNS: &str = "id, kind, source, canonical_path, raw_path, display_name, extension, launch_target, modified_at";
+const ITEM_COLUMNS: &str = "items.id, items.kind, items.source, items.canonical_path, \
+     items.raw_path, items.display_name, items.name_key, items.name_parts, items.path_parts, \
+     items.extension, items.launch_target, items.attributes, items.modified_at";
 
 fn item_from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<CatalogItem> {
     let kind: String = r.get(1)?;
@@ -108,9 +117,13 @@ fn item_from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<CatalogItem> {
         path: r.get(3)?,
         raw_path: r.get(4)?,
         name: r.get(5)?,
-        extension: r.get(6)?,
-        launch_target: r.get(7)?,
-        modified_at: r.get(8)?,
+        name_key: r.get(6)?,
+        name_parts: r.get(7)?,
+        path_parts: r.get(8)?,
+        extension: r.get(9)?,
+        launch_target: r.get(10)?,
+        attributes: r.get(11)?,
+        modified_at: r.get(12)?,
     })
 }
 
@@ -195,15 +208,15 @@ impl Store {
                     status = CASE WHEN ?17 IS NULL THEN
                                  CASE status WHEN 'error' THEN 'pending' ELSE status END
                              ELSE 'error' END,
-                    error_code = ?17
+                    error_code = ?17, name_parts = ?18, path_parts = ?19
                  WHERE id = ?1",
             )?;
             let mut insert = tx.prepare_cached(
                 "INSERT INTO items (kind, source, volume_id, file_id, canonical_path, raw_path,
                     display_name, name_key, extension, launch_target, attributes, size_bytes,
-                    modified_at, created_at, seen_scan, status, error_code)
+                    modified_at, created_at, seen_scan, status, error_code, name_parts, path_parts)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-                    CASE WHEN ?16 IS NULL THEN 'pending' ELSE 'error' END, ?16)",
+                    CASE WHEN ?16 IS NULL THEN 'pending' ELSE 'error' END, ?16, ?17, ?18)",
             )?;
             for e in entries {
                 let existing: Option<i64> = by_path.query_row([e.path], |r| r.get(0)).optional()?;
@@ -244,7 +257,9 @@ impl Store {
                             e.modified_at,
                             e.created_at,
                             scan,
-                            e.error
+                            e.error,
+                            e.name_parts,
+                            e.path_parts
                         ])?;
                         if moved {
                             stats.moved += 1;
@@ -269,7 +284,9 @@ impl Store {
                             e.modified_at,
                             e.created_at,
                             scan,
-                            e.error
+                            e.error,
+                            e.name_parts,
+                            e.path_parts
                         ])?;
                         stats.inserted += 1;
                     }
@@ -353,6 +370,55 @@ impl Store {
         })
     }
 
+    /// Items whose name or parent-folder tokens match the FTS5 expression `matcher`
+    /// (built by the caller from quoted prefix terms), best bm25 first — names weigh four
+    /// times more than folders — capped at `limit`.
+    ///
+    /// # Errors
+    /// [`crate::StorageError::Interrupted`] when `budget` ran out; SQLite failure (including
+    /// an invalid expression).
+    pub fn search_name_tokens(
+        &self,
+        matcher: &str,
+        limit: usize,
+        budget: &SearchBudget,
+    ) -> Result<Vec<CatalogItem>> {
+        if matcher.trim().is_empty() || limit == 0 {
+            return Ok(Vec::new());
+        }
+        let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+        self.bounded(budget, |store| {
+            let mut stmt = store.conn.prepare_cached(&format!(
+                "SELECT {ITEM_COLUMNS} FROM names_fts JOIN items ON items.id = names_fts.rowid
+                 WHERE names_fts MATCH ?1 ORDER BY bm25(names_fts, 1.0, 0.25) LIMIT ?2"
+            ))?;
+            let rows = stmt.query_map(params![matcher, limit], item_from_row)?;
+            Ok(rows.collect::<std::result::Result<_, _>>()?)
+        })
+    }
+
+    /// Up to `limit` items with `lo <= name_key < hi`, in key order (fuzzy-match candidates).
+    ///
+    /// # Errors
+    /// [`crate::StorageError::Interrupted`] when `budget` ran out; SQLite failure.
+    pub fn name_key_range(
+        &self,
+        lo: &str,
+        hi: &str,
+        limit: usize,
+        budget: &SearchBudget,
+    ) -> Result<Vec<CatalogItem>> {
+        let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+        self.bounded(budget, |store| {
+            let mut stmt = store.conn.prepare_cached(&format!(
+                "SELECT {ITEM_COLUMNS} FROM items WHERE name_key >= ?1 AND name_key < ?2
+                 ORDER BY name_key LIMIT ?3"
+            ))?;
+            let rows = stmt.query_map(params![lo, hi, limit], item_from_row)?;
+            Ok(rows.collect::<std::result::Result<_, _>>()?)
+        })
+    }
+
     /// One item by id.
     ///
     /// # Errors
@@ -360,7 +426,9 @@ impl Store {
     pub fn catalog_item(&self, id: i64) -> Result<Option<CatalogItem>> {
         Ok(self
             .conn
-            .prepare_cached(&format!("SELECT {ITEM_COLUMNS} FROM items WHERE id = ?1"))?
+            .prepare_cached(&format!(
+                "SELECT {ITEM_COLUMNS} FROM items WHERE items.id = ?1"
+            ))?
             .query_row([id], item_from_row)
             .optional()?)
     }
@@ -414,6 +482,8 @@ mod tests {
             raw_path: None,
             name,
             name_key: key,
+            name_parts: key,
+            path_parts: "",
             extension: None,
             volume_id: Some("v1"),
             file_id: None,
@@ -592,6 +662,55 @@ mod tests {
         );
         let item = store.catalog_item(hits[0].item.id).unwrap().unwrap();
         assert_eq!(item.launch_target.as_deref(), Some("apps:spotify"));
+    }
+
+    #[test]
+    fn token_search_matches_name_and_folder_tokens_and_stays_in_sync() {
+        let db = TempDb::new("tokens");
+        let mut store = db.store();
+        let s1 = store.begin_scan(Source::Files).unwrap();
+        let code = CatalogEntry {
+            name_parts: "visual studio code vsc",
+            ..entry("/apps/code", "Visual Studio Code", "visual studio code")
+        };
+        let notes = CatalogEntry {
+            name_parts: "notas md",
+            path_parts: "proyectos lumen",
+            ..entry("/p/lumen/notas.md", "notas.md", "notas.md")
+        };
+        store.upsert_entries(s1, &[code, notes.clone()]).unwrap();
+        let find = |store: &Store, q: &str| -> Vec<String> {
+            store
+                .search_name_tokens(q, 10, &SearchBudget::unbounded())
+                .unwrap()
+                .into_iter()
+                .map(|i| i.name)
+                .collect()
+        };
+        assert_eq!(find(&store, "\"stu\"*"), ["Visual Studio Code"]);
+        assert_eq!(find(&store, "\"vsc\"*"), ["Visual Studio Code"]);
+        assert_eq!(
+            find(&store, "\"lumen\"* \"not\"*"),
+            ["notas.md"],
+            "folder + name"
+        );
+
+        // Renamed: the index follows; a metadata-only refresh leaves it alone.
+        let s2 = store.begin_scan(Source::Files).unwrap();
+        let renamed = CatalogEntry {
+            name_parts: "apuntes md",
+            ..notes
+        };
+        store.upsert_entries(s2, &[renamed]).unwrap();
+        assert!(find(&store, "\"notas\"*").is_empty());
+        assert_eq!(find(&store, "\"apun\"*"), ["notas.md"]);
+        let id = store.item_id_by_path("/p/lumen/notas.md").unwrap().unwrap();
+        store.delete_items(&[id]).unwrap();
+        assert!(find(&store, "\"apun\"*").is_empty());
+        let range = store
+            .name_key_range("v", "w", 5, &SearchBudget::unbounded())
+            .unwrap();
+        assert_eq!(range.len(), 1);
     }
 
     #[test]

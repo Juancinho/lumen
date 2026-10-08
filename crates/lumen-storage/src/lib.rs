@@ -117,6 +117,14 @@ impl SearchBudget {
         self
     }
 
+    /// Whether the cancellation token (if any) fired; a deadline alone never cancels.
+    #[must_use]
+    pub fn is_cancelled(&self) -> bool {
+        self.cancel
+            .as_ref()
+            .is_some_and(CancellationToken::is_cancelled)
+    }
+
     fn is_bounded(&self) -> bool {
         self.deadline.is_some() || self.cancel.is_some()
     }

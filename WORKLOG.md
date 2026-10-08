@@ -101,3 +101,9 @@ Append-only. Keep entries compact.
 - New crates: lumen-windows (AppsFolder enumeration, COM), lumen-catalog (fold, lossless paths, sync_files, sync_apps with Start-menu fallback, CatalogProvider exact/prefix, apps first). 15 + 6 + 3 new tests.
 - Sandbox 245k entries: first sync 112 s -> found the planner using items_modified for the identity lookup; INDEXED BY items_identity -> 6.1 s (40k/s); writer cache_size tested and reverted (no gain). Keystroke lookup p50 0.086 ms.
 - `scripts/t101/run-windows-catalog.ps1` for the Windows validation (user asleep; REVIEW).
+
+## 2026-10-08 — T102 filename/path exact/prefix/fuzzy retrieval (claude)
+
+- Code-aware tokenizer (camel/acronym/digit splits, words, stem initials), parent-folder tokens, `names_fts` (external content, change-only update trigger).
+- Ranking module with bounded priors; typo matching by OSA distance with a length-based budget; candidate gathering in three stages, stages 2-3 best-effort with own time slices.
+- Committed relevance fixture (40 queries): MRR@10 1.000. Sandbox 247k entries: first measurements p95 25 ms (FTS bm25 over 1-2 char prefixes, path tokens on single words, fuzzy DP allocations) -> fixes -> p95 7.9 ms / max 10.4 ms.
