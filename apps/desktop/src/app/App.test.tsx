@@ -11,6 +11,7 @@ import {
   onOverlayShown,
   overlayPainted,
   overlayReady,
+  previewResult,
   resizeOverlay,
   type Appearance,
   type OverlayShown,
@@ -29,6 +30,7 @@ vi.mock("../ipc", () => ({
   onOverlayShown: vi.fn(),
   overlayPainted: vi.fn(),
   overlayReady: vi.fn(),
+  previewResult: vi.fn(),
   resizeOverlay: vi.fn(),
 }));
 
@@ -47,7 +49,18 @@ let results: ResultsState = { rows: [], queryId: null, status: "idle" };
 beforeEach(() => {
   results = { rows: [], queryId: null, status: "idle" };
   vi.mocked(useResults).mockImplementation(() => results);
-  vi.mocked(resizeOverlay).mockImplementation((h) => Promise.resolve(h));
+  vi.mocked(resizeOverlay).mockImplementation((width, height) =>
+    Promise.resolve({ width, height }),
+  );
+  vi.mocked(previewResult).mockResolvedValue({
+    title: "item:1.txt",
+    kind: "file",
+    location: "C:\\Users\\Joao",
+    sizeBytes: 2048,
+    modifiedMs: 0,
+    text: "hola\nmundo",
+    truncated: false,
+  });
   vi.mocked(runAction).mockResolvedValue(undefined);
   vi.mocked(listActions).mockResolvedValue([
     { id: "lumen.open", title: "Open", group: "primary", shortcut: "Enter" },
@@ -206,7 +219,7 @@ describe("App overlay", () => {
 
   it("sizes the window to the content and resets the selection on a new query", async () => {
     const { rerender } = render(<App />);
-    expect(resizeOverlay).toHaveBeenLastCalledWith(64);
+    expect(resizeOverlay).toHaveBeenLastCalledWith(800, 64);
 
     results = {
       rows: [
@@ -231,7 +244,7 @@ describe("App overlay", () => {
       queryId: 1,
     };
     rerender(<App />);
-    expect(resizeOverlay).toHaveBeenLastCalledWith(64 + 1 + 12 + 2 * 52);
+    expect(resizeOverlay).toHaveBeenLastCalledWith(800, 64 + 1 + 12 + 2 * 52);
 
     await userEvent.hover(nthOption(1));
     expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
@@ -334,6 +347,61 @@ describe("App overlay", () => {
       expect(await screen.findByRole("status")).toHaveTextContent("Couldn't do that");
       await userEvent.keyboard("{ArrowDown}");
       expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("quick look", () => {
+    const file = (id: string) => ({
+      id,
+      kind: "file" as const,
+      title: `${id}.txt`,
+      detail: null,
+      extension: "txt",
+      primaryAction: "lumen.open",
+    });
+
+    beforeEach(() => {
+      results = { rows: [file("item:1"), file("item:2")], status: "done", queryId: 7 };
+    });
+
+    it("Alt+Enter toggles a docked preview that follows the selection", async () => {
+      render(<App />);
+      await userEvent.keyboard("{Alt>}{Enter}{/Alt}");
+      expect(
+        await screen.findByRole("complementary", { name: "Preview of item:1.txt" }),
+      ).toHaveClass("preview--docked");
+      expect(screen.getByText(/hola/)).toBeInTheDocument();
+      expect(screen.getByText(/2\.0 KB/)).toBeInTheDocument();
+      expect(resizeOverlay).toHaveBeenLastCalledWith(1200, 64 + 1 + 360);
+      expect(previewResult).toHaveBeenLastCalledWith(7, "item:1");
+
+      await userEvent.keyboard("{ArrowDown}");
+      expect(previewResult).toHaveBeenLastCalledWith(7, "item:2");
+
+      await userEvent.keyboard("{Alt>}{Enter}{/Alt}");
+      expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+    });
+
+    it("Escape closes the preview before dismissing", async () => {
+      render(<App />);
+      await userEvent.keyboard("{Alt>}{Enter}{/Alt}");
+      await screen.findByRole("complementary");
+      await userEvent.keyboard("{Escape}");
+      expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+      expect(hideOverlay).not.toHaveBeenCalled();
+    });
+
+    it("covers the list when the monitor is too narrow for two panes", async () => {
+      vi.mocked(resizeOverlay).mockImplementation((_w, height) =>
+        Promise.resolve({ width: 1000, height }),
+      );
+      render(<App />);
+      await userEvent.keyboard("{Alt>}{Enter}{/Alt}");
+      const pane = await screen.findByRole("complementary");
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(pane).toHaveClass("preview--over");
     });
   });
 });

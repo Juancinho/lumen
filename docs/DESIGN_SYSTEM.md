@@ -12,6 +12,11 @@
   the window radius is the native Windows 11 radius (ADR-024); the entrance is a 150 ms
   content fade, no scale (the native window and backdrop cannot scale), none under reduced
   motion.
+- Quick Look (T105): Alt+Enter; the window widens to the right by 400 px (left edge kept
+  unless it would overflow, so the search bar does not move), list keeps 800 px, preview
+  pane beside it with metadata and a text excerpt; below 1100 px available it covers the
+  list. Window resize is native and instant (no 180–240 ms expansion animation yet).
+- Action Panel (T108): elevated opaque card bottom-right (no second blur), primary first.
 - Not yet: real app/file icons (IconRef::Native), scope chips, status area, sections.
 
 ## 1. Design intent

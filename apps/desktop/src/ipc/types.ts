@@ -63,3 +63,21 @@ export interface ResultsUpdate {
   /** Diagnostics mode only, otherwise `null`. */
   diagnostics: QueryDiagnostics | null;
 }
+
+/** Mirrors `SizeDto`: logical px. */
+export interface Size {
+  width: number;
+  height: number;
+}
+
+/** Mirrors `PreviewDto` (Quick Look, T105). */
+export interface Preview {
+  title: string;
+  kind: "application" | "file" | "folder" | "command";
+  location: string | null;
+  sizeBytes: number | null;
+  modifiedMs: number | null;
+  /** Start of a text file, if it is one. */
+  text: string | null;
+  truncated: boolean;
+}

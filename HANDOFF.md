@@ -11,8 +11,19 @@
 **Pending on Windows (user):** try the real search (T107: type an app or file name — results
 should appear within ~1 s of start-up once the catalog sync ran), judge the look (T103 rows,
 T004 Acrylic vs Mica), T003 shortcut check. T101/T102 DONE (Windows run accepted).
-Lumen is now usable end to end: type → results → Enter opens. Next: T105 (Quick Look) or
-T110 (diagnostics); T205-line work needs T201+ (M2).
+Lumen is now usable end to end: type → results → Enter opens. M1 tasks are all implemented (REVIEW pending your Windows checks). Next: M2 starts with
+T201 (text/code extractor + chunker), or T014/T015/T016 (spikes/docs) if preferred.
+
+## T105 — outcome (REVIEW)
+
+- Shell: `preview.rs` (`preview(item)`: metadata, `excerpt` with binary/encoding guards),
+  command `preview_result(queryId, resultId)`; `overlay::resize(width, height)` with
+  `placement::{clamp_width, expand_x}` (grow right, shift left only on overflow);
+  `resize_overlay` returns `{width, height}`.
+- UI: `usePreview` (follows selection, drops late answers), `PreviewPane`, `format.ts`,
+  `layout::overlaySize`; docked when the applied width ≥ 1100.
+- Windows check: Alt+Enter on a .txt/.md shows its start; on an app/photo shows metadata;
+  the search bar does not move; Escape closes the preview first.
 
 ## T110 — outcome (REVIEW)
 

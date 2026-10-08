@@ -1,4 +1,4 @@
-import type { KeyboardEvent, Ref } from "react";
+import type { KeyboardEvent, ReactNode, Ref } from "react";
 
 import type { ActionView } from "../../ipc";
 import { ActionPanel } from "./ActionPanel";
@@ -26,6 +26,8 @@ interface RootSearchProps {
     onSelect: (index: number) => void;
     onRun: (index: number) => void;
   } | null;
+  /** Quick Look pane, shown beside (or over) the list. */
+  preview?: ReactNode;
 }
 
 /**
@@ -43,6 +45,7 @@ export function RootSearch({
   onKeyDown,
   notice = null,
   panel = null,
+  preview = null,
 }: RootSearchProps) {
   const state = listState(query, results);
   const hasRows = state.kind === "rows";
@@ -62,23 +65,28 @@ export function RootSearch({
         }}
         onKeyDown={onKeyDown}
       />
-      {state.kind !== "none" && <div className="overlay__divider" role="presentation" />}
-      {hasRows && (
-        <ResultList
-          rows={results.rows}
-          selectedIndex={selectedIndex}
-          notice={notice}
-          onSelect={onSelect}
-          onActivate={onActivate}
-        />
+      {(state.kind !== "none" || preview) && (
+        <div className="overlay__divider" role="presentation" />
       )}
+      <div className="overlay__body">
+        {hasRows && (
+          <ResultList
+            rows={results.rows}
+            selectedIndex={selectedIndex}
+            notice={notice}
+            onSelect={onSelect}
+            onActivate={onActivate}
+          />
+        )}
+        {state.kind === "message" && (
+          <p className="overlay__message" role="status">
+            <span className="overlay__message-title">No matches for “{query.trim()}”</span>
+            <span className="overlay__message-hint">Check the spelling or try fewer words</span>
+          </p>
+        )}
+        {preview}
+      </div>
       {panel && <ActionPanel {...panel} />}
-      {state.kind === "message" && (
-        <p className="overlay__message" role="status">
-          <span className="overlay__message-title">No matches for “{query.trim()}”</span>
-          <span className="overlay__message-hint">Check the spelling or try fewer words</span>
-        </p>
-      )}
     </>
   );
 }

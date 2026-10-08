@@ -23,6 +23,29 @@ impl From<lumen_core::CoreInfo> for CoreInfoDto {
     }
 }
 
+/// Mirrors `Preview` in `src/ipc/types.ts` (Quick Look, T105).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PreviewDto {
+    pub(crate) title: String,
+    /// `application` | `file` | `folder` | `command`
+    pub(crate) kind: &'static str,
+    pub(crate) location: Option<String>,
+    pub(crate) size_bytes: Option<u64>,
+    pub(crate) modified_ms: Option<u64>,
+    /// Start of a text file, if it is one.
+    pub(crate) text: Option<String>,
+    /// `text` is only the beginning of the file.
+    pub(crate) truncated: bool,
+}
+
+/// Mirrors `Size` in `src/ipc/types.ts`: logical px.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub(crate) struct SizeDto {
+    pub(crate) width: f64,
+    pub(crate) height: f64,
+}
+
 /// Mirrors `Appearance` in `src/ipc/types.ts`: the surface the UI paints (T004).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

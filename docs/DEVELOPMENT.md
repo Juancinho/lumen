@@ -59,6 +59,7 @@ apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
     src/search.rs          search thread + catalog provider -> `lumen:results` (ADR-025)
     src/catalog.rs         background catalog sync (apps + standard folders, every 30 min)
     src/actions.rs         action executors behind the core policy (ADR-026)
+    src/preview.rs         Quick Look data: metadata + bounded text excerpt (T105)
     src/instance.rs        second-launch commands (--show/--hide/--toggle/--quit)
     src/tray.rs            tray icon + menu (Show, Keyboard shortcut, Window material, Quit)
     src/dto.rs             wire DTOs mapped from core types
@@ -197,13 +198,14 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
   silently replaced; with nothing saved and the default taken, the first free choice is used
   for the session only. With none free Lumen keeps running and the tooltip says so (T003).
 - Placement: monitor under the cursor, horizontally centered, top edge at 20% of the work area,
-  clamped inside it; logical width 800, compact height 64 (`tauri.conf.json`). The UI asks for
-  its content height (`resize_overlay`, from `features/root-search/layout.ts`); the shell caps
+  clamped inside it; logical width 800 (1200 with Quick Look), compact height 64
+  (`tauri.conf.json`). The UI asks for its content size (`resize_overlay`, from `features/root-search/layout.ts`); the shell caps
   it at 72% of the work area so the top edge never moves, and re-applies it on every show.
 - Dismiss: Escape (ignored during IME composition), focus loss, Alt+F4. Quit: tray → Quit Lumen.
 - Keys (T104/T108, `features/root-search/keymap.ts`): ↑/↓, PageUp/PageDown move the
   selection; Enter primary action, Ctrl+Enter reveal, Ctrl+K Action Panel, Ctrl+L query,
-  Alt+Enter reserved for Quick Look (T105). Click runs the primary action.
+  Alt+Enter Quick Look (T105). Click runs the primary action. Escape closes the Action
+  Panel, then Quick Look, then the overlay.
 - On every show the shell emits `lumen:overlay-shown`; the UI focuses and selects the query.
 - Diagnostics mode (T110): `LUMEN_DIAGNOSTICS=1` adds provider · match kind · confidence
   under every result row and logs per-query timing/failed providers to the WebView console

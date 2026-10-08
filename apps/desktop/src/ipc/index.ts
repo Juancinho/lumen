@@ -6,6 +6,7 @@ export {
   listActions,
   overlayPainted,
   overlayReady,
+  previewResult,
   resizeOverlay,
   runAction,
   search,
@@ -29,8 +30,10 @@ export type {
   Appearance,
   CoreInfo,
   Invocation,
+  Preview,
   QueryDiagnostics,
   ResultDiagnostics,
   ResultsUpdate,
   ResultView,
+  Size,
 } from "./types";

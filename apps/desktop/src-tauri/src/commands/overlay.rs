@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 
-use crate::dto::AppearanceDto;
+use crate::dto::{AppearanceDto, SizeDto};
 
 /// Whether the overlay should appear once the UI has loaded (normal launch), as
 /// opposed to staying resident in the tray (`--background`).
@@ -42,9 +42,10 @@ pub(crate) async fn overlay_appearance(app: AppHandle) -> AppearanceDto {
     crate::material::current(&app)
 }
 
-/// Sizes the window to the UI's content height (logical px); returns the applied height
-/// (clamped to the monitor, so the UI can scroll the rest).
+/// Sizes the window to the UI's content (logical px); returns the applied size, clamped to
+/// the monitor, so the UI can scroll the rest or fall back to a one-pane preview.
 #[tauri::command]
-pub(crate) async fn resize_overlay(window: WebviewWindow, height: f64) -> f64 {
-    crate::overlay::resize(&window, height)
+pub(crate) async fn resize_overlay(window: WebviewWindow, width: f64, height: f64) -> SizeDto {
+    let (width, height) = crate::overlay::resize(&window, width, height);
+    SizeDto { width, height }
 }

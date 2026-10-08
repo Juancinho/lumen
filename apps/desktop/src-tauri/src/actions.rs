@@ -47,7 +47,7 @@ pub(crate) fn parse_invocation(s: &str) -> Option<Invocation> {
     }
 }
 
-fn lookup<R: Runtime>(
+pub(crate) fn lookup<R: Runtime>(
     app: &AppHandle<R>,
     query: u64,
     result: &str,

@@ -61,3 +61,17 @@ export const PANEL_CHROME = 40;
 export function panelHeight(actions: number): number {
   return PANEL_CHROME + actions * ACTION_HEIGHT;
 }
+
+/** Window width with Quick Look docked beside the list (mirrors `--preview-width`). */
+export const COMPACT_WIDTH = 800;
+export const PREVIEW_WIDTH = 400;
+/** Below this applied width the preview covers the list instead of docking beside it. */
+export const DOCKED_MIN_WIDTH = COMPACT_WIDTH + 300;
+/** Height the preview needs to be useful (search bar + divider + body). */
+export const PREVIEW_MIN_HEIGHT = SEARCH_HEIGHT + DIVIDER + 360;
+
+/** Window size to request: wider and at least `PREVIEW_MIN_HEIGHT` tall with a preview. */
+export function overlaySize(height: number, preview: boolean): { width: number; height: number } {
+  if (!preview) return { width: COMPACT_WIDTH, height };
+  return { width: COMPACT_WIDTH + PREVIEW_WIDTH, height: Math.max(height, PREVIEW_MIN_HEIGHT) };
+}

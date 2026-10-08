@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { commandFor } from "../features/root-search/keymap";
-import { MAX_VISIBLE_ROWS, rootSearchHeight } from "../features/root-search/layout";
+import {
+  COMPACT_WIDTH,
+  DOCKED_MIN_WIDTH,
+  MAX_VISIBLE_ROWS,
+  overlaySize,
+  rootSearchHeight,
+} from "../features/root-search/layout";
+import { PreviewPane } from "../features/root-search/PreviewPane";
 import { RootSearch } from "../features/root-search/RootSearch";
 import {
   INITIAL_SELECTION,
@@ -10,6 +17,7 @@ import {
   selectIndex,
 } from "../features/root-search/selection";
 import { REVEAL_ACTION, useActions } from "../features/root-search/useActions";
+import { usePreview } from "../features/root-search/usePreview";
 import { useResults } from "../features/root-search/useResults";
 import {
   getAppearance,
@@ -72,6 +80,9 @@ function focusQuery(input: HTMLInputElement | null) {
  *   while results stream in. Text-editing keys stay with the query field.
  * - actions (T108/T109): Enter / click runs the primary action, Ctrl+Enter reveals,
  *   Ctrl+K opens the Action Panel (arrows + Enter inside, Escape/Ctrl+K close it).
+ * - Quick Look (T105): Alt+Enter toggles a preview that follows the selection; the window
+ *   widens to the right for it (or the preview covers the list on narrow monitors).
+ *   Escape closes the panel, then the preview, then the overlay.
  */
 export function App() {
   const [query, setQuery] = useState("");
@@ -83,10 +94,13 @@ export function App() {
   const height = rootSearchHeight(query, results, actions.panel?.actions.length ?? 0);
   const selected = selectedIndex(selection, results.rows);
   const selectedRow = results.rows[selected];
+  const preview = usePreview(results.queryId, selectedRow);
+  const want = overlaySize(height, preview.open);
+  const [applied, setApplied] = useState({ width: COMPACT_WIDTH, height: want.height });
 
   useEffect(() => {
-    resizeOverlay(height).catch(reportIpcError("resize_overlay"));
-  }, [height]);
+    resizeOverlay(want.width, want.height).then(setApplied, reportIpcError("resize_overlay"));
+  }, [want.width, want.height]);
 
   useEffect(() => {
     focusQuery(inputRef.current);
@@ -169,13 +183,17 @@ export function App() {
         case "actions":
           actions.closePanel();
           return;
+        case "details":
+          actions.closePanel();
+          break;
         default:
           actions.closePanel();
       }
     }
     switch (command.type) {
       case "dismiss":
-        hideOverlay().catch(reportIpcError("hide_overlay"));
+        if (preview.open) preview.close();
+        else hideOverlay().catch(reportIpcError("hide_overlay"));
         return;
       case "move":
         setSelection(moveSelection(selection, results.rows, command.delta));
@@ -200,7 +218,7 @@ export function App() {
         }
         return;
       case "details":
-        // Quick Look is T105.
+        if (preview.open || selectedRow) preview.toggle();
         return;
     }
   };
@@ -222,6 +240,11 @@ export function App() {
           }}
           onKeyDown={onKeyDown}
           notice={actions.noticeFor === selectedRow?.id ? actions.notice : null}
+          preview={
+            preview.open && (
+              <PreviewPane data={preview.data} docked={applied.width >= DOCKED_MIN_WIDTH} />
+            )
+          }
           panel={
             actions.panel && {
               subject: actions.panel.row.title,

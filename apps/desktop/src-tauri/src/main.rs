@@ -19,6 +19,7 @@ mod instance;
 mod lifecycle;
 mod material;
 mod overlay;
+mod preview;
 mod search;
 mod settings;
 mod shortcut;
@@ -87,6 +88,7 @@ fn main() {
             commands::search::search,
             commands::actions::list_actions,
             commands::actions::run_action,
+            commands::preview::preview_result,
             commands::overlay::overlay_painted
         ])
         .run(tauri::generate_context!());

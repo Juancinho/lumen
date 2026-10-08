@@ -131,7 +131,10 @@ Benchmark/ADR required:
   the core policy against recently shown results; uses recorded for ranking.
 - **T110 REVIEW:** `LUMEN_DIAGNOSTICS=1` shows provider/match kind/confidence per row and
   logs per-query timings; absent from the wire otherwise.
-- Not yet: real icons, Quick Look (T105), pin/open-with UI.
+- **T105 REVIEW:** Quick Look (Alt+Enter): window widens right, preview beside the list
+  (or over it on narrow monitors) with metadata and a bounded text excerpt (16 KB read,
+  4,000 chars, text extensions only, binaries rejected).
+- Not yet: real icons, rich previews (images/PDF), pin/open-with UI.
 
 ## Immediate objective
 

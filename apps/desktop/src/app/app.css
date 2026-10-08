@@ -92,6 +92,23 @@ body,
   background: var(--stroke-subtle);
 }
 
+.overlay__body {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* With a docked preview the list keeps the compact width and the preview takes the rest. */
+.overlay__body:has(> .preview--docked) {
+  flex-direction: row;
+}
+
+.overlay__body:has(> .preview--docked) > :not(.preview) {
+  flex: 0 0 calc(var(--compact-width) - 1px);
+}
+
 .result-list {
   flex: 1 1 auto;
   min-height: 0;
@@ -328,4 +345,91 @@ body,
   line-height: 12px;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* --- Quick Look (T105) --- */
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: var(--space-4) var(--space-5);
+}
+
+.preview--docked {
+  flex: 1 1 auto;
+  border-left: 1px solid var(--stroke-subtle);
+}
+
+.preview--over {
+  position: absolute;
+  inset: 0;
+  background: var(--panel-surface);
+}
+
+.preview__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.preview__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--icon-tile);
+  color: var(--icon-glyph);
+}
+
+.preview__heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.preview__title {
+  overflow: hidden;
+  color: var(--lumen-text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: var(--type-title-line);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.preview__meta,
+.preview__location,
+.preview__empty {
+  margin: 0;
+  color: var(--lumen-text-secondary);
+  font-size: var(--type-meta);
+  line-height: var(--type-meta-line);
+}
+
+.preview__location {
+  overflow-wrap: anywhere;
+}
+
+.preview__text {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  background: var(--icon-tile);
+  color: var(--lumen-text-primary);
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  scrollbar-width: thin;
 }

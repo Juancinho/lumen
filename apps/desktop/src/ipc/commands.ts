@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { toAppearance } from "./events";
-import type { ActionView, Appearance, CoreInfo, Invocation } from "./types";
+import type { ActionView, Appearance, CoreInfo, Invocation, Preview, Size } from "./types";
 
 /** Identity of the linked Rust core. Command: `core_info`. */
 export function getCoreInfo(): Promise<CoreInfo> {
@@ -38,11 +38,17 @@ export async function getAppearance(): Promise<Appearance> {
 }
 
 /**
- * Asks the shell to size the overlay to `height` logical px (top edge fixed). Returns the
- * height applied after clamping to the monitor. Command: `resize_overlay`.
+ * Asks the shell to size the overlay (logical px; top edge fixed, left edge kept unless a
+ * wider window would overflow). Returns the size applied after clamping to the monitor.
+ * Command: `resize_overlay`.
  */
-export function resizeOverlay(height: number): Promise<number> {
-  return invoke<number>("resize_overlay", { height });
+export function resizeOverlay(width: number, height: number): Promise<Size> {
+  return invoke<Size>("resize_overlay", { width, height });
+}
+
+/** Quick Look data for a result of query `queryId`. Command: `preview_result`. */
+export function previewResult(queryId: number, resultId: string): Promise<Preview> {
+  return invoke<Preview>("preview_result", { queryId, resultId });
 }
 
 /**

@@ -23,11 +23,37 @@ pub(crate) const WINDOW_LABEL: &str = "main";
 pub(crate) const LOGICAL_WIDTH: f64 = 800.0;
 pub(crate) const COMPACT_HEIGHT: f64 = 64.0;
 
-/// Content height last requested by the UI (`resize_overlay`), as `f64` bits.
+/// Content size last requested by the UI (`resize_overlay`), as `f64` bits.
 static REQUESTED_HEIGHT: AtomicU64 = AtomicU64::new(COMPACT_HEIGHT.to_bits());
+static REQUESTED_WIDTH: AtomicU64 = AtomicU64::new(LOGICAL_WIDTH.to_bits());
 
-fn requested_height() -> f64 {
-    f64::from_bits(REQUESTED_HEIGHT.load(Ordering::Relaxed))
+fn requested() -> (f64, f64) {
+    (
+        f64::from_bits(REQUESTED_WIDTH.load(Ordering::Relaxed)),
+        f64::from_bits(REQUESTED_HEIGHT.load(Ordering::Relaxed)),
+    )
+}
+
+/// Size actually applied on a monitor, and the window's left edge for it.
+fn fit(requested: (f64, f64), area: PhysicalRect, scale: f64) -> ((f64, f64), i32) {
+    let width = placement::clamp_width(requested.0, LOGICAL_WIDTH, area.width, scale);
+    let height = placement::clamp_height(requested.1, COMPACT_HEIGHT, area.height, scale);
+    let compact = placement::to_physical((LOGICAL_WIDTH, height), scale);
+    let (base_x, _) = placement::overlay_position(area, compact);
+    let physical = placement::to_physical((width, height), scale);
+    (
+        (width, height),
+        placement::expand_x(base_x, physical.0, area),
+    )
+}
+
+fn rect(area: tauri::PhysicalRect<i32, u32>) -> PhysicalRect {
+    PhysicalRect {
+        x: area.position.x,
+        y: area.position.y,
+        width: area.size.width,
+        height: area.size.height,
+    }
 }
 
 /// Event emitted to the UI after the overlay was shown and focus requested.
@@ -128,21 +154,17 @@ fn place_on_active_monitor<R: Runtime>(window: &WebviewWindow<R>) {
         .or_else(|| window.primary_monitor().ok().flatten());
     let Some(monitor) = monitor else { return };
 
-    let area = monitor.work_area();
-    let work_area = PhysicalRect {
-        x: area.position.x,
-        y: area.position.y,
-        width: area.size.width,
-        height: area.size.height,
-    };
+    let work_area = rect(*monitor.work_area());
     let scale = monitor.scale_factor();
-    let height =
-        placement::clamp_height(requested_height(), COMPACT_HEIGHT, area.size.height, scale);
-    let size = placement::to_physical((LOGICAL_WIDTH, height), scale);
-    let (x, y) = placement::overlay_position(work_area, size);
+    let ((width, height), x) = fit(requested(), work_area, scale);
+    // The top edge comes from the compact window: the same line whatever the content.
+    let (_, y) = placement::overlay_position(
+        work_area,
+        placement::to_physical((LOGICAL_WIDTH, height), scale),
+    );
 
     // Keep the logical size stable when moving between monitors with different DPI.
-    if let Err(err) = window.set_size(LogicalSize::new(LOGICAL_WIDTH, height)) {
+    if let Err(err) = window.set_size(LogicalSize::new(width, height)) {
         eprintln!("lumen: resize overlay failed: {err}");
     }
     if let Err(err) = window.set_position(PhysicalPosition::new(x, y)) {
@@ -150,37 +172,41 @@ fn place_on_active_monitor<R: Runtime>(window: &WebviewWindow<R>) {
     }
 }
 
-/// Sizes the overlay for `requested` logical px of content (T103), keeping the top edge
-/// where it is; returns the height applied after clamping to the window's monitor.
-pub(crate) fn resize<R: Runtime>(window: &WebviewWindow<R>, requested: f64) -> f64 {
-    let requested = if requested.is_finite() {
-        requested
-    } else {
-        COMPACT_HEIGHT
-    };
-    REQUESTED_HEIGHT.store(requested.to_bits(), Ordering::Relaxed);
+/// Sizes the overlay for its content (logical px; T103 height, T105 width), keeping the
+/// top edge, and the left edge unless a wider window would overflow the monitor; returns
+/// the size applied after clamping to the window's monitor.
+pub(crate) fn resize<R: Runtime>(window: &WebviewWindow<R>, width: f64, height: f64) -> (f64, f64) {
+    let finite = |v: f64, d: f64| if v.is_finite() { v } else { d };
+    let want = (finite(width, LOGICAL_WIDTH), finite(height, COMPACT_HEIGHT));
+    REQUESTED_WIDTH.store(want.0.to_bits(), Ordering::Relaxed);
+    REQUESTED_HEIGHT.store(want.1.to_bits(), Ordering::Relaxed);
     let monitor = window
         .current_monitor()
         .ok()
         .flatten()
         .or_else(|| window.primary_monitor().ok().flatten());
-    let height = monitor.map_or(requested.max(COMPACT_HEIGHT), |m| {
-        placement::clamp_height(
-            requested,
-            COMPACT_HEIGHT,
-            m.work_area().size.height,
-            m.scale_factor(),
+    let Some(monitor) = monitor else {
+        return (want.0.max(LOGICAL_WIDTH), want.1.max(COMPACT_HEIGHT));
+    };
+    let scale = monitor.scale_factor();
+    let ((w, h), x) = fit(want, rect(*monitor.work_area()), scale);
+    let current = window.inner_size().ok().map(|size| {
+        (
+            f64::from(size.width) / scale,
+            f64::from(size.height) / scale,
         )
     });
-    let current = window
-        .inner_size()
-        .ok()
-        .zip(window.scale_factor().ok())
-        .map(|(size, scale)| f64::from(size.height) / scale);
-    if current.is_none_or(|h| (h - height).abs() >= 0.5)
-        && let Err(err) = window.set_size(LogicalSize::new(LOGICAL_WIDTH, height))
-    {
-        eprintln!("lumen: resize overlay failed: {err}");
+    let unchanged = current.is_some_and(|(cw, ch)| (cw - w).abs() < 0.5 && (ch - h).abs() < 0.5);
+    if !unchanged {
+        if let Err(err) = window.set_size(LogicalSize::new(w, h)) {
+            eprintln!("lumen: resize overlay failed: {err}");
+        }
+        if let Ok(pos) = window.outer_position()
+            && pos.x != x
+            && let Err(err) = window.set_position(PhysicalPosition::new(x, pos.y))
+        {
+            eprintln!("lumen: reposition overlay failed: {err}");
+        }
     }
-    height
+    (w, h)
 }

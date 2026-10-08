@@ -8,4 +8,5 @@
 pub(crate) mod actions;
 pub(crate) mod app_info;
 pub(crate) mod overlay;
+pub(crate) mod preview;
 pub(crate) mod search;

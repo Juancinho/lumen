@@ -69,6 +69,39 @@ pub(crate) fn clamp_height(requested: f64, min: f64, area_height: u32, scale: f6
     requested.min(max).max(min).round()
 }
 
+/// Maximum share of the work-area width when the overlay expands (Quick Look, T105).
+pub(crate) const MAX_WIDTH_FRACTION: f64 = 0.94;
+
+/// Width (logical px) to apply for a `requested` width: at least `min`, at most
+/// [`MAX_WIDTH_FRACTION`] of a work area `area_width` physical px wide at `scale`.
+pub(crate) fn clamp_width(requested: f64, min: f64, area_width: u32, scale: f64) -> f64 {
+    clamp_height_like(requested, min, area_width, scale, MAX_WIDTH_FRACTION)
+}
+
+fn clamp_height_like(requested: f64, min: f64, area: u32, scale: f64, fraction: f64) -> f64 {
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    let max = (f64::from(area) / scale * fraction).floor().max(min);
+    if !requested.is_finite() {
+        return min;
+    }
+    requested.min(max).max(min).round()
+}
+
+/// Left edge (physical px) for a window `width` px wide that grows to the right from
+/// `base_x` (the compact overlay's left edge), shifted left only as far as needed to stay
+/// inside `work_area` — so the search bar does not jump when a preview opens.
+pub(crate) fn expand_x(base_x: i32, width: u32, work_area: PhysicalRect) -> i32 {
+    let right = i64::from(work_area.x) + i64::from(work_area.width);
+    let x = i64::from(base_x)
+        .min(right - i64::from(width))
+        .max(i64::from(work_area.x));
+    i32::try_from(x).unwrap_or(work_area.x)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,5 +169,19 @@ mod tests {
         let h = clamp_height(5000.0, 64.0, 1040, 1.0);
         let (_, y) = overlay_position(FHD, to_physical((800.0, h), 1.0));
         assert_eq!(y, 208);
+    }
+
+    #[test]
+    fn expanding_keeps_the_left_edge_unless_it_would_overflow() {
+        // Compact 800 px at x 560 on FHD; 1200 px fits to the right (560 + 1200 = 1760).
+        assert_eq!(expand_x(560, 1200, FHD), 560);
+        // 1600 px would overflow: shifted left to end at the work-area edge.
+        assert_eq!(expand_x(560, 1600, FHD), 320);
+        // Wider than the work area: pinned to its left edge.
+        assert_eq!(expand_x(560, 5000, FHD), 0);
+        assert_eq!(clamp_width(1200.0, 800.0, 1920, 1.0), 1200.0);
+        assert_eq!(clamp_width(1200.0, 800.0, 1366, 1.25), 1027.0);
+        // Never below the compact width, even on a tiny monitor.
+        assert_eq!(clamp_width(1200.0, 800.0, 800, 1.5), 800.0);
     }
 }

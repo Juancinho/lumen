@@ -34,7 +34,7 @@ Do not renumber task IDs. New tasks get new IDs.
 | T102 | DONE   | claude | Filename/path exact/prefix/fuzzy retrieval                                    | T101           |
 | T103 | REVIEW | claude | Premium root-search overlay from design system                                | T002,T004      |
 | T104 | REVIEW | claude | Keyboard navigation, stable selection, root/action-panel shortcuts            | T103,T011      |
-| T105 | TODO   | —     | Quick Look preview shell                                                      | T103           |
+| T105 | REVIEW | claude | Quick Look preview shell                                                      | T103           |
 | T106 | DONE   | claude | Recent/frequency/pin signals + local usage store                              | T101           |
 | T107 | REVIEW | claude | Progressive result stream Rust → UI                                           | T102,T103      |
 | T108 | REVIEW | claude | Universal Action Panel (`Ctrl+K`/Tab policy) with contextual action discovery | T104,T011      |

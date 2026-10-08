@@ -8,6 +8,7 @@ import {
   listActions,
   overlayPainted,
   overlayReady,
+  previewResult,
   resizeOverlay,
   runAction,
   search,
@@ -51,9 +52,9 @@ describe("ipc commands", () => {
   });
 
   it("resizeOverlay sends the logical height and returns the applied one", async () => {
-    vi.mocked(invoke).mockResolvedValueOnce(400);
-    await expect(resizeOverlay(497)).resolves.toBe(400);
-    expect(invoke).toHaveBeenCalledExactlyOnceWith("resize_overlay", { height: 497 });
+    vi.mocked(invoke).mockResolvedValueOnce({ width: 800, height: 400 });
+    await expect(resizeOverlay(800, 497)).resolves.toEqual({ width: 800, height: 400 });
+    expect(invoke).toHaveBeenCalledExactlyOnceWith("resize_overlay", { width: 800, height: 497 });
   });
 
   it("search sends the query id and text", async () => {
@@ -74,5 +75,11 @@ describe("ipc commands", () => {
       actionId: "lumen.open",
       invocation: "primary",
     });
+  });
+
+  it("previewResult sends ids", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({});
+    await previewResult(3, "item:9");
+    expect(invoke).toHaveBeenLastCalledWith("preview_result", { queryId: 3, resultId: "item:9" });
   });
 });
