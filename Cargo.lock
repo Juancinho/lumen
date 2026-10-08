@@ -2383,6 +2383,7 @@ name = "lumen-desktop"
 version = "0.1.0"
 dependencies = [
  "lumen-core",
+ "lumen-storage",
  "serde",
  "serde_json",
  "tauri",

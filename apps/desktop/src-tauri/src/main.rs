@@ -16,6 +16,7 @@ mod dto;
 mod instance;
 mod lifecycle;
 mod overlay;
+mod settings;
 mod shortcut;
 mod tray;
 
@@ -44,8 +45,9 @@ fn main() {
             },
         ))
         .setup(move |app| {
-            let shortcut_registered = shortcut::install(app)?;
-            tray::install(app, shortcut_registered)?;
+            app.manage(settings::open(app));
+            shortcut::install(app)?;
+            tray::install(app)?;
             // First show happens when the UI reports ready (`overlay_ready`).
             app.manage(ShowWhenReady(AtomicBool::new(!start_hidden)));
             diag::record("setup_ms", diag::since_start_ms());

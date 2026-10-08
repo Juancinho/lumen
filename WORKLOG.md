@@ -113,3 +113,8 @@ Append-only. Keep entries compact.
 - Aggregate-only usage store (privacy): decayed frecency with time-independent rank key, learned choices per typed prefix, pins; retention + clear; cascade on item removal. 5 storage tests.
 - Ranking: bounded usage priors; learned items surface without a name match; empty query suggestions. Provider test: Calculator becomes the top result for "s" after 5 picks; pins lead suggestions.
 - Latency impact +0.3 ms p50 (sandbox, 247k entries). ADR-023.
+
+## 2026-10-08 — T003 configurable global shortcut + conflict UX (claude)
+
+- Tray submenu with 4 shortcut choices (checks, "(in use by another app)" via register/release probes); apply = register new, release old, rollback on failure; saved choice persisted in the new app-data SQLite settings (`lumen.db`), never silently replaced; first-free fallback only when unset.
+- `lumen_storage` settings get/set/remove. Shell tests for labels/order/tooltips; Linux Xvfb smoke OK. REVIEW: Windows interactive check (conflicts are Windows-specific).

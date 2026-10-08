@@ -13,6 +13,7 @@
 pub mod catalog;
 mod fts;
 pub mod migrations;
+mod settings;
 pub mod usage;
 
 use std::fmt;

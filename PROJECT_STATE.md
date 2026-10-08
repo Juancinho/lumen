@@ -108,6 +108,8 @@ Benchmark/ADR required:
   1.000 over 40 queries; keystroke p95 7.9 ms at 247k entries (bounded best-effort stages).
 - **T106 DONE (ADR-023):** local usage store (aggregates only): decayed frecency, learned
   query→item choices, pins, retention/clear; bounded ranking priors; empty-query suggestions.
+- **T003 REVIEW:** configurable shortcut (tray submenu, 4 choices, "(in use)" probing,
+  persisted in the app-data SQLite settings, first-free fallback only when nothing is saved).
 - Not yet: provider registry/coordinator (T107), design tokens/material (T004/T103).
 
 ## Immediate objective

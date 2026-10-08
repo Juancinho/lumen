@@ -48,7 +48,10 @@ apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
   src-tauri/               Rust shell crate `lumen-desktop` (binary `lumen`)
     src/commands/          Tauri commands, one module per feature area
     src/overlay/           overlay window lifecycle; placement.rs + policy.rs are pure/tested
-    src/shortcut.rs        global shortcut (fixed Alt+Space until T003)
+    src/shortcut.rs        configurable global shortcut + conflict handling (T003)
+    src/settings.rs        app-data SQLite settings (lumen.db, `settings` table)
+    src/lifecycle.rs       hidden-WebView modes (ADR-020); src/diag.rs timing diagnostics
+    src/instance.rs        second-launch commands (--show/--hide/--toggle/--quit)
     src/tray.rs            tray icon + menu (Show / Quit)
     src/dto.rs             wire DTOs mapped from core types
     capabilities/          Tauri permission sets (minimal: core:default)
@@ -179,8 +182,12 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
   overlay). The overlay window is created hidden, never destroyed.
 - First show waits for the UI's `overlay_ready` call (no blank first frame). `lumen --background`
   starts resident in the tray without showing.
-- `Alt+Space` toggles (show → focus if visible but unfocused → hide). If registration fails
-  (another launcher owns it) Lumen keeps running; the tray tooltip says the shortcut is unavailable.
+- The toggle shortcut (default `Alt+Space`) shows → focuses if visible but unfocused → hides.
+  Tray → "Keyboard shortcut" offers Alt+Space, Ctrl+Space, Alt+Shift+Space, Ctrl+Alt+Space;
+  choices another app owns are labelled "(in use by another app)". A chosen shortcut is saved
+  (`settings` key `shortcut.toggle` in `%APPDATA%\dev.lumen.desktop\lumen.db`) and never
+  silently replaced; with nothing saved and the default taken, the first free choice is used
+  for the session only. With none free Lumen keeps running and the tooltip says so (T003).
 - Placement: monitor under the cursor, horizontally centered, top edge at 20% of the work area,
   clamped inside it; logical size 800×64 (`overlay::LOGICAL_SIZE` = `tauri.conf.json`).
 - Dismiss: Escape (ignored during IME composition), focus loss, Alt+F4. Quit: tray → Quit Lumen.

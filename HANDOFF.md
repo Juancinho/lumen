@@ -15,6 +15,16 @@ ranking; prints top results for calc/spotify/visual/config/notas). Then both DON
 Accepted. Next after that: T103 (premium overlay) or T106/T107 (signals, result stream).
 DONE: T001, T002, T005–T013, T106. M0 gate met; M1 in progress.
 
+## T003 — outcome (REVIEW)
+
+- Windows check: build/run `lumen.exe` (`npm run tauri build` or the T012 script's build);
+  right-click tray → Keyboard shortcut → pick Ctrl+Space → it toggles; restart → still
+  Ctrl+Space; a combination owned by another app shows "(in use by another app)" and picking
+  it keeps the previous one. Then DONE.
+- Shell now opens `lumen.db` in app data at start-up (`settings.rs`); `lumen_storage::Store::
+  {setting, set_setting, remove_setting}`.
+- Linux Xvfb smoke: starts `--background`, creates the DB, UI ready; no panics.
+
 ## T106 — outcome (ADR-023)
 
 - `lumen_storage::usage`: `Store::{record_use, usage_for, learned_choices, suggestions, pin,
