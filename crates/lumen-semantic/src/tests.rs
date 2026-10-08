@@ -118,8 +118,19 @@ fn warm_unload_and_idle_unload() {
 
 #[test]
 fn a_model_that_cannot_load_is_reported() {
+    // Fails until "installed", then loads after `retry`.
+    let installed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let flag = Arc::clone(&installed);
+    let fallback = mock(0);
+    let fallback = std::sync::Mutex::new(fallback);
     let q = QueryEmbedder::start(
-        Box::new(|| Err("model missing".into())),
+        Box::new(move || {
+            if flag.load(std::sync::atomic::Ordering::SeqCst) {
+                (fallback.lock().unwrap())()
+            } else {
+                Err("model missing".into())
+            }
+        }),
         None,
         QueryConfig::default(),
     )
@@ -133,4 +144,13 @@ fn a_model_that_cannot_load_is_reported() {
         q.embed("y", &never),
         Err(QueryError::Unavailable(_))
     ));
+    assert!(q.space_key().is_none());
+    installed.store(true, std::sync::atomic::Ordering::SeqCst);
+    assert!(
+        matches!(q.embed("y", &never), Err(QueryError::Unavailable(_))),
+        "sticky"
+    );
+    q.retry();
+    assert_eq!(q.embed("y", &never).unwrap().len(), 256);
+    assert!(q.space_key().is_some());
 }

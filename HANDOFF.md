@@ -6,12 +6,12 @@
 ## Branch
 
 `main` on github.com/Juancinho/lumen (push pending from joao-pc). Last commits: T015 → T111 → T201
-→ T014 (instrumentation) → T202 → T204 → T203 → T205 → T211.
+→ T014 (instrumentation) → T202 → T204 → T203 → T205 → T211 → T210.
 
 ## Active task
 
-None claimed. T202, T014, T204, T203, T205 and T211 are in REVIEW (Windows runs below);
-next per `TASKS.md` → **Next**: T210 (model provisioning) → T206 → T209.
+None claimed. T202, T014, T204, T203, T205, T211 and T210 are in REVIEW (Windows runs
+below); next per `TASKS.md` → **Next**: T206 → T209 → T207.
 
 ## Pending human checks (Windows, joao-pc)
 
@@ -68,6 +68,28 @@ next per `TASKS.md` → **Next**: T210 (model provisioning) → T206 → T209.
    shows passages embedded, type a sentence describing a document in your indexed folders:
    after a short pause rows from contents and meaning join the name results without the
    selection jumping; `LUMEN_DIAGNOSTICS=1` shows `lumen.content` / `lumen.semantic`.
+
+9. T210 semantic search install (no environment variables this time):
+   start `target\release\lumen.exe` normally → tray → Semantic search → shows "not
+   installed (222 MB download)" → Download… → read the dialog (size, huggingface.co /
+   files.pythonhosted.org, Apache-2.0 / MIT) → Download → the line counts up; Cancel
+   download and Resume download… continue where they stopped. When it says "installed",
+   tray → Content indexing starts counting passages without a restart, and a descriptive
+   search shows `lumen.semantic` rows (`LUMEN_DIAGNOSTICS=1`). Files land in
+   `%APPDATA%\dev.lumen.desktop\models\` and `runtime\`. Remove… deletes the model.
+   If your network needs a proxy, curl only honours `HTTPS_PROXY` — report what happens.
+
+## T210 — outcome (REVIEW, ADR-034)
+
+- `lumen_provision::{EMBEDDING_MODEL, INFERENCE_RUNTIME, install, state, verify, remove,
+  CurlFetch, DirFetch, Progress, State}`; network tests are `#[ignore]`
+  (`cargo test -p lumen-provision -- --ignored`).
+- Shell: `provisioning::{model_dir, runtime_library, ready, ask_download, cancel,
+  ask_remove, setup_text}`, `tray::refresh_semantic`, `indexing::on_model_installed/
+  removed`, `search::on_model_installed/removed`; install order provisioning → indexing →
+  search.
+- Not built: an About/licenses screen (notices are installed with the files), WinHTTP
+  transport (proxy settings), bundling `onnxruntime.dll` in an installer.
 
 ## T211 — outcome (REVIEW, ADR-033)
 

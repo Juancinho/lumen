@@ -1,0 +1,18 @@
+[package]
+name = "lumen-provision"
+description = "Model + runtime provisioning (T210): pinned manifests, consented download with SHA-256 verification, resumable staging, atomic install, removal. Shell-agnostic."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+lumen-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.10.9"
+flate2 = "1.1.10"
+crc32fast = "1.5.2"
+
+[lints]
+workspace = true

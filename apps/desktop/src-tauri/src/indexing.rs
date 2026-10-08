@@ -14,9 +14,8 @@
 //!    chunker) replaces the active one only once it is complete and validated, and the
 //!    retired one is then deleted in small batches.
 //!
-//! The model is not provisioned by the app yet (T210): semantic indexing runs only when
-//! `LUMEN_EMBED_MODEL_DIR` (an `onnx-community/embeddinggemma-2-ONNX` copy) and
-//! `LUMEN_ORT_DYLIB` (onnxruntime.dll) are set. Pause/resume is a tray toggle, remembered in
+//! Semantic indexing runs once the model and runtime are present (`provisioning`, T210:
+//! tray download, a runtime beside the exe, or `LUMEN_EMBED_MODEL_DIR` / `LUMEN_ORT_DYLIB`). Pause/resume is a tray toggle, remembered in
 //! `indexing.paused`.
 
 use std::path::{Path, PathBuf};
@@ -43,8 +42,6 @@ use tauri::{App, AppHandle, Manager, Runtime};
 use crate::{settings, tray};
 
 pub(crate) const SETTING_PAUSED: &str = "indexing.paused";
-pub(crate) const ENV_MODEL_DIR: &str = "LUMEN_EMBED_MODEL_DIR";
-pub(crate) const ENV_ORT_DYLIB: &str = "LUMEN_ORT_DYLIB";
 /// `q4` (default, ADR-015), `q8`, `fp32`.
 pub(crate) const ENV_VARIANT: &str = "LUMEN_EMBED_VARIANT";
 /// Overrides the policy's thread count (T014 experiments).
@@ -154,8 +151,30 @@ impl Indexing {
     }
 }
 
+/// Model and runtime are present (installed from the tray, beside the exe, or by env).
 pub(crate) fn model_configured() -> bool {
-    std::env::var_os(ENV_MODEL_DIR).is_some() && std::env::var_os(ENV_ORT_DYLIB).is_some()
+    crate::provisioning::ready()
+}
+
+/// The download finished: semantic indexing can start now.
+pub(crate) fn on_model_installed<R: Runtime>(app: &AppHandle<R>) {
+    let state = app.state::<Indexing>();
+    *state.failed.lock().unwrap_or_else(PoisonError::into_inner) = false;
+    state.set_semantic(if state.paused() {
+        Semantic::PausedByUser
+    } else {
+        Semantic::Idle
+    });
+    crate::catalog::request_work(app);
+    tray::refresh_indexing(app);
+}
+
+/// The model is about to be deleted: drop the indexing session (vectors stay).
+pub(crate) fn on_model_removed<R: Runtime>(app: &AppHandle<R>) {
+    let state = app.state::<Indexing>();
+    *state.loaded.lock().unwrap_or_else(PoisonError::into_inner) = None;
+    state.set_semantic(Semantic::NoModel);
+    tray::refresh_indexing(app);
 }
 
 pub(crate) fn install<R: Runtime>(app: &App<R>) {
@@ -323,9 +342,9 @@ fn env_threads() -> Option<usize> {
 
 pub(crate) fn build_embedder(threads: usize) -> Result<Embedder, String> {
     use lumen_embedding_ort::{Device, ModelVariant, OrtBackend, OrtConfig, init_runtime};
-    let dir = std::env::var_os(ENV_MODEL_DIR).ok_or("model directory not set")?;
-    let dylib = std::env::var_os(ENV_ORT_DYLIB).ok_or("runtime library not set")?;
-    init_runtime(Path::new(&dylib)).map_err(|e| e.to_string())?;
+    let dir = crate::provisioning::model_dir().ok_or("semantic search is not installed")?;
+    let dylib = crate::provisioning::runtime_library().ok_or("no ONNX Runtime library")?;
+    init_runtime(&dylib).map_err(|e| e.to_string())?;
     let variant = std::env::var(ENV_VARIANT)
         .ok()
         .and_then(|v| ModelVariant::parse(v.trim()))

@@ -2481,6 +2481,7 @@ dependencies = [
  "lumen-embedding-ort",
  "lumen-extract",
  "lumen-indexer",
+ "lumen-provision",
  "lumen-search",
  "lumen-semantic",
  "lumen-storage",
@@ -2527,6 +2528,18 @@ version = "0.1.0"
 dependencies = [
  "file-id",
  "lumen-core",
+]
+
+[[package]]
+name = "lumen-provision"
+version = "0.1.0"
+dependencies = [
+ "crc32fast",
+ "flate2",
+ "lumen-core",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

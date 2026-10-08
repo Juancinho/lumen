@@ -233,3 +233,8 @@ Append-only. Keep entries compact.
 
 - `scripts/eval/make_hard_set.py` → `fixtures/eval-hard/` (162 synthetic documents: monthly bill series, client × topic notes, report versions, long handbooks, one function in four languages, logs/CSV/config noise; EN/ES) with graded judgments; `lumen-bench eval` reads `related` (grade 1) and sweeps name 0.5–2 × content/semantic 0.5–3.
 - Sandbox q4: meaning alone NDCG 0.964, fused 1/1/1 0.954, 1/1/2 0.957 (lexical 0.870, code 0.920). App and harness default to 1/1/2. ADR-033 with the two lexical-lane findings.
+
+## 2026-10-08 — T210 model + runtime provisioning (claude)
+
+- New `lumen-provision` crate: pinned components (EmbeddingGemma 2 q4 ONNX at a fixed Hugging Face commit; ONNX Runtime 1.30.0 win_amd64 wheel), `CurlFetch` (system curl, https only, resumable, cancellable) and `DirFetch` (local folder), staged/verified/atomic install with a minimal zip reader, `state`/`verify`/`remove`. Real downloads verified in the sandbox (207 MB in 15 s; 14 MB wheel extracted and hashed).
+- Shell `provisioning.rs`: resolution env → beside the exe → installed; tray → Semantic search (status, Download… with consent dialog, progress, Cancel, Remove…); indexing and the query lane retry after an install (`QueryEmbedder::retry`). ADR-034; PRIVACY_SECURITY network statement updated.

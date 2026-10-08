@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/lumen-core", "crates/lumen-embedding", "crates/lumen-embedding-ort", "crates/lumen-vector", "crates/lumen-storage", "crates/lumen-indexer", "crates/lumen-windows", "crates/lumen-catalog", "crates/lumen-search", "crates/lumen-extract", "crates/lumen-content", "crates/lumen-semantic", "crates/lumen-bench", "apps/desktop/src-tauri", "xtask"]
+members = ["crates/lumen-core", "crates/lumen-embedding", "crates/lumen-embedding-ort", "crates/lumen-vector", "crates/lumen-storage", "crates/lumen-indexer", "crates/lumen-windows", "crates/lumen-catalog", "crates/lumen-search", "crates/lumen-extract", "crates/lumen-content", "crates/lumen-semantic", "crates/lumen-provision", "crates/lumen-bench", "apps/desktop/src-tauri", "xtask"]
 
 [workspace.package]
 version = "0.1.0"
@@ -22,6 +22,7 @@ lumen-extract = { path = "crates/lumen-extract" }
 lumen-catalog = { path = "crates/lumen-catalog" }
 lumen-content = { path = "crates/lumen-content" }
 lumen-semantic = { path = "crates/lumen-semantic" }
+lumen-provision = { path = "crates/lumen-provision" }
 unicode-normalization = "0.1.24"
 memory-stats = "1.2.0"
 # SQLite canonical store (ADR-003). Bundled: same SQLite (with FTS5) on every machine.

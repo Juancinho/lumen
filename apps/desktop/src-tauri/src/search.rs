@@ -47,6 +47,20 @@ pub(crate) struct Search(pub(crate) Option<SearchService>);
 /// The query-lane embedder, when a model is configured.
 pub(crate) struct QueryLane(pub(crate) Option<Arc<QueryEmbedder>>);
 
+/// The download finished: let the query lane load the model on the next query.
+pub(crate) fn on_model_installed<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(QueryLane(Some(q))) = app.try_state::<QueryLane>().as_deref() {
+        q.retry();
+    }
+}
+
+/// The model is about to be deleted: release it.
+pub(crate) fn on_model_removed<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(QueryLane(Some(q))) = app.try_state::<QueryLane>().as_deref() {
+        q.unload();
+    }
+}
+
 /// Loads the query model in the background (overlay shown and semantic search possible).
 pub(crate) fn warm_semantic<R: Runtime>(app: &AppHandle<R>) {
     if let Some(QueryLane(Some(q))) = app.try_state::<QueryLane>().as_deref() {
@@ -72,8 +86,9 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) {
         coordinator.register_weighted(Arc::new(ContentProvider::new(store)), WEIGHT_CONTENT);
     }
     let mut lane = None;
-    if crate::indexing::model_configured()
-        && let Some(indexing) = app.try_state::<crate::indexing::Indexing>()
+    // Created even before the model is installed: it loads lazily, and the provider asks
+    // nothing until there is an active generation.
+    if let Some(indexing) = app.try_state::<crate::indexing::Indexing>()
         && let Some(Ok(store)) = reader()
     {
         let threads = query_threads();

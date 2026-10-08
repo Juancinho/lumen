@@ -228,6 +228,14 @@ impl QueryEmbedder {
         self.shared.wake.notify_all();
     }
 
+    /// Forgets a failed model load so the next query tries again (the model was installed
+    /// or repaired meanwhile, T210).
+    pub fn retry(&self) {
+        let mut s = self.shared.lock();
+        s.failed = None;
+        s.space = None;
+    }
+
     /// Forgets cached query vectors (privacy: clearing history).
     pub fn clear_cache(&self) {
         self.shared.lock().cache.clear();

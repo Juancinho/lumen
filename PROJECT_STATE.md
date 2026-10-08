@@ -137,6 +137,11 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
   generation as f16 in `chunk_vectors`), run by the catalog thread under the device policy
   (power/memory/idle); tray progress + pause, per-location content toggle. Model via env
   until T210.
+- **T210 REVIEW (ADR-034):** semantic search installs from the tray — consent dialog
+  (size, hosts, licenses), pinned model (207 MB, Hugging Face revision) + ONNX Runtime
+  wheel (14 MB, PyPI) via the system curl, SHA-256 per file and per extracted member,
+  resumable staging, atomic install, removal; indexing and the query lane start without a
+  restart. Environment variables still override (development).
 - **T211 REVIEW (ADR-033):** harder generated relevance set (162 documents, 49 graded
   queries); fusion weights name / content / meaning = 1 / 1 / 2 (fused NDCG@10 0.957, top-1
   0.939; meaning alone 0.964). Findings: content lane misses code language (path-only),

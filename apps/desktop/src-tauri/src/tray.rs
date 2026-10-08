@@ -1,7 +1,7 @@
 //! Tray icon: the always-available way to reach a hidden, resident Lumen, and (T003) where
 //! the keyboard shortcut, (T004) the window material and (T111) the indexed locations and
-//! exclusions are chosen, and (T202) content indexing is watched and paused, until a
-//! settings window exists.
+//! exclusions are chosen, (T202) content indexing is watched and paused, and (T210)
+//! semantic search is downloaded or removed, until a settings window exists.
 
 use lumen_catalog::LocationState;
 use lumen_catalog::locations::BUILD_DIRS_RULE;
@@ -12,6 +12,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{App, AppHandle, Manager, Runtime};
 use tauri_plugin_dialog::DialogExt;
 
+use crate::provisioning::{self, Setup};
 use crate::{catalog, indexing, material, overlay, shortcut};
 
 const TRAY_ID: &str = "lumen";
@@ -27,6 +28,17 @@ const EX_NAME_REMOVE: &str = "ex-name-remove:";
 const EX_DEFAULT: &str = "ex-default:";
 const LOC_CONTENT: &str = "loc-content:";
 const INDEX_PAUSE: &str = "index-pause";
+const SEM_DOWNLOAD: &str = "semantic-download";
+const SEM_CANCEL: &str = "semantic-cancel";
+const SEM_REMOVE: &str = "semantic-remove";
+
+/// The semantic-search submenu's live entries (T210).
+struct SemanticItems<R: Runtime> {
+    status: MenuItem<R>,
+    download: MenuItem<R>,
+    cancel: MenuItem<R>,
+    remove: MenuItem<R>,
+}
 
 /// The content-indexing submenu's live entries.
 struct IndexingItems<R: Runtime> {
@@ -169,6 +181,16 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
         true,
         &[&index_status, &index_pause],
     )?;
+    let sem_status = MenuItem::new(app, "Semantic search", false, None::<&str>)?;
+    let sem_download = MenuItem::with_id(app, SEM_DOWNLOAD, "Download…", true, None::<&str>)?;
+    let sem_cancel = MenuItem::with_id(app, SEM_CANCEL, "Cancel download", false, None::<&str>)?;
+    let sem_remove = MenuItem::with_id(app, SEM_REMOVE, "Remove…", false, None::<&str>)?;
+    let semantic_menu = Submenu::with_items(
+        app,
+        "Semantic search",
+        true,
+        &[&sem_status, &sem_download, &sem_cancel, &sem_remove],
+    )?;
     let locations = Submenu::new(app, "Indexed locations", true)?;
     let exclusions = Submenu::new(app, "Exclusions", true)?;
     let separator = PredefinedMenuItem::separator(app)?;
@@ -181,6 +203,7 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
             &locations,
             &exclusions,
             &indexing_menu,
+            &semantic_menu,
             &shortcuts,
             &materials,
             &separator,
@@ -197,6 +220,12 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
         status: index_status,
         pause: index_pause,
     });
+    app.manage(SemanticItems {
+        status: sem_status,
+        download: sem_download,
+        cancel: sem_cancel,
+        remove: sem_remove,
+    });
 
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .menu(&menu)
@@ -207,6 +236,12 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
                 overlay::show(app);
             } else if id == MENU_QUIT {
                 app.exit(0);
+            } else if id == SEM_DOWNLOAD {
+                provisioning::ask_download(app);
+            } else if id == SEM_CANCEL {
+                provisioning::cancel(app);
+            } else if id == SEM_REMOVE {
+                provisioning::ask_remove(app);
             } else if id == INDEX_PAUSE {
                 let paused = app.state::<indexing::Indexing>().paused();
                 indexing::set_paused(app, !paused);
@@ -241,7 +276,33 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
     refresh_material(app.handle());
     refresh_locations(app.handle());
     refresh_indexing(app.handle());
+    refresh_semantic(app.handle());
     Ok(())
+}
+
+/// Updates the semantic-search status line and which actions apply (no-op before the tray).
+pub(crate) fn refresh_semantic<R: Runtime>(app: &AppHandle<R>) {
+    let Some(items) = app.try_state::<SemanticItems<R>>() else {
+        return;
+    };
+    let setup = provisioning::setup(app);
+    let _ = items.status.set_text(provisioning::setup_text(&setup));
+    let _ = items
+        .download
+        .set_enabled(matches!(setup, Setup::Missing { .. } | Setup::Failed(_)));
+    let _ = items
+        .download
+        .set_text(if matches!(setup, Setup::Failed(_)) {
+            "Resume download…"
+        } else {
+            "Download…"
+        });
+    let _ = items
+        .cancel
+        .set_enabled(matches!(setup, Setup::Downloading { .. }));
+    let _ = items
+        .remove
+        .set_enabled(setup == Setup::Ready && provisioning::model_removable());
 }
 
 /// Updates the content-indexing status line and pause check (no-op before the tray).

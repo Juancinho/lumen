@@ -10,7 +10,10 @@
   no file-system or shell permission is granted to the WebView (CSP + Tauri capabilities).
 - Benchmarks and scripts store counts and timings, never file/app names or queries; material
   screenshots stay in git-ignored `target/t004/`; diag logs are opt-in (`LUMEN_DIAG_LOG`).
-- No network use in the app. Not built yet: exclusions UI, clipboard history, Rewind.
+- Network: none, except the user-initiated, confirmed download of the embedding model and
+  inference runtime (tray → Semantic search → Download…; pinned URLs on huggingface.co and
+  files.pythonhosted.org, SHA-256 verified, via the system `curl`; ADR-034). Nothing about
+  files, queries or usage is sent. Not built yet: clipboard history, Rewind.
 
 ## 1. Default posture
 

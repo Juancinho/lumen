@@ -21,6 +21,7 @@ mod lifecycle;
 mod material;
 mod overlay;
 mod preview;
+mod provisioning;
 mod search;
 mod settings;
 mod shortcut;
@@ -55,7 +56,8 @@ fn main() {
         .setup(move |app| {
             app.manage(settings::open(app));
             material::install(app);
-            // Indexing first: search shares its control (preemption) and ANN index.
+            // Provisioning, then indexing, then search: each reads the one before.
+            provisioning::install_state(app);
             indexing::install(app);
             search::install(app);
             catalog::start(app);

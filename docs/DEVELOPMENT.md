@@ -43,7 +43,10 @@ crates/
                            (pause, duty cycle, interactive holds; ADR-029)
   lumen-semantic/          semantic lane: warm latest-wins QueryEmbedder that preempts
                            indexing (ADR-030); SemanticIndex = persistent ANN generation
-                           (mmap file + delta, validated hits, ADR-031); fusion next
+                           (mmap file + delta, validated hits, ADR-031); SemanticProvider
+                           (ADR-032)
+  lumen-provision/         model + runtime provisioning: pinned manifests, curl/folder
+                           fetch, verified resumable atomic install, removal (ADR-034)
   lumen-windows/           Windows OS adapters (AppsFolder apps, window material/DWM plan,
                            process CPU time);
                            no GUI framework/WebView types
@@ -226,9 +229,11 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
 - Indexed locations (T111, ADR-027): tray → Indexed locations / Exclusions; stored as
   `index.locations` in `lumen.db` settings; any edit cancels and restarts the catalog pass.
 - Content indexing (T202, ADR-029): after each catalog pass the same thread runs the
-  content pass (text/code → `chunks`) and, when `LUMEN_EMBED_MODEL_DIR` (EmbeddingGemma 2
-  ONNX copy, e.g. `.cache\t006\embeddinggemma-2-ONNX`) and `LUMEN_ORT_DYLIB`
-  (`onnxruntime.dll`) are set, embedding-queue slices into `chunk_vectors`
+  content pass (text/code → `chunks`) and, once the model and runtime are present (tray →
+  Semantic search → Download…, ADR-034; or, for development, `LUMEN_EMBED_MODEL_DIR` =
+  an EmbeddingGemma 2 ONNX copy such as `.cache\t006\embeddinggemma-2-ONNX` and
+  `LUMEN_ORT_DYLIB` = `onnxruntime.dll`, which take precedence), embedding-queue slices
+  into `chunk_vectors`
   (`LUMEN_EMBED_VARIANT=q4|q8|fp32`, `LUMEN_EMBED_THREADS=N` override the defaults). Tray →
   Content indexing shows progress and "Pause indexing"; tray → Indexed locations → a
   location → "Index file contents". `scripts/t202/run-windows-indexing.ps1 [-Launch]`.
