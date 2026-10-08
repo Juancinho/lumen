@@ -1,4 +1,4 @@
-import type { Ref } from "react";
+import type { KeyboardEvent, Ref } from "react";
 
 import { listState } from "./layout";
 import { RESULT_LIST_ID, rowDomId } from "./model";
@@ -14,6 +14,7 @@ interface RootSearchProps {
   selectedIndex: number;
   onSelect: (index: number) => void;
   onActivate: (index: number) => void;
+  onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
 }
 
 /**
@@ -28,6 +29,7 @@ export function RootSearch({
   selectedIndex,
   onSelect,
   onActivate,
+  onKeyDown,
 }: RootSearchProps) {
   const state = listState(query, results);
   const hasRows = state.kind === "rows";
@@ -43,6 +45,7 @@ export function RootSearch({
         onClear={() => {
           onQueryChange("");
         }}
+        onKeyDown={onKeyDown}
       />
       {state.kind !== "none" && <div className="overlay__divider" role="presentation" />}
       {hasRows && (

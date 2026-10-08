@@ -11,7 +11,15 @@
 **Pending on Windows (user):** try the real search (T107: type an app or file name — results
 should appear within ~1 s of start-up once the catalog sync ran), judge the look (T103 rows,
 T004 Acrylic vs Mica), T003 shortcut check. T101/T102 DONE (Windows run accepted).
-Next: T104 (keyboard navigation, stable selection), then T108/T109 (actions).
+Next: T108 (action panel) + T109 (core actions: Enter opens/launches).
+
+## T104 — outcome (REVIEW)
+
+- `features/root-search/keymap.ts` (pure `commandFor`), `selection.ts` (`Selection`,
+  `selectedIndex`, `moveSelection`, `selectIndex`); handled on the query input's keydown;
+  ResultList scrolls the selection into view. No wrap-around; PageUp/Down = 8 rows.
+- Enter/Ctrl+Enter/Alt+Enter/Ctrl+K are claimed but do nothing until T108/T109.
+- Windows check: arrow keys feel instant; selection does not jump when results refresh.
 
 ## T107 — outcome (REVIEW, ADR-025)
 

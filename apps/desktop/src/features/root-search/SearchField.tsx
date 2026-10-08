@@ -1,4 +1,4 @@
-import type { Ref } from "react";
+import type { KeyboardEvent, Ref } from "react";
 
 import { ClearGlyph, SearchGlyph } from "./icons";
 
@@ -11,6 +11,7 @@ interface SearchFieldProps {
   /** DOM id of the selected row, if any. */
   activeId: string | null;
   onClear: () => void;
+  onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
 }
 
 /**
@@ -25,6 +26,7 @@ export function SearchField({
   listId,
   activeId,
   onClear,
+  onKeyDown,
 }: SearchFieldProps) {
   return (
     <div className="search-field" role="search">
@@ -48,6 +50,7 @@ export function SearchField({
         onChange={(event) => {
           onChange(event.target.value);
         }}
+        onKeyDown={onKeyDown}
       />
       {value !== "" && (
         <button

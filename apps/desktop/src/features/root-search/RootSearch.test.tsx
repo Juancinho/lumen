@@ -36,6 +36,7 @@ function renderSearch(query: string, results: ResultsState, selectedIndex = 0) {
     onQueryChange: vi.fn(),
     onSelect: vi.fn(),
     onActivate: vi.fn(),
+    onKeyDown: vi.fn(),
   };
   render(
     <RootSearch

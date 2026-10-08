@@ -200,6 +200,8 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
   its content height (`resize_overlay`, from `features/root-search/layout.ts`); the shell caps
   it at 72% of the work area so the top edge never moves, and re-applies it on every show.
 - Dismiss: Escape (ignored during IME composition), focus loss, Alt+F4. Quit: tray → Quit Lumen.
+- Keys (T104, `features/root-search/keymap.ts`): ↑/↓, PageUp/PageDown move the selection;
+  Enter, Ctrl+Enter, Alt+Enter, Ctrl+K, Ctrl+L are reserved for actions/details/panel/query.
 - On every show the shell emits `lumen:overlay-shown`; the UI focuses and selects the query.
 - Root search (T107, ADR-025): the UI calls `search(queryId, text)` per query change, on
   show and on `lumen:catalog-changed`; results stream as `lumen:results`. The catalog lives

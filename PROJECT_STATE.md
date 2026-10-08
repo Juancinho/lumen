@@ -123,7 +123,10 @@ Benchmark/ADR required:
   updates, latest-wins search thread); shell `search` command + `lumen:results` events;
   background catalog sync (apps + standard folders, start-up + 30 min). Search now works in
   the app; Linux smoke 0.4–2 ms per query in-process.
-- Not yet: keyboard navigation (T104), actions (T108/T109), real icons.
+- **T104 REVIEW:** keyboard model (`keymap.ts`: arrows, PageUp/Down, Enter / Ctrl+Enter /
+  Alt+Enter / Ctrl+K claimed, Ctrl+L, Escape; text-editing keys and IME left alone) and a
+  selection that follows its result id while results stream (`selection.ts`).
+- Not yet: actions (T108/T109), real icons, Quick Look (T105).
 
 ## Immediate objective
 

@@ -143,3 +143,7 @@ Append-only. Keep entries compact.
 - New `lumen-search` crate: coordinator (latency-class order, merged updates, provider failures reported) and latest-wins search thread (cancel running, drop stale ids, silent superseded queries). 9 tests.
 - Shell: `search` command + `lumen:results` events, background catalog sync (apps + standard folders at start-up and every 30 min). UI `useResults` with stale-id filtering and no blank flash. Linux Xvfb smoke with the real app: results render, 0.4-2.2 ms per query in-process. ADR-025.
 
+## 2026-10-08 — T104 keyboard navigation + stable selection (claude)
+
+- Pure keymap (launcher keys claimed, text editing/IME untouched) and an id-following selection (top row until moved; follows its result through re-orders; keeps the position when it disappears). 51 frontend tests.
+

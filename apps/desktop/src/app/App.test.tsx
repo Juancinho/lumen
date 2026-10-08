@@ -118,8 +118,9 @@ describe("App overlay", () => {
   it("Escape during IME composition does not hide", () => {
     render(<App />);
 
-    fireEvent.keyDown(window, { key: "Escape", isComposing: true });
-    fireEvent.keyDown(window, { key: "Escape", keyCode: 229 });
+    const input = screen.getByRole("combobox");
+    fireEvent.keyDown(input, { key: "Escape", isComposing: true });
+    fireEvent.keyDown(input, { key: "Escape", keyCode: 229 });
     expect(hideOverlay).not.toHaveBeenCalled();
   });
 
@@ -206,5 +207,34 @@ describe("App overlay", () => {
     expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
     await userEvent.type(screen.getByRole("combobox"), "c");
     expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("arrow keys move a selection that stays on its result while results stream", async () => {
+    const r = (id: string) => ({
+      id,
+      kind: "file" as const,
+      title: id,
+      detail: null,
+      extension: null,
+    });
+    results = { rows: [r("a"), r("b"), r("c")], status: "searching" };
+    const { rerender } = render(<App />);
+    const input = screen.getByRole("combobox");
+    await userEvent.keyboard("{ArrowDown}");
+    expect(nthOption(1)).toHaveAttribute("aria-selected", "true");
+    expect(input).toHaveAttribute("aria-activedescendant", nthOption(1).id);
+
+    // A later update re-orders: the selection follows "b".
+    results = { rows: [r("x"), r("a"), r("c"), r("b")], status: "done" };
+    rerender(<App />);
+    expect(nthOption(3)).toHaveAttribute("aria-selected", "true");
+
+    await userEvent.keyboard("{ArrowUp}{ArrowUp}{ArrowUp}{ArrowUp}{ArrowUp}");
+    expect(nthOption(0)).toHaveAttribute("aria-selected", "true");
+    await userEvent.keyboard("{PageDown}");
+    expect(nthOption(3)).toHaveAttribute("aria-selected", "true");
+    // Enter is claimed (no text typed), the query is untouched.
+    await userEvent.keyboard("{Enter}");
+    expect(input).toHaveValue("");
   });
 });

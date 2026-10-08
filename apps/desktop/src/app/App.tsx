@@ -1,7 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
-import { rootSearchHeight } from "../features/root-search/layout";
+import { commandFor } from "../features/root-search/keymap";
+import { MAX_VISIBLE_ROWS, rootSearchHeight } from "../features/root-search/layout";
 import { RootSearch } from "../features/root-search/RootSearch";
+import {
+  INITIAL_SELECTION,
+  moveSelection,
+  selectedIndex,
+  selectIndex,
+} from "../features/root-search/selection";
 import { useResults } from "../features/root-search/useResults";
 import {
   getAppearance,
@@ -59,15 +66,18 @@ function focusQuery(input: HTMLInputElement | null) {
  * - the window material (T004) is applied before the UI reports ready, so the first
  *   frame already paints the right surface.
  * - the window height follows the content (T103): the shell resizes it, top edge fixed.
- * Result data arrives in T107 (`useResults`); actions in T109.
+ * - keyboard (T104): arrows/PageUp/PageDown move a selection that stays on its result
+ *   while results stream in; Enter/Ctrl+Enter/Alt+Enter/Ctrl+K are claimed for the
+ *   actions (T108/T109). Text-editing keys stay with the query field.
  */
 export function App() {
   const [query, setQuery] = useState("");
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selection, setSelection] = useState(INITIAL_SELECTION);
   const inputRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const results = useResults(query);
   const height = rootSearchHeight(query, results);
+  const selected = selectedIndex(selection, results.rows);
 
   useEffect(() => {
     resizeOverlay(height).catch(reportIpcError("resize_overlay"));
@@ -111,24 +121,44 @@ export function App() {
     [],
   );
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      // keyCode 229: some IMEs signal composition only this way (no isComposing).
-      // eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional IME guard
-      const imeProcessing = event.keyCode === 229;
-      if (event.key !== "Escape" || event.isComposing || imeProcessing) return;
-      event.preventDefault();
-      hideOverlay().catch(reportIpcError("hide_overlay"));
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, []);
-
   const changeQuery = (next: string) => {
     setQuery(next);
-    setSelectedIndex(0);
+    setSelection(INITIAL_SELECTION);
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    const command = commandFor({
+      key: event.key,
+      ctrlKey: event.ctrlKey,
+      altKey: event.altKey,
+      shiftKey: event.shiftKey,
+      metaKey: event.metaKey,
+      isComposing: event.nativeEvent.isComposing,
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional IME guard
+      keyCode: event.keyCode,
+    });
+    if (!command) return;
+    event.preventDefault();
+    switch (command.type) {
+      case "dismiss":
+        hideOverlay().catch(reportIpcError("hide_overlay"));
+        return;
+      case "move":
+        setSelection(moveSelection(selection, results.rows, command.delta));
+        return;
+      case "page":
+        setSelection(moveSelection(selection, results.rows, command.direction * MAX_VISIBLE_ROWS));
+        return;
+      case "focusQuery":
+        focusQuery(inputRef.current);
+        return;
+      case "primary":
+      case "reveal":
+      case "details":
+      case "actions":
+        // Claimed now so they never type into the field; executed by T108/T109.
+        return;
+    }
   };
 
   return (
@@ -139,9 +169,14 @@ export function App() {
           onQueryChange={changeQuery}
           inputRef={inputRef}
           results={results}
-          selectedIndex={Math.min(selectedIndex, Math.max(results.rows.length - 1, 0))}
-          onSelect={setSelectedIndex}
-          onActivate={setSelectedIndex /* the primary action is T109 */}
+          selectedIndex={selected}
+          onSelect={(index) => {
+            setSelection(selectIndex(results.rows, index));
+          }}
+          onActivate={(index) => {
+            setSelection(selectIndex(results.rows, index)); // primary action: T109
+          }}
+          onKeyDown={onKeyDown}
         />
       </div>
     </main>
