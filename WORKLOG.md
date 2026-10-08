@@ -161,3 +161,8 @@ Append-only. Keep entries compact.
 
 - Bounded preview reads (16 KB, text extensions, binary/undecodable rejected), preview by result id; overlay grows to the right keeping the search bar in place, one-pane fallback on narrow monitors; preview follows the selection; Escape order panel > preview > overlay. 66 frontend tests; Linux smoke screenshot.
 
+## 2026-10-08 — T016 storage bench corpus fix (claude)
+
+- `lumen-bench storage` now inserts a Zipf(1) corpus over VOCAB + every realistic query term and reports hits for keystroke, vocabulary-final and realistic-final queries (schema v3), warning on zero-hit sets.
+- Sandbox 100k chunks: keystroke FTS p50 13.3 / p95 67.6 ms with real hits, 44 % interrupted at the 20 ms budget -> ADR-017 corrected; content FTS moves to the settled-query lane in M2.
+

@@ -263,6 +263,18 @@ Data: synthetic 256d vectors calibrated on real EmbeddingGemma 2 geometry (mean 
   T205/T107 must either drop high-df terms or bound the final query too. Earlier "final query"
   numbers (0.05 ms) timed queries with no hits and were not evidence.
 - `0001_initial.sql` may still change until the first release; afterwards only new migrations.
+- **T016 correction (bench schema v3, Zipf corpus):** the earlier per-keystroke numbers timed
+  mostly hit-less queries. With every realistic query term present in a Zipf(1) corpus of
+  160 words (`docs/benchmarks/t016/2026-10-08-cloud-sandbox-storage-100k.json`, 100k chunks,
+  2 vCPU sandbox): per-keystroke FTS p50 **13.3 ms**, p95 **67.6 ms**, max 120 ms with 47
+  hits on average; under the 20 ms budget **374 of 852 keystroke queries are interrupted
+  (44 %)**; realistic final queries p50 6.1 / p95 66 ms (37 hits avg, 1 of 32 with none);
+  vocabulary finals p50 43 / p95 90 ms. Insert 6.9k chunks/s, 148 MiB.
+  **Consequence for M2 (T205/T206):** chunk FTS cannot be an every-keystroke lane at 100k+
+  chunks on modest CPUs. Keep names (T102, p95 ≈ 5 ms) as the instant lane; run content FTS
+  when typing pauses (same settle point as semantic, `typing == false` in the coordinator)
+  with a generous budget, skip short last tokens, and drop high-document-frequency terms.
+  Re-measure on Windows with `lumen-bench storage --chunks 100000`.
 
 ## ADR-018 — Inventory coverage guarantee and stable file identity
 

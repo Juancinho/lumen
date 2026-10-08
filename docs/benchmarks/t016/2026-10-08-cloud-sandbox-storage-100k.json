@@ -1,0 +1,74 @@
+{
+  "schema_version": 3,
+  "kind": "storage",
+  "label": "cloud sandbox 2 vCPU, Zipf corpus",
+  "machine": {
+    "os": "linux",
+    "arch": "x86_64",
+    "logical_cpus": 2,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791446559
+  },
+  "sqlite": "3.53.2",
+  "chunks": 100000,
+  "items": 10000,
+  "words_per_chunk": 120,
+  "insert_s": 14.595494549,
+  "chunks_per_s": 6851.42936844517,
+  "db_mib_after_checkpoint": 147.546875,
+  "vocabulary_words": 160,
+  "zipf_exponent": 1.0,
+  "fts_typing": {
+    "n": 852,
+    "min_ms": 1.445331,
+    "mean_ms": 24.214947784037562,
+    "p50_ms": 13.347645,
+    "p95_ms": 67.648635,
+    "p99_ms": 108.386757,
+    "max_ms": 119.825894
+  },
+  "fts_typing_mean_hits": 46.755868544600936,
+  "fts_final": {
+    "n": 60,
+    "min_ms": 14.746362000000001,
+    "mean_ms": 48.11944288333334,
+    "p50_ms": 43.175948,
+    "p95_ms": 90.206069,
+    "p99_ms": 106.26741700000001,
+    "max_ms": 106.26741700000001
+  },
+  "fts_mean_hits": 50.0,
+  "fts_final_realistic": {
+    "n": 32,
+    "min_ms": 1.6060320000000001,
+    "mean_ms": 14.498272031250004,
+    "p50_ms": 6.084535000000001,
+    "p95_ms": 66.049509,
+    "p99_ms": 77.333543,
+    "max_ms": 77.333543
+  },
+  "fts_final_realistic_mean_hits": 37.0625,
+  "fts_final_realistic_zero_hit": 1,
+  "fts_typing_budgeted": {
+    "n": 852,
+    "min_ms": 1.543002,
+    "mean_ms": 13.460622739436623,
+    "p50_ms": 13.155864999999999,
+    "p95_ms": 20.555475,
+    "p99_ms": 20.849633,
+    "max_ms": 21.37179
+  },
+  "fts_typing_interrupted": 374,
+  "budget_ms": 20.0,
+  "path_lookup": {
+    "n": 500,
+    "min_ms": 0.0018449999999999999,
+    "mean_ms": 0.0029538720000000015,
+    "p50_ms": 0.00231,
+    "p95_ms": 0.004222,
+    "p99_ms": 0.005403,
+    "max_ms": 0.104602
+  }
+}

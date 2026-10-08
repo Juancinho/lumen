@@ -162,6 +162,9 @@ Complete M0 without overbuilding:
 
 ## Top risks
 
+- Content FTS per keystroke: 13/68 ms p50/p95 at 100k chunks with real hits (T016) — run it
+  on the settled query, not every keystroke (ADR-017 note);
+
 - CPU embedding throughput for initial indexing (~3–4 chunks/s measured, ADR-015);
 
 - inference integration maturity;

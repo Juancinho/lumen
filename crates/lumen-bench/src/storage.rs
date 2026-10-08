@@ -49,18 +49,28 @@ pub(crate) struct StorageReport {
     insert_s: f64,
     chunks_per_s: f64,
     db_mib_after_checkpoint: f64,
+    vocabulary_words: usize,
+    zipf_exponent: f64,
     fts_typing: Summary,
-    /// Final (not typing) queries over vocabulary terms: they return hits.
+    /// Mean hits per keystroke query (capped at 50).
+    fts_typing_mean_hits: f64,
+    /// Final (not typing) queries over vocabulary terms.
     fts_final: Summary,
-    /// Final realistic queries; mostly no hits in the synthetic corpus.
-    fts_final_no_hits: Summary,
     fts_mean_hits: f64,
+    /// Final realistic queries (`corpus::QUERIES`), whose terms occur in the Zipf corpus.
+    fts_final_realistic: Summary,
+    fts_final_realistic_mean_hits: f64,
+    /// Realistic final queries with no hit at all (multi-term AND over rare terms).
+    fts_final_realistic_zero_hit: usize,
     /// Per-keystroke queries stopped by the interactive budget (`budget_ms`).
     fts_typing_budgeted: Summary,
     fts_typing_interrupted: usize,
     budget_ms: f64,
     path_lookup: Summary,
 }
+
+/// Word-frequency skew of the synthetic corpus (classic Zipf).
+const ZIPF_EXPONENT: f64 = 1.0;
 
 /// Interactive budget for one keystroke's lexical query (PERFORMANCE.md §2: 16/40 ms).
 const BUDGET: Duration = Duration::from_millis(20);
@@ -91,8 +101,9 @@ pub(crate) fn run(opts: &StorageOptions) -> Result<StorageReport, String> {
         );
         paths.push(p);
     }
+    let zipf = corpus::ZipfCorpus::new(ZIPF_EXPONENT);
     let texts: Vec<String> = (0..opts.chunks)
-        .map(|i| corpus::synthetic_document(i as u64 + 7, opts.words))
+        .map(|i| zipf.document(i as u64 + 7, opts.words))
         .collect();
     for (b, batch) in texts.chunks(opts.batch.max(1)).enumerate() {
         let chunks: Vec<NewChunk<'_>> = batch
@@ -119,9 +130,12 @@ pub(crate) fn run(opts: &StorageOptions) -> Result<StorageReport, String> {
 
     let reader = Store::open_reader(&path).map_err(|e| e.to_string())?;
     let mut typing = Vec::new();
+    let mut typing_hits = 0_usize;
     let mut finals = Vec::new();
     let mut hits = 0_usize;
-    let mut finals_miss = Vec::new();
+    let mut realistic = Vec::new();
+    let mut realistic_hits = 0_usize;
+    let mut realistic_zero = 0_usize;
     let mut budgeted = Vec::new();
     let mut interrupted = 0_usize;
     for q in corpus::QUERIES {
@@ -129,9 +143,10 @@ pub(crate) fn run(opts: &StorageOptions) -> Result<StorageReport, String> {
         for end in (1..=q.len()).filter(|&e| q.is_char_boundary(e)) {
             if let Some(fq) = FtsQuery::from_user(&q[..end], true) {
                 let t = Instant::now();
-                reader
+                typing_hits += reader
                     .search_chunks(&fq, 50, &SearchBudget::unbounded())
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| e.to_string())?
+                    .len();
                 typing.push(ms(t));
                 let t = Instant::now();
                 match reader.search_chunks(&fq, 50, &SearchBudget::within(BUDGET)) {
@@ -144,10 +159,13 @@ pub(crate) fn run(opts: &StorageOptions) -> Result<StorageReport, String> {
         }
         if let Some(fq) = FtsQuery::from_user(q, false) {
             let t = Instant::now();
-            reader
+            let n = reader
                 .search_chunks(&fq, 50, &SearchBudget::unbounded())
-                .map_err(|e| e.to_string())?;
-            finals_miss.push(ms(t));
+                .map_err(|e| e.to_string())?
+                .len();
+            realistic.push(ms(t));
+            realistic_hits += n;
+            realistic_zero += usize::from(n == 0);
         }
     }
     // Final queries that do match the synthetic corpus: ranking + snippets on real hits.
@@ -177,7 +195,7 @@ pub(crate) fn run(opts: &StorageOptions) -> Result<StorageReport, String> {
 
     #[allow(clippy::cast_precision_loss)]
     Ok(StorageReport {
-        schema_version: 2,
+        schema_version: 3,
         kind: "storage",
         label: opts.label.clone(),
         machine: MachineInfo::collect(),
@@ -185,13 +203,18 @@ pub(crate) fn run(opts: &StorageOptions) -> Result<StorageReport, String> {
         chunks: opts.chunks,
         items,
         words_per_chunk: opts.words,
+        vocabulary_words: zipf.vocabulary_size(),
+        zipf_exponent: ZIPF_EXPONENT,
         insert_s,
         chunks_per_s: opts.chunks as f64 / insert_s.max(1e-9),
         db_mib_after_checkpoint: db_mib,
         fts_typing: Summary::of(&typing).ok_or("no queries")?,
+        fts_typing_mean_hits: typing_hits as f64 / typing.len().max(1) as f64,
         fts_final: Summary::of(&finals).ok_or("no queries")?,
-        fts_final_no_hits: Summary::of(&finals_miss).ok_or("no queries")?,
         fts_mean_hits: hits as f64 / finals.len().max(1) as f64,
+        fts_final_realistic: Summary::of(&realistic).ok_or("no queries")?,
+        fts_final_realistic_mean_hits: realistic_hits as f64 / realistic.len().max(1) as f64,
+        fts_final_realistic_zero_hit: realistic_zero,
         fts_typing_budgeted: Summary::of(&budgeted).ok_or("no queries")?,
         fts_typing_interrupted: interrupted,
         budget_ms: BUDGET.as_secs_f64() * 1000.0,
@@ -200,22 +223,38 @@ pub(crate) fn run(opts: &StorageOptions) -> Result<StorageReport, String> {
 }
 
 pub(crate) fn summarize(r: &StorageReport) -> String {
+    let mut warnings = String::new();
+    for (what, mean) in [
+        ("per-keystroke", r.fts_typing_mean_hits),
+        ("vocabulary final", r.fts_mean_hits),
+        ("realistic final", r.fts_final_realistic_mean_hits),
+    ] {
+        if mean <= 0.0 {
+            warnings.push_str(&format!(
+                "\n  WARNING: {what} queries returned no hits: their latency is not representative"
+            ));
+        }
+    }
     format!(
-        "storage · sqlite {} · {} chunks ({} items, {} words) · insert {:.0} chunks/s · db {:.0} MiB\n  \
-         fts per keystroke (n={}): p50 {:.3} · p95 {:.3} · max {:.3} ms\n  \
+        "storage · sqlite {} · {} chunks ({} items, {} words, Zipf {} over {} words) · insert {:.0} chunks/s · db {:.0} MiB\n  \
+         fts per keystroke (n={}): p50 {:.3} · p95 {:.3} · max {:.3} ms ({:.1} hits avg)\n  \
          fts per keystroke with {:.0} ms budget: p95 {:.3} · max {:.3} ms ({} interrupted)\n  \
-         fts final query: p50 {:.3} · p95 {:.3} ms ({:.1} hits avg, capped 50; no-hit queries p95 {:.3} ms)\n  \
-         path lookup: p50 {:.4} · p95 {:.4} ms{}\n",
+         fts final, vocabulary: p50 {:.3} · p95 {:.3} ms ({:.1} hits avg, capped 50)\n  \
+         fts final, realistic: p50 {:.3} · p95 {:.3} ms ({:.1} hits avg, {} of {} with none)\n  \
+         path lookup: p50 {:.4} · p95 {:.4} ms{}{}\n",
         r.sqlite,
         r.chunks,
         r.items,
         r.words_per_chunk,
+        r.zipf_exponent,
+        r.vocabulary_words,
         r.chunks_per_s,
         r.db_mib_after_checkpoint,
         r.fts_typing.n,
         r.fts_typing.p50_ms,
         r.fts_typing.p95_ms,
         r.fts_typing.max_ms,
+        r.fts_typing_mean_hits,
         r.budget_ms,
         r.fts_typing_budgeted.p95_ms,
         r.fts_typing_budgeted.max_ms,
@@ -223,9 +262,14 @@ pub(crate) fn summarize(r: &StorageReport) -> String {
         r.fts_final.p50_ms,
         r.fts_final.p95_ms,
         r.fts_mean_hits,
-        r.fts_final_no_hits.p95_ms,
+        r.fts_final_realistic.p50_ms,
+        r.fts_final_realistic.p95_ms,
+        r.fts_final_realistic_mean_hits,
+        r.fts_final_realistic_zero_hit,
+        r.fts_final_realistic.n,
         r.path_lookup.p50_ms,
         r.path_lookup.p95_ms,
+        warnings,
         if r.machine.build_profile == "release" {
             ""
         } else {
@@ -255,6 +299,9 @@ mod tests {
             "final queries must hit: {}",
             r.fts_mean_hits
         );
+        assert!(r.fts_typing_mean_hits > 1.0, "{}", r.fts_typing_mean_hits);
+        assert!(r.fts_final_realistic_mean_hits > 0.0);
+        assert!(!summarize(&r).contains("WARNING: per-keystroke"));
         assert!(summarize(&r).contains("chunks/s"));
     }
 }
