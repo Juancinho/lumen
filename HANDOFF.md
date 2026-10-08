@@ -8,13 +8,25 @@
 
 ## Active task
 
-**T010 REVIEW** — `.github/workflows/ci.yml` (actionlint-clean; every command it runs passes
-locally) and `cargo xtask bench [--quick]`. Becomes DONE after the first green GitHub run, which
-needs a remote (the repo has none yet — the user decides where to host it).
-**T013 DONE** — joao-pc: GTX 1650 2.35x indexing, cos 0.9999995, 94 % offloaded, but 2.3 GB
-VRAM (> 1.5 GiB cap) → CPU everywhere. User decision: Turbo may use up to 60 % of VRAM → on joao-pc Turbo indexes on
-the GTX 1650; Balanced/Eco stay on CPU.
-DONE: T001, T002, T005, T006, T007, T008, T009, T011.
+None claimed. **M0 complete** (all M0 tasks DONE except T003/T004/T014, which do not gate M1:
+shortcut UX and backdrop belong with T103, T014 with M2). Next: **T101** (app/file catalog
+provider: T009 inventory → T007 store → `ResultItem`s), then T102 (filename search).
+DONE: T001, T002, T005, T006, T007, T008, T009, T010, T011, T012, T013.
+
+## T012 — outcome (ADR-020)
+
+- `apps/desktop/src-tauri/src/lifecycle.rs`: `HiddenMode` keep | invisible | low-memory |
+  suspend | **idle-low-memory (default, 30 s)**; WebView2 COM in a `#[allow(unsafe_code)]`
+  module (crate is `deny(unsafe_code)`); delayed work re-checks a generation counter on the UI
+  thread. `diag.rs` (LUMEN_DIAG_LOG), `instance.rs` (second-launch commands),
+  `overlay_painted(seq)` command + UI double-rAF report.
+- Release exe for measurements must be built with `--features tauri/custom-protocol`.
+- Pending validation: `scripts/t012/run-windows-webview.ps1 -Modes idle-low-memory`.
+
+## T010 — outcome
+
+- CI green on Linux + Windows since 94913df (`cargo xtask test` splits the shell's tests:
+  tauri-build's empty msvcrt.lib broke other crates' doctests in one cargo call).
 
 ## T013 — outcome (ADR-019)
 

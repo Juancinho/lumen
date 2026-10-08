@@ -4,7 +4,8 @@
 
 ## Current milestone
 
-**M0 — Technical spikes and repository foundation**
+**M1 — Instant launcher and universal surface** (M0 gate met 2026-10-08: overlay, boundary,
+contracts, cold/warm measurements T012, runtime ADR-015, ANN ADR-016, schema ADR-017, CI T010)
 
 ## Product status
 
@@ -88,8 +89,12 @@ Benchmark/ADR required:
   never followed, cloud placeholders metadata-only, stable identity (volume + file id).
   Windows: 26.5k user entries = independent .NET count, 0 issues, 22k entries/s cold
   (7.3k/s with identity); all edge cases reported. Also fixed usearch MSVC link (ADR-016).
-- **T010 REVIEW:** GitHub Actions CI (frontend; Rust gate on Linux + Windows; quick release
-  benches as artifacts) + `cargo xtask bench [--quick]`. Pending first run on a remote.
+- **T010 DONE:** GitHub Actions CI (frontend; Rust gate on Linux + Windows via
+  `cargo xtask test`; quick release benches as artifacts) + `cargo xtask bench [--quick]`.
+  Green on github.com/Juancinho/lumen.
+- **T012 DONE (ADR-020):** WebView hidden-state modes; default trims to low memory after 30 s
+  hidden: 72 → 7 MiB private WS, show→paint 22.6 ms p50 (27 ms after a trim), UI ready in
+  ~0.4–0.5 s. Opt-in timing diagnostics (`LUMEN_DIAG_LOG`), `lumen.exe --show/--hide/--toggle/--quit`.
 - **T013 DONE (ADR-019):** device policy — CPU default/fallback, accelerators only with a
   passing probe (same space, stable, cos ≥ 0.999 vs CPU, ≥ 90 % offloaded, memory budget,
   no iGPU), lane rules by power/profile/activity, quarantine per runtime key. joao-pc: GTX

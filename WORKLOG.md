@@ -87,3 +87,10 @@ Append-only. Keep entries compact.
 - First Windows `cargo xtask bench --quick` (joao-pc): ANN 20k f16 R@10 0.997, ef256 p95 0.31 ms (numkong haswell dispatch active); FTS keystroke p95 31.8 ms → 20.2 ms with budget.
 - T013 Windows run: CPU q4 29.9/34.2 ms, 3.10 chunks/s; GTX 1650 DirectML 417.8/513.8 ms, 7.28 chunks/s, cos 0.9999995, 94% offloaded, 2296 MiB VRAM -> rejected by the memory cap; policy = CPU in all 7 scenarios. T013 DONE, ADR-019 Accepted.
 - User decision: Turbo may use up to 60% of device memory (`turbo_max_device_memory_fraction`). Re-run on joao-pc probes: Turbo indexes on dml:high, others CPU. `device-policy` now takes the CPU count from the probed machine.
+
+## 2026-10-08 — T012 WebView lifecycle/RAM spike (claude)
+
+- First run produced nothing: the script built lumen.exe without `tauri/custom-protocol`, so the UI loaded the dev URL (documented in DEVELOPMENT; script fixed).
+- joao-pc, 4 modes: keep 72 MiB hidden / 22.6 ms p50 show->paint; invisible no saving; low-memory 7.4 MiB / 27.1 ms; suspend worse (94-160 MiB). Start-up ~0.4-0.5 s to UI ready.
+- Default `idle-low-memory` (trim after 30 s hidden), approved by the user. ADR-020. CI compiled the WebView2 COM code on windows-2025 (74d2bcd green).
+- T010 DONE (CI green). M0 done for the M1 gate.
