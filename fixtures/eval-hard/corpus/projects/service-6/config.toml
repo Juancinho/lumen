@@ -1,0 +1,6 @@
+[server]
+port = 8006
+
+[retry]
+attempts = 3
+backoff_ms = 250

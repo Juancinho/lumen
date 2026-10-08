@@ -1,7 +1,6 @@
 # ADR-032 — Hybrid root search: weighted RRF over three lanes, content and meaning on the settled query
 
-**Status:** Accepted (T205) — weights provisional until a harder evaluation set exists
-(T211). Amends ADR-025 (merge policy). Code: `lumen_search::{fuse, RRF_K}`,
+**Status:** Accepted (T205); weights amended by ADR-033 (name / content / meaning = 1 / 1 / 2). Amends ADR-025 (merge policy). Code: `lumen_search::{fuse, RRF_K}`,
 `SearchService::start_with_settle`, `lumen_catalog::ContentProvider`,
 `lumen_semantic::SemanticProvider`, `lumen_storage::FtsQuery::{content, two_of}`, shell
 `search.rs`. Harness: `lumen-bench eval` over `fixtures/eval/` (48 synthetic documents in

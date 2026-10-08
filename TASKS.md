@@ -29,8 +29,10 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
    `scripts\t203\run-windows-ann-gen.ps1 -Large`.
 8. ~~T205~~ hybrid fusion + evaluation harness — REVIEW (ADR-032): Windows run
    `scripts\t205\run-windows-eval.ps1`, and try the app (checklist in HANDOFF).
-9. **T211** harder evaluation set, then **T206** progressive semantic UI refinement,
-   **T210** model provisioning (semantic search for real users).
+9. ~~T211~~ harder evaluation set — REVIEW (ADR-033, weights 1/1/2).
+10. **T210** model provisioning (semantic search for real users), **T206** progressive
+    semantic UI refinement, **T209** code results (path tokens for the content lane,
+    ADR-033 findings).
 
 # M0 — technical spikes and foundation
 
@@ -83,7 +85,7 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 | T208 | TODO   | —     | Query syntax: type/ext/in/before/after/quoted exact                     | T205                |
 | T209 | TODO   | —     | Code result model: symbol/file/repository context + code actions        | T201,T108           |
 | T210 | TODO   | —     | Model + runtime provisioning: explicit download (consent, size), SHA-256 check, versioned app-data location, ORT DLL next to the exe, license notices, removal | T006,T202           |
-| T211 | TODO   | —     | Harder relevance set for fusion tuning: hundreds of synthetic documents, near-duplicates, folder noise, long documents, graded judgments; re-tune ADR-032 weights | T205                |
+| T211 | REVIEW | claude | Harder relevance set for fusion tuning: hundreds of synthetic documents, near-duplicates, folder noise, long documents, graded judgments; re-tune ADR-032 weights | T205                |
 
 # M3 — PDF/image intelligence and semantic objects
 

@@ -228,3 +228,8 @@ Append-only. Keep entries compact.
 - `lumen_catalog::ContentProvider` (settled FTS over chunks, one file per result, plain snippet; `FtsQuery::content` drops English/Spanish function words, `two_of` fallback) and `lumen_semantic::SemanticProvider` (query lane + active generation, space check, relative floor, passage excerpt; `Store::chunk_refs`); `QueryEmbedder::space_key`.
 - Shell: three weighted lanes, query embedder with indexing preemption and 10-min idle unload, warmed on overlay show; ANN maintenance no longer holds the index lock while building.
 - `fixtures/eval` (48 synthetic documents EN/ES, 56 judged queries) + `lumen-bench eval [--sweep] [--explain]`; sandbox q4: fused top-1 0.982 / NDCG 0.986 vs meaning 0.964, contents 0.536, names 0.179. An any-word content fallback cost 0.18 top-1 and was replaced. ADR-032; T211 (harder set) added.
+
+## 2026-10-08 — T211 harder relevance set (claude)
+
+- `scripts/eval/make_hard_set.py` → `fixtures/eval-hard/` (162 synthetic documents: monthly bill series, client × topic notes, report versions, long handbooks, one function in four languages, logs/CSV/config noise; EN/ES) with graded judgments; `lumen-bench eval` reads `related` (grade 1) and sweeps name 0.5–2 × content/semantic 0.5–3.
+- Sandbox q4: meaning alone NDCG 0.964, fused 1/1/1 0.954, 1/1/2 0.957 (lexical 0.870, code 0.920). App and harness default to 1/1/2. ADR-033 with the two lexical-lane findings.

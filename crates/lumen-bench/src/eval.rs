@@ -58,7 +58,7 @@ impl Default for EvalOptions {
         Self {
             embed: EmbedOptions::default(),
             fixture: PathBuf::from("fixtures/eval"),
-            weights: [1.0, 1.0, 1.0],
+            weights: [1.0, 1.0, 2.0],
             sweep: false,
             explain: false,
             work_dir: None,
@@ -75,7 +75,11 @@ struct Fixture {
 #[derive(Debug, Deserialize)]
 struct Judged {
     q: String,
+    /// Grade 2: the answer.
     relevant: Vec<String>,
+    /// Grade 1: acceptable, not what was asked (`fixtures/eval-hard`).
+    #[serde(default)]
+    related: Vec<String>,
     category: String,
 }
 
@@ -91,7 +95,9 @@ pub(crate) struct Metrics {
 }
 
 impl Metrics {
-    fn add(&mut self, ranked: &[String], relevant: &HashSet<&str>) {
+    /// `relevant` (grade 2) decide recall, MRR and top-1; NDCG uses graded gains
+    /// (`2^grade - 1`: 3 for relevant, 1 for `related`).
+    fn add(&mut self, ranked: &[String], relevant: &HashSet<&str>, related: &HashSet<&str>) {
         let hit = |i: usize| ranked.get(i).is_some_and(|r| relevant.contains(r.as_str()));
         let recall = |k: usize| {
             #[allow(clippy::cast_precision_loss)]
@@ -110,9 +116,31 @@ impl Metrics {
             self.mrr_at_10 += rr;
         }
         #[allow(clippy::cast_precision_loss)]
-        let gain = |i: usize| 1.0 / ((i + 2) as f64).log2();
-        let dcg: f64 = (0..10).filter(|&i| hit(i)).map(gain).sum();
-        let ideal: f64 = (0..relevant.len().min(10)).map(gain).sum();
+        let discount = |i: usize| 1.0 / ((i + 2) as f64).log2();
+        let grade = |r: &str| {
+            if relevant.contains(r) {
+                3.0
+            } else if related.contains(r) {
+                1.0
+            } else {
+                0.0
+            }
+        };
+        let dcg: f64 = ranked
+            .iter()
+            .take(10)
+            .enumerate()
+            .map(|(i, r)| grade(r) * discount(i))
+            .sum();
+        let mut ideal_gains: Vec<f64> = std::iter::repeat_n(3.0, relevant.len())
+            .chain(std::iter::repeat_n(1.0, related.len()))
+            .collect();
+        ideal_gains.truncate(10);
+        let ideal: f64 = ideal_gains
+            .iter()
+            .enumerate()
+            .map(|(i, g)| g * discount(i))
+            .sum();
         if ideal > 0.0 {
             self.ndcg_at_10 += dcg / ideal;
         }
@@ -355,11 +383,12 @@ pub(crate) fn run(opts: &EvalOptions) -> Result<EvalReport, String> {
                 .filter(|r| seen.insert(r.clone()))
                 .collect();
             let relevant: HashSet<&str> = judged.relevant.iter().map(String::as_str).collect();
-            overall.add(&ranked, &relevant);
+            let related: HashSet<&str> = judged.related.iter().map(String::as_str).collect();
+            overall.add(&ranked, &relevant, &related);
             by_category
                 .entry(judged.category.clone())
                 .or_default()
-                .add(&ranked, &relevant);
+                .add(&ranked, &relevant, &related);
             first_relevant_rank.push(
                 ranked
                     .iter()
@@ -428,12 +457,14 @@ pub(crate) fn run(opts: &EvalOptions) -> Result<EvalReport, String> {
     let mut best = None;
     if opts.sweep {
         let mut sweep = Vec::new();
-        for content in [0.5_f32, 1.0, 1.5, 2.0] {
-            for semantic in [0.5_f32, 1.0, 1.5, 2.0, 3.0] {
-                sweep.push(evaluate(
-                    format!("sweep 1/{content}/{semantic}"),
-                    [1.0, content, semantic],
-                ));
+        for name in [0.5_f32, 1.0, 2.0] {
+            for content in [0.5_f32, 1.0, 2.0, 3.0] {
+                for semantic in [0.5_f32, 1.0, 2.0, 3.0] {
+                    sweep.push(evaluate(
+                        format!("sweep {name}/{content}/{semantic}"),
+                        [name, content, semantic],
+                    ));
+                }
             }
         }
         // First of the best (the grid starts at light weights: ties keep the simpler).
@@ -530,15 +561,27 @@ mod tests {
     fn metrics_follow_their_definitions() {
         let rel: HashSet<&str> = ["a", "b"].into_iter().collect();
         let mut m = Metrics::default();
-        m.add(&["x".into(), "a".into(), "y".into(), "b".into()], &rel);
+        m.add(
+            &["x".into(), "a".into(), "y".into(), "b".into()],
+            &rel,
+            &HashSet::new(),
+        );
         let m = m.mean();
         assert!((m.recall_at_1 - 0.0).abs() < 1e-9);
         assert!((m.recall_at_5 - 1.0).abs() < 1e-9);
         assert!((m.mrr_at_10 - 0.5).abs() < 1e-9);
-        let dcg = 1.0 / 3f64.log2() + 1.0 / 5f64.log2();
-        let ideal = 1.0 + 1.0 / 3f64.log2();
+        let dcg = 3.0 / 3f64.log2() + 3.0 / 5f64.log2();
+        let ideal = 3.0 + 3.0 / 3f64.log2();
         assert!((m.ndcg_at_10 - dcg / ideal).abs() < 1e-9);
         assert!(m.top1.abs() < 1e-9);
+        // A related result in first place earns partial gain, not a top-1.
+        let related: HashSet<&str> = ["x"].into_iter().collect();
+        let mut g = Metrics::default();
+        g.add(&["x".into(), "a".into()], &rel, &related);
+        let g = g.mean();
+        let dcg = 1.0 + 3.0 / 3f64.log2();
+        let ideal = 3.0 + 3.0 / 3f64.log2() + 1.0 / 2.0;
+        assert!((g.ndcg_at_10 - dcg / ideal).abs() < 1e-9 && g.top1.abs() < 1e-9);
     }
 
     #[test]

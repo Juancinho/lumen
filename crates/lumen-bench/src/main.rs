@@ -117,8 +117,8 @@ storage options:
 
 eval options (plus the embed backend options, e.g. --backend ort --model-dir DIR):
   --fixture DIR          folder with corpus/ and queries.json (default: fixtures/eval)
-  --weights N,C,S        fusion weights name, content, semantic (default: 1,1,1)
-  --sweep                also try a grid of content/semantic weights
+  --weights N,C,S        fusion weights name, content, semantic (default: 1,1,2, the app's)
+  --sweep                also try a grid of weights (name 0.5-2, content/semantic 0.5-3)
   --explain              print the lanes' top results for fused misses (stderr)
   --work-dir DIR         keep the temporary database there
   --label TEXT / --json PATH

@@ -1,0 +1,4 @@
+Northwind Energy - electricity bill
+Statement for July 2025 (account 7741-EL07)
+Usage this period: 391 kWh
+Amount due: 87.40 EUR, collected by direct debit on the 15th of the following month.

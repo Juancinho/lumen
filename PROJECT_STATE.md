@@ -137,6 +137,10 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
   generation as f16 in `chunk_vectors`), run by the catalog thread under the device policy
   (power/memory/idle); tray progress + pause, per-location content toggle. Model via env
   until T210.
+- **T211 REVIEW (ADR-033):** harder generated relevance set (162 documents, 49 graded
+  queries); fusion weights name / content / meaning = 1 / 1 / 2 (fused NDCG@10 0.957, top-1
+  0.939; meaning alone 0.964). Findings: content lane misses code language (path-only),
+  `two_of` lets log lines in.
 - **T205 REVIEW (ADR-032):** hybrid root search — names every keystroke; file contents
   (FTS, function words dropped, two-of-n fallback) and meaning (query lane + ANN) on the
   settled query (80 ms re-run); weighted-RRF fusion with exact matches first and one row

@@ -6,12 +6,12 @@
 ## Branch
 
 `main` on github.com/Juancinho/lumen (push pending from joao-pc). Last commits: T015 → T111 → T201
-→ T014 (instrumentation) → T202 → T204 → T203 → T205.
+→ T014 (instrumentation) → T202 → T204 → T203 → T205 → T211.
 
 ## Active task
 
-None claimed. T202, T014, T204, T203 and T205 are in REVIEW (Windows runs below); next
-per `TASKS.md` → **Next**: T211 (harder relevance set) → T206 → T210.
+None claimed. T202, T014, T204, T203, T205 and T211 are in REVIEW (Windows runs below);
+next per `TASKS.md` → **Next**: T210 (model provisioning) → T206 → T209.
 
 ## Pending human checks (Windows, joao-pc)
 
@@ -68,6 +68,14 @@ per `TASKS.md` → **Next**: T211 (harder relevance set) → T206 → T210.
    shows passages embedded, type a sentence describing a document in your indexed folders:
    after a short pause rows from contents and meaning join the name results without the
    selection jumping; `LUMEN_DIAGNOSTICS=1` shows `lumen.content` / `lumen.semantic`.
+
+## T211 — outcome (REVIEW, ADR-033)
+
+- `scripts/eval/make_hard_set.py` regenerates `fixtures/eval-hard/` deterministically;
+  `lumen-bench eval --fixture fixtures/eval-hard --sweep [--explain]`.
+- Weights 1/1/2 in `search.rs`; the Windows eval script can take `-Fixture` later — for
+  now run `lumen-bench eval` by hand with `--fixture fixtures\eval-hard` (same flags as
+  `scripts\t205\run-windows-eval.ps1`).
 
 ## T205 — outcome (REVIEW, ADR-032)
 

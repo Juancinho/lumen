@@ -33,10 +33,10 @@ pub(crate) fn diagnostics_enabled() -> bool {
     *ON.get_or_init(|| std::env::var(ENV_DIAGNOSTICS).is_ok_and(|v| v == "1"))
 }
 
-/// Fusion weights per lane (ADR-032; tuned with `lumen-bench eval`).
+/// Fusion weights per lane (ADR-032; meaning doubled by ADR-033 on `fixtures/eval-hard`).
 pub(crate) const WEIGHT_NAME: f32 = 1.0;
 pub(crate) const WEIGHT_CONTENT: f32 = 1.0;
-pub(crate) const WEIGHT_SEMANTIC: f32 = 1.0;
+pub(crate) const WEIGHT_SEMANTIC: f32 = 2.0;
 
 /// The query model is unloaded after this long without searches (memory, §15).
 const QUERY_IDLE_UNLOAD: std::time::Duration = std::time::Duration::from_secs(10 * 60);

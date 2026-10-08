@@ -112,7 +112,7 @@ Never change index scalar type without generation/version migration.
 
 Initial algorithm: weighted RRF. Built (ADR-032): `lumen_search::fuse` — `Σ w / (60 + rank)`
 per entity over each lane's own order, exact/intent matches first, one row per entity;
-weights 1/1/1 until T211's harder set can discriminate them.
+weights 1/1/2 since ADR-033 (`fixtures/eval-hard`: fused NDCG@10 0.957, top-1 0.939).
 
 Conceptual form:
 

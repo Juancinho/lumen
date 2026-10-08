@@ -1,0 +1,4 @@
+Northwind Energy - electricity bill
+Statement for September 2025 (account 7741-EL09)
+Usage this period: 379 kWh
+Amount due: 90.92 EUR, collected by direct debit on the 15th of the following month.

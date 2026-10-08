@@ -1,0 +1,9 @@
+order_id,customer,amount,currency
+1000,Acme Logistics,773.00,EUR
+1001,Stark Freight,808.00,EUR
+1002,Globex,711.00,EUR
+1003,Stark Freight,176.00,EUR
+1004,Wayne Retail,582.00,EUR
+1005,Stark Freight,121.00,EUR
+1006,Globex,129.00,EUR
+1007,Wayne Retail,876.00,EUR
