@@ -38,6 +38,7 @@ crates/
   lumen-indexer/           Pass 0 inventory: scan with coverage guarantee, stable FileIdentity (ADR-018)
   lumen-catalog/           app/file catalog: inventory -> items, Start-menu apps, CatalogProvider (ADR-021)
   lumen-search/            root-search Coordinator + latest-wins SearchService (ADR-025)
+  lumen-extract/           text/code extraction + retrieval chunking (ADR-028)
   lumen-windows/           Windows OS adapters (AppsFolder apps, window material/DWM plan);
                            no GUI framework/WebView types
   lumen-bench/             benchmark harness binary `lumen-bench` (release-mode, JSON reports)

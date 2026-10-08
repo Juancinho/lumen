@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "kind": "chunk",
+  "label": "sandbox: lumen repo code",
+  "machine": {
+    "os": "linux",
+    "arch": "x86_64",
+    "logical_cpus": 2,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791448555
+  },
+  "target_tokens": 128,
+  "max_tokens": 192,
+  "files": {
+    "extracted": 127,
+    "unsupported": 0,
+    "too_large": 0,
+    "binary": 0,
+    "read_failed": 0,
+    "lossy_decoding": 0,
+    "legacy_encoding": 0
+  },
+  "by_kind": {
+    "code": 116,
+    "data": 11
+  },
+  "extracted_mib": 0.800872802734375,
+  "seconds": 0.274649068,
+  "mib_per_s": 2.9159858745064993,
+  "chunks": 3054,
+  "chunks_per_file": {
+    "n": 127,
+    "min_ms": 1.0,
+    "mean_ms": 24.04724409448819,
+    "p50_ms": 14.0,
+    "p95_ms": 84.0,
+    "p99_ms": 115.0,
+    "max_ms": 128.0
+  },
+  "estimated_tokens": {
+    "n": 3054,
+    "min_ms": 4.0,
+    "mean_ms": 109.93811394891945,
+    "p50_ms": 118.0,
+    "p95_ms": 130.0,
+    "p99_ms": 179.0,
+    "max_ms": 192.0
+  },
+  "code_symbol_share": 0.6383399209486166,
+  "tokenizer": {
+    "real_tokens": {
+      "n": 3054,
+      "min_ms": 3.0,
+      "mean_ms": 98.93745907007204,
+      "p50_ms": 102.0,
+      "p95_ms": 137.0,
+      "p99_ms": 167.0,
+      "max_ms": 237.0
+    },
+    "estimate_ratio": {
+      "n": 3054,
+      "min_ms": 0.6355140186915887,
+      "mean_ms": 1.1289056557482917,
+      "p50_ms": 1.1224489795918366,
+      "p95_ms": 1.3617021276595744,
+      "p99_ms": 1.4814814814814814,
+      "max_ms": 3.6206896551724137
+    },
+    "over_max": 8
+  }
+}

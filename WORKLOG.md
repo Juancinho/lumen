@@ -186,3 +186,8 @@ Append-only. Keep entries compact.
 - Shell: live model with cancel-and-restart passes and progress events; tray submenus with native folder picker; `lumen.exclude-folder` action. ADR-027 (open questions resolved by default).
 - Sandbox whole filesystem with defaults: 309k entries, first sync 38 s, resync 12.5 s, keystroke p95 7.1 ms.
 
+## 2026-10-08 — T201 text/code extractor + chunker (claude)
+
+- New `lumen-extract` crate: document kinds, bounded decoding with skip reasons, chunkers for prose (paragraph/sentence/word), Markdown (heading paths, intact fences, no heading-only chunks), code (top-level regions, class members, overlapping line windows, symbol names across 15+ languages) and data.
+- `lumen-bench chunk` with an optional real-tokenizer check: estimator recalibrated (4 -> 5 chars per token unit) to estimate/real p50 ~1.13; 63 % of code chunks named. ADR-028.
+

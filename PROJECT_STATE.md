@@ -128,6 +128,10 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
   the core policy against recently shown results; uses recorded for ranking.
 - **T015/T016 DONE:** docs consolidated (ADR files in `docs/adr/`, §0 status per spec, one
   reading order, fixed file roles, throughput + memory budgets); storage bench with real hits.
+- **T201 REVIEW (ADR-028):** `crates/lumen-extract` — kinds by extension, bounded decoding
+  (BOM/UTF-8/UTF-16/Windows-1252, binary and size skips with reasons), 128-token chunks with
+  offsets for prose/Markdown/code/data, symbol names for code; estimator calibrated against
+  the EmbeddingGemma 2 tokenizer; `lumen-bench chunk`.
 - **T111 REVIEW (ADR-027):** indexed locations + exclusions in one versioned setting; tray
   → Indexed locations / Exclusions (native folder picker), per-location state, developer
   noise and marker-based build folders excluded by default (visible, toggleable), Action

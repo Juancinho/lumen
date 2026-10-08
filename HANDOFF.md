@@ -10,7 +10,7 @@
 
 ## Active task
 
-None claimed. Next per `TASKS.md` → **Next**: T201 (extractor + chunker) after the Windows checks.
+None claimed. Next per `TASKS.md` → **Next**: T014 (runtime spike, Windows) / T202 (embedding queue).
 
 ## Pending human checks (Windows, joao-pc)
 
@@ -25,6 +25,15 @@ None claimed. Next per `TASKS.md` → **Next**: T201 (extractor + chunker) after
    below (T107 search, T104 keys, T108/T109 actions, T105 Alt+Enter, T103/T004 look, T003
    shortcut). `LUMEN_DIAGNOSTICS=1` shows ranking evidence (T110).
 3. Verdict on the default window material (Acrylic vs Mica, tray → Window material).
+
+## T201 — outcome (REVIEW, ADR-028)
+
+- `lumen_extract::{kind_for_extension, extract_file, decode, chunk, ChunkConfig, Chunk,
+  TokenCount, EstimateTokens}`; 13 tests.
+- `lumen-bench chunk --root DIR [--target N] [--tokenizer tokenizer.json]` (feature
+  `tokenizer` for real counts). Evidence in `docs/benchmarks/t201/`.
+- For T202: `NewChunk` still lacks `start_offset`/`end_offset` (columns exist) — add them when
+  writing chunks; embed with `PromptFormat` document prompt (`title: <name> | text: …`).
 
 ## T111 — outcome (REVIEW, ADR-027)
 

@@ -14,7 +14,7 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
    T104, T105, T107, T108/T109, T110 — checklists in `HANDOFF.md`.
 2. **T111** indexed locations — REVIEW on Windows: add `D:\Proyectos` from the tray, USB
    unplug/replug, `scripts\t111\run-windows-locations.ps1 -Drive D:\` (checklist in HANDOFF).
-3. **T201** text/code extractor + chunker (~128-token chunks, ADR-015 consequence).
+3. ~~T201~~ extractor + chunker — REVIEW (ADR-028); nothing to check by hand.
 4. **T014** indexing-throughput runtime spike on Windows — candidates now known:
    llama.cpp with `ggml-org/embeddinggemma-2-GGUF` (Q8_0 310 MB, BF16; CPU/Vulkan/CUDA) and
    LiteRT-LM `litert-community/embeddinggemma-2-740m-litert-lm` (QAT int4/int8; Windows support
@@ -64,7 +64,7 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 
 | ID   | Status | Owner | Task                                                                    | Depends on          |
 | ---- | ------ | ----- | ----------------------------------------------------------------------- | ------------------- |
-| T201 | TODO   | —     | Text/code extractor + language-aware chunker (Tree-sitter where useful) | T006,T007           |
+| T201 | REVIEW | claude | Text/code extractor + language-aware chunker (Tree-sitter where useful) | T006,T007           |
 | T202 | TODO   | —     | Background embedding queue with bounded backpressure/cancel/pause       | T201                |
 | T203 | TODO   | —     | Persistent ANN + generation/version management                          | T008,T202           |
 | T204 | TODO   | —     | Warm query embedding service + cancellation                             | T006                |

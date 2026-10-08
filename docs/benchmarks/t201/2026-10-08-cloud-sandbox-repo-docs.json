@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "kind": "chunk",
+  "label": "sandbox: lumen docs (Markdown)",
+  "machine": {
+    "os": "linux",
+    "arch": "x86_64",
+    "logical_cpus": 2,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791448556
+  },
+  "target_tokens": 128,
+  "max_tokens": 192,
+  "files": {
+    "extracted": 53,
+    "unsupported": 0,
+    "too_large": 0,
+    "binary": 0,
+    "read_failed": 0,
+    "lossy_decoding": 0,
+    "legacy_encoding": 0
+  },
+  "by_kind": {
+    "markdown": 53
+  },
+  "extracted_mib": 0.22043132781982422,
+  "seconds": 0.066743594,
+  "mib_per_s": 3.302658946112854,
+  "chunks": 785,
+  "chunks_per_file": {
+    "n": 53,
+    "min_ms": 1.0,
+    "mean_ms": 14.81132075471698,
+    "p50_ms": 9.0,
+    "p95_ms": 50.0,
+    "p99_ms": 74.0,
+    "max_ms": 74.0
+  },
+  "estimated_tokens": {
+    "n": 785,
+    "min_ms": 6.0,
+    "mean_ms": 88.36433121019108,
+    "p50_ms": 99.0,
+    "p95_ms": 141.0,
+    "p99_ms": 181.0,
+    "max_ms": 190.0
+  },
+  "code_symbol_share": 0.0,
+  "tokenizer": {
+    "real_tokens": {
+      "n": 785,
+      "min_ms": 3.0,
+      "mean_ms": 78.95414012738854,
+      "p50_ms": 86.0,
+      "p95_ms": 139.0,
+      "p99_ms": 173.0,
+      "max_ms": 224.0
+    },
+    "estimate_ratio": {
+      "n": 785,
+      "min_ms": 0.5833333333333334,
+      "mean_ms": 1.216137652957865,
+      "p50_ms": 1.153061224489796,
+      "p95_ms": 1.4545454545454546,
+      "p99_ms": 6.166666666666667,
+      "max_ms": 7.7894736842105265
+    },
+    "over_max": 2
+  }
+}

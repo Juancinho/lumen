@@ -16,6 +16,8 @@ default = []
 ort = ["dep:lumen-embedding-ort"]
 # DirectML devices (`--device dml:N`, Windows, onnxruntime-directml build).
 directml = ["ort", "lumen-embedding-ort/directml"]
+# Real token counts for `chunk --tokenizer tokenizer.json`.
+tokenizer = ["dep:tokenizers"]
 
 [dependencies]
 lumen-core.workspace = true
@@ -25,6 +27,8 @@ lumen-vector.workspace = true
 lumen-storage.workspace = true
 lumen-indexer.workspace = true
 lumen-catalog.workspace = true
+lumen-extract.workspace = true
+tokenizers = { workspace = true, optional = true }
 usearch.workspace = true
 memory-stats.workspace = true
 serde.workspace = true

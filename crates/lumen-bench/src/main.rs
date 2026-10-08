@@ -9,6 +9,7 @@
 
 mod ann;
 mod catalog;
+mod chunk;
 mod corpus;
 mod device;
 mod embed;
@@ -32,6 +33,7 @@ Commands:
   scan      File inventory over real folders: counts, coverage, speed (T009; no paths stored)
   identity-check  Stable file identity under rename/move/copy/save/hard link (T009)
   catalog   App/file catalog: inventory -> SQLite, app discovery, keystroke name lookup (T101)
+  chunk     Text/code extraction + chunking over real folders (T201; counts only)
   probe     Measure one embedding device for the device policy (T013), JSON probe
   device-policy   Device decisions from probe files across power/profile scenarios (T013)
 
@@ -104,6 +106,12 @@ catalog options:
   --work-dir DIR         database location (default: temp dir; deleted afterwards)
   --label TEXT / --json PATH
 
+chunk options:
+  --root DIR             folder to read (repeatable; app default exclusions apply)
+  --target N             target tokens per chunk (default: 128; max = 1.5 x target)
+  --tokenizer FILE       tokenizer.json of the embedding model (feature `tokenizer`)
+  --label TEXT / --json PATH
+
 probe options (plus every embed option: --backend, --ort-dylib, --model-dir, --variant,
 --device, --threads, --placement, --dim, --label, --json):
   --device-id NAME       policy device id (default: --device, or cpu)
@@ -155,6 +163,12 @@ fn main() -> ExitCode {
         Some("identity-check") => match parse_identity(&args[1..]).and_then(|(dir, label, json)| {
             scan::identity_check(&dir, label)
                 .map(|r| (scan::summarize_identity(&r), to_json(&r), json))
+        }) {
+            Ok((summary, json, path)) => emit(&summary, json, path),
+            Err(err) => usage_error(&err),
+        },
+        Some("chunk") => match parse_chunk(&args[1..]).and_then(|(opts, json)| {
+            chunk::run(&opts).map(|r| (chunk::summarize(&r), to_json(&r), json))
         }) {
             Ok((summary, json, path)) => emit(&summary, json, path),
             Err(err) => usage_error(&err),
@@ -374,6 +388,33 @@ fn parse_identity(args: &[String]) -> Result<IdentityArgs, String> {
         }
     }
     Ok((dir, label, json))
+}
+
+fn parse_chunk(args: &[String]) -> Result<(chunk::ChunkOptions, Option<String>), String> {
+    let mut opts = chunk::ChunkOptions::default();
+    let mut json = None;
+    let mut it = args.iter();
+    while let Some(flag) = it.next() {
+        let value = it
+            .next()
+            .cloned()
+            .ok_or_else(|| format!("{flag} needs a value"))?;
+        match flag.as_str() {
+            "--root" => opts.roots.push(value.into()),
+            "--target" => {
+                opts.target_tokens = Some(
+                    value
+                        .parse()
+                        .map_err(|_| format!("{flag}: not a positive integer"))?,
+                );
+            }
+            "--tokenizer" => opts.tokenizer = Some(value.into()),
+            "--label" => opts.label = Some(value),
+            "--json" => json = Some(value),
+            other => return Err(format!("unknown option `{other}`")),
+        }
+    }
+    Ok((opts, json))
 }
 
 fn parse_catalog(args: &[String]) -> Result<(catalog::CatalogOptions, Option<String>), String> {
