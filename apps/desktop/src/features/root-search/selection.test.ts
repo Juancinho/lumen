@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { ResultRowModel } from "./model";
-import { INITIAL_SELECTION, moveSelection, selectedIndex, selectIndex } from "./selection";
+import {
+  INITIAL_SELECTION,
+  moveSelection,
+  selectedIndex,
+  selectIndex,
+  stabilize,
+} from "./selection";
 
 const rows = (...ids: string[]): ResultRowModel[] =>
   ids.map((id) => ({
@@ -39,5 +45,19 @@ describe("selection", () => {
     const sel = selectIndex(rows("a", "b", "c"), 2); // c
     expect(selectedIndex(sel, rows("a", "b"))).toBe(1);
     expect(selectedIndex(sel, rows("x", "y", "z", "w"))).toBe(2);
+  });
+
+  it("keeps the selected row in place when a refinement re-orders (T206)", () => {
+    const ids = (r: readonly ResultRowModel[]) => r.map((x) => x.id);
+    // Not moved yet: the refined order is shown as is.
+    expect(ids(stabilize(rows("x", "a", "b"), INITIAL_SELECTION))).toEqual(["x", "a", "b"]);
+    // The user went to row 1 (b); meaning results push b down to 3.
+    const sel = selectIndex(rows("a", "b", "c"), 1);
+    const shown = stabilize(rows("x", "y", "a", "b", "c"), sel);
+    expect(ids(shown)).toEqual(["x", "b", "y", "a", "c"]);
+    expect(selectedIndex(sel, shown)).toBe(1);
+    // Fewer rows than the old position: it goes to the last one; gone: unchanged.
+    expect(ids(stabilize(rows("b"), selectIndex(rows("a", "c", "b"), 2)))).toEqual(["b"]);
+    expect(ids(stabilize(rows("x", "y"), sel))).toEqual(["x", "y"]);
   });
 });

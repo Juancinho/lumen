@@ -22,6 +22,8 @@ export interface ResultView {
   kind: "application" | "file" | "folder" | "command";
   title: string;
   detail: string | null;
+  /** Passage that matched when found by contents or meaning (T206), else `null`. */
+  snippet: string | null;
   extension: string | null;
   /** Action id Enter runs (`lumen.open`, `lumen.launch`). */
   primaryAction: string;

@@ -20,6 +20,7 @@ function toRow(view: ResultView): ResultRowModel {
     kind: view.kind,
     title: view.title,
     detail: view.detail,
+    snippet: view.snippet,
     extension: view.extension,
     primaryAction: view.primaryAction,
     diagnostics: view.diagnostics

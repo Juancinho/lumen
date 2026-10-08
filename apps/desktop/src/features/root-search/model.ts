@@ -11,6 +11,11 @@ export interface ResultRowModel {
   title: string;
   /** Location (folder path) or short description; middle-truncated when it is a path. */
   detail: string | null;
+  /**
+   * The passage that matched when the result was found by its contents or meaning (T206):
+   * shown in place of the location line, which then moves to the row's tooltip.
+   */
+  snippet?: string | null;
   /** Lowercase file extension without the dot, for the file glyph badge. */
   extension: string | null;
   /** Action id Enter runs. */

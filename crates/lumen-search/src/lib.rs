@@ -16,5 +16,5 @@ mod coordinator;
 mod service;
 
 pub use actions::{ActionError, available, prepare};
-pub use coordinator::{Coordinator, Outcome, RRF_K, Update, fuse};
+pub use coordinator::{Coordinator, Outcome, RRF_K, SETTLED_BATCH, Update, fuse};
 pub use service::{DEFAULT_SETTLE, Request, SearchService};

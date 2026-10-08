@@ -25,7 +25,9 @@ function Detail({ text }: { text: string }) {
 
 /**
  * One result (DESIGN_SYSTEM §10): icon tile, title, location (middle-truncated), kind
- * label; the selected row shows the primary-action hint instead of the kind.
+ * label; the selected row shows the primary-action hint instead of the kind. A result
+ * found by its contents or meaning shows the matching passage instead of the location
+ * (T206), which moves to the tooltip and Quick Look.
  */
 export function ResultRow({
   row,
@@ -45,6 +47,7 @@ export function ResultRow({
       aria-selected={selected}
       tabIndex={-1}
       className="result-row"
+      title={row.snippet && row.detail ? row.detail : undefined}
       onMouseMove={onHover}
       onMouseDown={(event) => {
         // Keep focus in the query field.
@@ -59,10 +62,14 @@ export function ResultRow({
         <span className="result-row__title" title={row.title}>
           {row.title}
         </span>
-        {row.detail && (
-          <span className="result-row__detail" title={row.detail}>
-            <Detail text={row.detail} />
-          </span>
+        {row.snippet ? (
+          <span className="result-row__snippet">{row.snippet}</span>
+        ) : (
+          row.detail && (
+            <span className="result-row__detail" title={row.detail}>
+              <Detail text={row.detail} />
+            </span>
+          )
         )}
         {row.diagnostics && <span className="result-row__diagnostics">{row.diagnostics}</span>}
       </span>

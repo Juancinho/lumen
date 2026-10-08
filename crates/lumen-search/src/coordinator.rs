@@ -29,6 +29,11 @@ pub enum Outcome {
     Cancelled,
 }
 
+/// A settled run (`typing == false`) re-shows the typing run's rows first; its
+/// intermediate lists are held back for this long so content and meaning arrive as one
+/// refinement instead of two reorders (DESIGN_SYSTEM §11, T206).
+pub const SETTLED_BATCH: Duration = Duration::from_millis(150);
+
 /// Reciprocal-rank-fusion constant (`w / (K + rank)`, rank from 1): the usual 60 keeps the
 /// head of every list close together, so agreement between lanes decides the order.
 pub const RRF_K: f32 = 60.0;
@@ -136,7 +141,8 @@ impl Coordinator {
             let last = pos + 1 == order.len();
             let merged = fuse(&lists, &self.weights, self.limit);
             let changed = emitted.as_ref().is_none_or(|e| !same_ids(e, &merged));
-            if last || changed {
+            let batching = !typing && started.elapsed() < SETTLED_BATCH;
+            if last || (changed && !batching) {
                 emit(Update {
                     query,
                     results: merged.clone(),
@@ -466,6 +472,39 @@ pub(crate) mod tests {
         assert!(semantic.calls.lock().unwrap().is_empty());
         let (updates, _) = run(&c, false);
         assert_eq!(ids(updates.last().unwrap()), ["item:5"]);
+    }
+
+    #[test]
+    fn settled_runs_refine_in_one_update() {
+        let mut c = Coordinator::new(10);
+        c.register(Arc::new(Fake::new(
+            "test.name",
+            LatencyClass::Instant,
+            &[("item:1", 0.9)],
+        )));
+        c.register(Arc::new(Fake::new(
+            "test.content",
+            LatencyClass::Fast,
+            &[("item:2", 0.5)],
+        )));
+        let mut semantic = Fake::new("test.semantic", LatencyClass::Semantic, &[("item:3", 0.7)]);
+        semantic.delay = Duration::from_millis(20);
+        c.register(Arc::new(semantic));
+        let (updates, _) = run(&c, false);
+        assert_eq!(updates.len(), 1, "one refinement burst");
+        assert!(updates[0].done);
+        assert_eq!(updates[0].results.len(), 3);
+        // A slow lane past the batch window still lets earlier lanes show first.
+        let mut c = Coordinator::new(10);
+        let mut slow = Fake::new("test.slow", LatencyClass::Fast, &[("item:2", 0.5)]);
+        slow.delay = SETTLED_BATCH + Duration::from_millis(20);
+        c.register(Arc::new(slow));
+        let mut semantic = Fake::new("test.semantic", LatencyClass::Semantic, &[("item:3", 0.7)]);
+        semantic.delay = Duration::from_millis(50);
+        c.register(Arc::new(semantic));
+        let (updates, _) = run(&c, false);
+        assert_eq!(updates.len(), 2);
+        // (Typing runs are not batched: `fuses_by_reciprocal_rank_and_dedupes`.)
     }
 
     #[test]

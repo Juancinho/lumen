@@ -89,6 +89,7 @@ function toResult(raw: unknown): ResultView | null {
     kind: kind as ResultView["kind"],
     title: r.title,
     detail: typeof r.detail === "string" ? r.detail : null,
+    snippet: typeof r.snippet === "string" ? r.snippet : null,
     extension: typeof r.extension === "string" ? r.extension : null,
     primaryAction: typeof r.primaryAction === "string" ? r.primaryAction : "",
     diagnostics: toResultDiagnostics(r.diagnostics),

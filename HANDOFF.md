@@ -6,12 +6,12 @@
 ## Branch
 
 `main` on github.com/Juancinho/lumen (push pending from joao-pc). Last commits: T015 → T111 → T201
-→ T014 (instrumentation) → T202 → T204 → T203 → T205 → T211 → T210.
+→ T014 (instrumentation) → T202 → T204 → T203 → T205 → T211 → T210 → T206.
 
 ## Active task
 
-None claimed. T202, T014, T204, T203, T205, T211 and T210 are in REVIEW (Windows runs
-below); next per `TASKS.md` → **Next**: T206 → T209 → T207.
+None claimed. T202, T014, T204, T203, T205, T211, T210 and T206 are in REVIEW (Windows
+runs below); next per `TASKS.md` → **Next**: T209 → T207.
 
 ## Pending human checks (Windows, joao-pc)
 
@@ -78,6 +78,15 @@ below); next per `TASKS.md` → **Next**: T206 → T209 → T207.
    search shows `lumen.semantic` rows (`LUMEN_DIAGNOSTICS=1`). Files land in
    `%APPDATA%\dev.lumen.desktop\models\` and `runtime\`. Remove… deletes the model.
    If your network needs a proxy, curl only honours `HTTPS_PROXY` — report what happens.
+
+10. T206 refinement (with semantic search installed): type a describing sentence, press ↓
+    twice right away; when content/meaning rows arrive the row you are on must not move.
+    Rows found by content or meaning show a passage instead of the folder (hover = folder).
+
+## T206 — outcome (REVIEW, ADR-035)
+
+- `lumen_search::SETTLED_BATCH`; UI `selection.ts::stabilize` (applied in `App` via
+  `useMemo`), `ResultView.snippet` / `ResultRowModel.snippet`, `.result-row__snippet`.
 
 ## T210 — outcome (REVIEW, ADR-034)
 

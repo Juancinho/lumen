@@ -238,3 +238,8 @@ Append-only. Keep entries compact.
 
 - New `lumen-provision` crate: pinned components (EmbeddingGemma 2 q4 ONNX at a fixed Hugging Face commit; ONNX Runtime 1.30.0 win_amd64 wheel), `CurlFetch` (system curl, https only, resumable, cancellable) and `DirFetch` (local folder), staged/verified/atomic install with a minimal zip reader, `state`/`verify`/`remove`. Real downloads verified in the sandbox (207 MB in 15 s; 14 MB wheel extracted and hashed).
 - Shell `provisioning.rs`: resolution env → beside the exe → installed; tray → Semantic search (status, Download… with consent dialog, progress, Cancel, Remove…); indexing and the query lane retry after an install (`QueryEmbedder::retry`). ADR-034; PRIVACY_SECURITY network statement updated.
+
+## 2026-10-08 — T206 progressive refinement (claude)
+
+- Coordinator holds back a settled run's intermediate lists for 150 ms (`SETTLED_BATCH`): one refinement burst with a warm model; slow lanes still let earlier ones show.
+- UI `stabilize`: after the user moves the selection, refinements keep the selected result at its index. `ResultDto.snippet` (content/meaning matches only) replaces the location line; location in the tooltip. 68 UI tests; Linux smoke shows passages under semantic rows.

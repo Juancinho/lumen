@@ -268,10 +268,13 @@ describe("App overlay", () => {
     expect(nthOption(1)).toHaveAttribute("aria-selected", "true");
     expect(input).toHaveAttribute("aria-activedescendant", nthOption(1).id);
 
-    // A later update re-orders: the selection follows "b".
+    // A later update re-orders: "b" stays selected and keeps its row (T206); the other
+    // rows flow around it.
     results = { rows: [r("x"), r("a"), r("c"), r("b")], status: "done", queryId: 1 };
     rerender(<App />);
-    expect(nthOption(3)).toHaveAttribute("aria-selected", "true");
+    expect(nthOption(1)).toHaveAttribute("aria-selected", "true");
+    expect(nthOption(1)).toHaveTextContent("b");
+    expect(nthOption(0)).toHaveTextContent("x");
 
     await userEvent.keyboard("{ArrowUp}{ArrowUp}{ArrowUp}{ArrowUp}{ArrowUp}");
     expect(nthOption(0)).toHaveAttribute("aria-selected", "true");

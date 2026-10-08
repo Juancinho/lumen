@@ -194,6 +194,16 @@ body,
   text-overflow: ellipsis;
 }
 
+/* The passage a content/meaning match came from (T206): one line, ellipsized. */
+.result-row__snippet {
+  overflow: hidden;
+  color: var(--lumen-text-secondary);
+  font-size: var(--type-meta);
+  line-height: var(--type-meta-line);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .result-row__meta {
   display: flex;
   flex: none;
@@ -260,7 +270,7 @@ body,
   }
 
   .result-row[aria-selected="true"]
-    :is(.result-row__title, .result-row__detail, .result-row__meta) {
+    :is(.result-row__title, .result-row__detail, .result-row__snippet, .result-row__meta) {
     color: HighlightText;
   }
 }

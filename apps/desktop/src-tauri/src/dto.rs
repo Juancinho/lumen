@@ -75,6 +75,9 @@ pub(crate) struct ResultDto {
     pub(crate) kind: &'static str,
     pub(crate) title: String,
     pub(crate) detail: Option<String>,
+    /// The passage that matched, when the result was found by its contents or meaning
+    /// rather than its name (T206): shown instead of the location line.
+    pub(crate) snippet: Option<String>,
     pub(crate) extension: Option<String>,
     /// Action that Enter runs (`lumen.open`, `lumen.launch`).
     pub(crate) primary_action: String,
@@ -106,7 +109,7 @@ pub(crate) struct ActionDto {
 
 impl From<&lumen_core::ResultItem> for ResultDto {
     fn from(item: &lumen_core::ResultItem) -> Self {
-        use lumen_core::{IconRef, ResultKind};
+        use lumen_core::{IconRef, MatchKind, ResultKind};
         Self {
             id: item.id.as_str().to_owned(),
             kind: match item.kind {
@@ -117,6 +120,10 @@ impl From<&lumen_core::ResultItem> for ResultDto {
             },
             title: item.title.clone(),
             detail: item.detail.clone().or_else(|| item.subtitle.clone()),
+            snippet: match item.score.match_kind {
+                MatchKind::FullText | MatchKind::Semantic => item.subtitle.clone(),
+                _ => None,
+            },
             extension: match &item.icon {
                 IconRef::FileExtension(ext) => Some(ext.to_string()),
                 _ => None,
@@ -271,10 +278,23 @@ mod tests {
                     "kind": "file",
                     "title": "notas.md",
                     "detail": "C:\\Users\\Joao",
+                    "snippet": null,
                     "extension": "md",
                     "primaryAction": "lumen.open"
                 }]
             })
+        );
+        // Found by its contents: the passage travels as `snippet`, the folder stays.
+        let mut by_content = update.results[0].clone();
+        by_content.subtitle = Some("…the matching passage…".into());
+        by_content.score = Score::new(Confidence::CERTAIN, MatchKind::FullText);
+        let dto = ResultDto::from(&by_content);
+        assert_eq!(dto.snippet.as_deref(), Some("…the matching passage…"));
+        assert_eq!(dto.detail.as_deref(), Some("C:\\Users\\Joao"));
+        by_content.score = Score::new(Confidence::CERTAIN, MatchKind::Prefix);
+        assert!(
+            ResultDto::from(&by_content).snippet.is_none(),
+            "name matches show no snippet"
         );
     }
 

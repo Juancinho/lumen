@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { commandFor } from "../features/root-search/keymap";
 import {
@@ -13,6 +13,7 @@ import { RootSearch } from "../features/root-search/RootSearch";
 import {
   INITIAL_SELECTION,
   moveSelection,
+  stabilize,
   selectedIndex,
   selectIndex,
 } from "../features/root-search/selection";
@@ -89,7 +90,10 @@ export function App() {
   const [selection, setSelection] = useState(INITIAL_SELECTION);
   const inputRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const results = useResults(query);
+  const answer = useResults(query);
+  // A refinement never moves the selected row once the user navigated (T206).
+  const rows = useMemo(() => stabilize(answer.rows, selection), [answer.rows, selection]);
+  const results = useMemo(() => ({ ...answer, rows }), [answer, rows]);
   const actions = useActions();
   const height = rootSearchHeight(query, results, actions.panel?.actions.length ?? 0);
   const selected = selectedIndex(selection, results.rows);

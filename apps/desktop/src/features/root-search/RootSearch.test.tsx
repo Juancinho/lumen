@@ -119,4 +119,21 @@ describe("RootSearch", () => {
     expect(listState("  ", { rows: [], status: "done" })).toEqual({ kind: "none" });
     expect(rootSearchHeight("x", { rows, status: "searching" })).toBe(64 + 1 + 12 + 3 * 52);
   });
+
+  it("shows the matching passage for content/meaning matches, the location on hover", () => {
+    const found: ResultRowModel = {
+      id: "item:9",
+      kind: "file",
+      title: "reunion.md",
+      detail: "C:\\Users\\Joao\\Notas",
+      snippet: "…enviar el contrato firmado antes del viernes…",
+      extension: "md",
+      primaryAction: "lumen.open",
+    };
+    renderSearch("contrato", { rows: [found], status: "done" });
+    const option = screen.getByRole("option");
+    expect(option).toHaveTextContent("enviar el contrato firmado");
+    expect(option).not.toHaveTextContent("Notas");
+    expect(option).toHaveAttribute("title", "C:\\Users\\Joao\\Notas");
+  });
 });

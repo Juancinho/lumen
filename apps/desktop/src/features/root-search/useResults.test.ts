@@ -39,6 +39,7 @@ const row = (id: string) => ({
   kind: "file" as const,
   title: id,
   detail: null,
+  snippet: null,
   extension: null,
   primaryAction: "lumen.open",
   diagnostics: null,

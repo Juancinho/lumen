@@ -38,3 +38,23 @@ export function moveSelection(
 ): Selection {
   return selectIndex(rows, selectedIndex(sel, rows) + delta);
 }
+
+/**
+ * Rows to show for a refined answer (T206, DESIGN_SYSTEM "Semantic refinement"): once the
+ * user has moved the selection, the selected result keeps its position on screen and the
+ * other rows flow around it, so a late content/meaning update never moves the row under
+ * the cursor. Before that, the refined order is shown as it is.
+ */
+export function stabilize(
+  rows: readonly ResultRowModel[],
+  sel: Selection,
+): readonly ResultRowModel[] {
+  if (!sel.moved || sel.id === null || rows.length === 0) return rows;
+  const at = rows.findIndex((r) => r.id === sel.id);
+  const target = Math.min(Math.max(sel.index, 0), rows.length - 1);
+  const row = rows[at];
+  if (at < 0 || at === target || row === undefined) return rows;
+  const out = rows.filter((r) => r.id !== sel.id);
+  out.splice(target, 0, row);
+  return out;
+}
