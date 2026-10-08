@@ -1,10 +1,11 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 use lumen_core::{CancellationToken, QueryId, ResultId, ResultItem};
 
-use crate::coordinator::{Coordinator, Update};
+use crate::coordinator::{Coordinator, Outcome, Update};
 
 /// One root-search request from the UI.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,6 +23,10 @@ struct Slot {
     running: Option<CancellationToken>,
     shutdown: bool,
 }
+
+/// Pause after a typing run before the settled re-run (docs/SEARCH_AND_INDEXING.md §2.1:
+/// 50–90 ms; the typing run itself takes a few ms).
+pub const DEFAULT_SETTLE: Duration = Duration::from_millis(80);
 
 /// Queries whose last results stay available to actions: the user acts on what they saw,
 /// which can be a query or two behind what they are typing.
@@ -43,6 +48,10 @@ struct Shared {
 /// A single search thread where the newest query wins (docs/PERFORMANCE.md §3.4):
 /// submitting cancels the running query and replaces any pending one, so work never
 /// queues up per keystroke. Updates of a query that was superseded are not delivered.
+///
+/// **Settling (T205):** a typing query whose run completed is re-run as settled
+/// (`typing == false`, same id) when nothing newer arrives within the settle delay — that
+/// is when content FTS and semantic providers run (docs/SEARCH_AND_INDEXING.md §2.1).
 pub struct SearchService {
     shared: Arc<Shared>,
     thread: Option<JoinHandle<()>>,
@@ -56,6 +65,18 @@ impl SearchService {
     /// The OS refused to spawn the thread.
     pub fn start(
         coordinator: Coordinator,
+        sink: impl FnMut(Update) + Send + 'static,
+    ) -> std::io::Result<Self> {
+        Self::start_with_settle(coordinator, DEFAULT_SETTLE, sink)
+    }
+
+    /// As [`SearchService::start`] with a settle delay (`Duration::ZERO`: settle at once).
+    ///
+    /// # Errors
+    /// The OS refused to spawn the thread.
+    pub fn start_with_settle(
+        coordinator: Coordinator,
+        settle: Duration,
         mut sink: impl FnMut(Update) + Send + 'static,
     ) -> std::io::Result<Self> {
         let shared = Arc::new(Shared {
@@ -67,19 +88,33 @@ impl SearchService {
         let thread = std::thread::Builder::new()
             .name("lumen-search".into())
             .spawn(move || {
-                while let Some((request, token)) = next(&worker) {
-                    let _ = coordinator.run(
-                        request.id,
-                        &request.text,
-                        request.typing,
-                        &token,
-                        &mut |u| {
-                            if !token.is_cancelled() {
-                                remember(&worker, &request.text, &u);
-                                sink(u);
+                let settles = coordinator.has_settled_providers();
+                while let Some((mut request, mut token)) = next(&worker) {
+                    loop {
+                        let outcome = coordinator.run(
+                            request.id,
+                            &request.text,
+                            request.typing,
+                            &token,
+                            &mut |u| {
+                                if !token.is_cancelled() {
+                                    remember(&worker, &request.text, &u);
+                                    sink(u);
+                                }
+                            },
+                        );
+                        let completed = matches!(outcome, Outcome::Completed { .. });
+                        if !(settles && request.typing && completed) {
+                            break;
+                        }
+                        match wait_settled(&worker, settle) {
+                            Some(t) => {
+                                token = t;
+                                request.typing = false;
                             }
-                        },
-                    );
+                            None => break,
+                        }
+                    }
                     finish(&worker);
                 }
             })?;
@@ -190,6 +225,29 @@ fn next(shared: &Shared) -> Option<(Request, CancellationToken)> {
     }
 }
 
+/// After a completed typing run: waits up to `settle` for a newer request. `None` if one
+/// arrived (or shutdown); otherwise a fresh token for the settled re-run.
+fn wait_settled(shared: &Shared, settle: Duration) -> Option<CancellationToken> {
+    let deadline = Instant::now() + settle;
+    let mut slot = lock(shared);
+    loop {
+        if slot.shutdown || slot.pending.is_some() {
+            return None;
+        }
+        let now = Instant::now();
+        if now >= deadline {
+            let token = CancellationToken::new();
+            slot.running = Some(token.clone());
+            return Some(token);
+        }
+        slot = shared
+            .wake
+            .wait_timeout(slot, deadline - now)
+            .unwrap_or_else(PoisonError::into_inner)
+            .0;
+    }
+}
+
 /// Only the worker sets `running`, so clearing it after a run is always ours.
 fn finish(shared: &Shared) {
     lock(shared).running = None;
@@ -275,11 +333,45 @@ mod tests {
     }
 
     #[test]
+    fn a_quiet_query_is_re_run_as_settled() {
+        let semantic = Arc::new(Fake::new(
+            "test.semantic",
+            LatencyClass::Semantic,
+            &[("item:9", 0.8)],
+        ));
+        let mut c = Coordinator::new(10);
+        c.register(Arc::new(Fake::new(
+            "test.name",
+            LatencyClass::Instant,
+            &[("item:1", 0.9)],
+        )));
+        c.register(semantic.clone());
+        let (tx, rx) = mpsc::channel();
+        let s = SearchService::start_with_settle(c, Duration::from_millis(30), move |u| {
+            let _ = tx.send(u);
+        })
+        .unwrap();
+        // Typed quickly: the first query never settles.
+        assert!(s.submit(request(1, "re")));
+        assert!(s.submit(request(2, "rec")));
+        let mut last = None;
+        while let Ok(u) = rx.recv_timeout(Duration::from_millis(400)) {
+            assert_eq!(u.query.get(), 2);
+            last = Some(u);
+        }
+        let last = last.unwrap();
+        assert!(last.done);
+        let order: Vec<_> = last.results.iter().map(|r| r.id.as_str()).collect();
+        assert_eq!(order, ["item:1", "item:9"]);
+        assert_eq!(*semantic.calls.lock().unwrap(), ["rec"]);
+    }
+
+    #[test]
     fn drop_stops_a_running_query() {
         let (s, _rx, _) = service(Duration::from_secs(30));
         assert!(s.submit(request(1, "a")));
         std::thread::sleep(Duration::from_millis(20));
-        let t = std::time::Instant::now();
+        let t = Instant::now();
         drop(s);
         assert!(t.elapsed() < Duration::from_secs(5));
     }

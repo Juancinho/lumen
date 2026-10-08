@@ -6,7 +6,8 @@
   -D warnings`, `cargo xtask test` (workspace, then the shell separately), `cargo xtask arch`,
   `npm run check` (Prettier, ESLint strict + jsx-a11y, `tsc`, Vitest).
 - Relevance: `crates/lumen-catalog/tests/relevance.rs` over `fixtures/search/` (MRR ≥ 0.95
-  gate). Embedding fidelity: `lumen-embedding-ort/tests/fidelity.rs` vs a committed fp32
+  gate); hybrid search `lumen-bench eval` over `fixtures/eval/` (48 documents, 56 judged
+  queries; mock run in `cargo xtask bench`, model runs as evidence — ADR-032). Embedding fidelity: `lumen-embedding-ort/tests/fidelity.rs` vs a committed fp32
   reference. Contrast: `src/design/material.test.ts`.
 - Windows evidence scripts: `scripts/t0xx|t1xx/run-windows-*.ps1` (release builds; JSON into
   `docs/benchmarks/`). Linux Xvfb smoke runs of the real app are used for UI flows.
@@ -54,6 +55,13 @@ Maintain a small committed synthetic corpus and query judgments for:
 - temporal filters.
 
 Track MRR/nDCG/Recall@k where meaningful.
+
+Built: `fixtures/search/catalog-relevance.json` (names, T102) and `fixtures/eval/` (T205:
+`corpus/` + `queries.json` with categories exact / lexical / paraphrase / multilingual /
+code / ambiguous). `lumen-bench eval [--sweep] [--explain]` reports Recall@1/5/10, MRR@10,
+NDCG@10 and top-1 per lane, fused and per category; recall@k is normalised by
+min(|relevant|, k). The set is saturated for the current model (ADR-032): T211 adds a
+harder one.
 
 ## 3. Provider contract tests
 

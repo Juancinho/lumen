@@ -1,0 +1,8 @@
+Skyline Air - booking confirmation (sample itinerary)
+
+Booking reference: QX7P2L
+Passenger: 1 adult
+Outbound: Madrid (MAD) 07:40 -> Lisbon (LIS) 08:05, flight SK 2210, 14 July
+Return: Lisbon (LIS) 19:30 -> Madrid (MAD) 21:50, flight SK 2215, 21 July
+Baggage: one cabin bag; checked baggage not included.
+Online check-in opens 48 hours before departure.

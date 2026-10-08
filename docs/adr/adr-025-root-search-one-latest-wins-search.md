@@ -1,7 +1,7 @@
 # ADR-025 — Root search: one latest-wins search thread, merged updates as events
 
 
-**Status:** Accepted (T107). Code: `crates/lumen-search` (`Coordinator`, `SearchService`),
+**Status:** Accepted (T107); merge policy amended by ADR-032 (weighted RRF, settled re-run). Code: `crates/lumen-search` (`Coordinator`, `SearchService`),
 shell `search.rs`, `catalog.rs`, UI `features/root-search/useResults.ts`.
 
 **Decision**

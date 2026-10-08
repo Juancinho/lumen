@@ -1,0 +1,6 @@
+Schedule B - Service levels
+
+The provider shall make the service available 99.9% of each calendar month, excluding
+announced maintenance windows. Priority 1 incidents receive a response within 30 minutes
+and a workaround within 4 hours. Service credits of 5% of the monthly fee apply for each
+0.1% of availability below the target, capped at 25%.

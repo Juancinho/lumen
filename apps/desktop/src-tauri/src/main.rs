@@ -55,8 +55,9 @@ fn main() {
         .setup(move |app| {
             app.manage(settings::open(app));
             material::install(app);
-            search::install(app);
+            // Indexing first: search shares its control (preemption) and ANN index.
             indexing::install(app);
+            search::install(app);
             catalog::start(app);
             shortcut::install(app)?;
             tray::install(app)?;

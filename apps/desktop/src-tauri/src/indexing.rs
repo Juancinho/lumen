@@ -35,7 +35,7 @@ use lumen_embedding::policy::{
 use lumen_embedding::{Embedder, EmbeddingProfile, Modality};
 use lumen_extract::{EXTRACTOR_VERSION, EstimateTokens};
 use lumen_semantic::{
-    IndexSettings, Maintenance, SemanticIndex, build_file, cleanup_files, validate,
+    IndexSettings, Maintenance, SemanticIndex, SharedIndex, build_file, cleanup_files, validate,
 };
 use lumen_storage::{GenerationSpec, GenerationState, Store};
 use tauri::{App, AppHandle, Manager, Runtime};
@@ -112,7 +112,7 @@ pub(crate) struct Indexing {
     failed: Mutex<bool>,
     /// The searchable index of the generation being filled (T203); the settled-query
     /// lane (T205) reads it.
-    ann: RwLock<Option<SemanticIndex>>,
+    ann: SharedIndex,
 }
 
 impl Indexing {
@@ -133,9 +133,28 @@ impl Indexing {
     pub(crate) fn paused(&self) -> bool {
         self.control.is_paused()
     }
+
+    /// The indexing control: the query lane holds it while the user searches (ADR-030).
+    pub(crate) fn control(&self) -> &Control {
+        &self.control
+    }
+
+    /// The ANN index the semantic provider searches (ADR-031).
+    pub(crate) fn shared_index(&self) -> SharedIndex {
+        Arc::clone(&self.ann)
+    }
+
+    /// Whether semantic search has an active generation to search.
+    pub(crate) fn semantic_searchable(&self) -> bool {
+        self.ann
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_ref()
+            .is_some_and(|ix| ix.generation().state == GenerationState::Active)
+    }
 }
 
-fn model_configured() -> bool {
+pub(crate) fn model_configured() -> bool {
     std::env::var_os(ENV_MODEL_DIR).is_some() && std::env::var_os(ENV_ORT_DYLIB).is_some()
 }
 
@@ -163,7 +182,7 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) {
         }),
         loaded: Mutex::new(None),
         failed: Mutex::new(false),
-        ann: RwLock::new(None),
+        ann: Arc::new(RwLock::new(None)),
     });
 }
 
@@ -172,6 +191,9 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) {
 pub(crate) fn on_overlay_shown<R: Runtime>(app: &AppHandle<R>) {
     if let Some(state) = app.try_state::<Indexing>() {
         state.control.mark_interactive();
+        if state.semantic_searchable() {
+            crate::search::warm_semantic(app);
+        }
     }
 }
 
@@ -299,7 +321,7 @@ fn env_threads() -> Option<usize> {
         .filter(|&n| n > 0)
 }
 
-fn build_embedder(threads: usize) -> Result<Embedder, String> {
+pub(crate) fn build_embedder(threads: usize) -> Result<Embedder, String> {
     use lumen_embedding_ort::{Device, ModelVariant, OrtBackend, OrtConfig, init_runtime};
     let dir = std::env::var_os(ENV_MODEL_DIR).ok_or("model directory not set")?;
     let dylib = std::env::var_os(ENV_ORT_DYLIB).ok_or("runtime library not set")?;
@@ -500,6 +522,8 @@ fn maintain_ann(
     );
 }
 
+/// Locks are held only for in-memory steps (refresh, swap); opening, building and
+/// validating happen outside them, so a rebuild never stalls the search thread.
 fn try_maintain_ann(
     state: &Indexing,
     store: &mut Store,
@@ -508,50 +532,84 @@ fn try_maintain_ann(
     token: &CancellationToken,
 ) -> Result<(), String> {
     let e = |e: &dyn std::fmt::Display| e.to_string();
-    let info = store
-        .generations()
-        .map_err(|x| e(&x))?
-        .into_iter()
-        .find(|g| g.id == generation)
-        .ok_or("generation vanished")?;
-    let mut ann = state.ann.write().unwrap_or_else(PoisonError::into_inner);
-    match ann.as_mut() {
-        Some(index) if index.generation().id == generation => {
-            index.refresh(store).map_err(|x| e(&x))?;
-        }
-        _ => {
-            *ann = Some(
-                SemanticIndex::open(store, dir, info.clone(), IndexSettings::default())
-                    .map_err(|x| e(&x))?,
-            );
-        }
-    }
-    let Some(index) = ann.as_mut() else {
-        return Ok(());
+    let info = |store: &Store| -> Result<_, String> {
+        store
+            .generations()
+            .map_err(|x| e(&x))?
+            .into_iter()
+            .find(|g| g.id == generation)
+            .ok_or_else(|| "generation vanished".to_owned())
     };
-    if index.maintenance(store).map_err(|x| e(&x))? == Maintenance::Rebuild {
+    let current = info(store)?;
+    let open = |store: &Store, g| {
+        SemanticIndex::open(store, dir, g, IndexSettings::default()).map_err(|x| e(&x))
+    };
+    let swap = |index: SemanticIndex| {
+        *state.ann.write().unwrap_or_else(PoisonError::into_inner) = Some(index);
+    };
+
+    // 1. The index for this generation, up to date.
+    let refreshed = {
+        let mut ann = state.ann.write().unwrap_or_else(PoisonError::into_inner);
+        match ann.as_mut() {
+            Some(index)
+                if index.generation().id == generation
+                    && index.generation().state == current.state =>
+            {
+                index.refresh(store).map_err(|x| e(&x))?;
+                true
+            }
+            _ => false,
+        }
+    };
+    if !refreshed {
+        swap(open(store, current.clone())?);
+    }
+
+    // 2. Rebuild the file when due.
+    let due = state
+        .ann
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+        .map(|ix| ix.maintenance(store))
+        .transpose()
+        .map_err(|x| e(&x))?
+        == Some(Maintenance::Rebuild);
+    if due {
         let started = Instant::now();
         let record = build_file(store, dir, generation, token, now_ms()).map_err(|x| e(&x))?;
         store.set_ann_file(&record).map_err(|x| e(&x))?;
-        index.reopen_file(store).map_err(|x| e(&x))?;
+        swap(open(store, current.clone())?);
         crate::diag::record("ann_build_ms", started.elapsed().as_secs_f64() * 1000.0);
         crate::diag::record("ann_vectors", count(record.vectors));
     }
-    // A later generation takes over only when complete and validated.
-    if info.state == GenerationState::Building {
-        let v = validate(store, index, VALIDATION_SAMPLE).map_err(|x| e(&x))?;
-        if v.ok {
-            store
-                .activate_generation(generation, now_ms())
-                .map_err(|x| e(&x))?;
-        } else if v.complete {
-            eprintln!(
-                "lumen: generation {generation} not activated: self-recall {:.2}, {} of {} failed",
-                v.self_recall, v.failed, v.chunks
-            );
+
+    // 3. A later generation takes over only when complete and validated.
+    if current.state == GenerationState::Building {
+        let verdict = {
+            let ann = state.ann.read().unwrap_or_else(PoisonError::into_inner);
+            match ann.as_ref() {
+                Some(ix) => Some(validate(store, ix, VALIDATION_SAMPLE).map_err(|x| e(&x))?),
+                None => None,
+            }
+        };
+        if let Some(v) = verdict {
+            if v.ok {
+                store
+                    .activate_generation(generation, now_ms())
+                    .map_err(|x| e(&x))?;
+                swap(open(store, info(store)?)?);
+            } else if v.complete {
+                eprintln!(
+                    "lumen: generation {generation} not activated: self-recall {:.2}, {} of {} failed",
+                    v.self_recall, v.failed, v.chunks
+                );
+            }
         }
     }
-    drop(ann);
+
+    // 4. Retired generations and unrecorded files go.
     while !token.is_cancelled() {
         if store
             .delete_retired_vectors(RETIRE_BATCH)

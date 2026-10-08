@@ -102,6 +102,8 @@ struct State {
     shutdown: bool,
     failed: Option<String>,
     stats: QueryStats,
+    /// `EmbeddingSpace::key()` of the loaded model (known after the first load).
+    space: Option<String>,
 }
 
 struct Shared {
@@ -231,6 +233,13 @@ impl QueryEmbedder {
         self.shared.lock().cache.clear();
     }
 
+    /// The vector space queries are embedded in, once the model has loaded: search only
+    /// a generation of the same space (ADR-014).
+    #[must_use]
+    pub fn space_key(&self) -> Option<String> {
+        self.shared.lock().space.clone()
+    }
+
     #[must_use]
     pub fn stats(&self) -> QueryStats {
         self.shared.lock().stats
@@ -327,6 +336,9 @@ fn run(shared: &Shared, mut make: MakeEmbedder, indexing: Option<Control>) {
             continue;
         }
         s.stats.warm = true;
+        if s.space.is_none() {
+            s.space = embedder.as_ref().map(|e| e.space().key());
+        }
         if warm_only {
             continue;
         }

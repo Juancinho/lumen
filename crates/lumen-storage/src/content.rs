@@ -104,6 +104,14 @@ impl QueueCounts {
     }
 }
 
+/// A chunk's owner and the start of its text (semantic results, T205).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChunkRef {
+    pub chunk_id: i64,
+    pub item_id: i64,
+    pub excerpt: String,
+}
+
 /// Content state over all file items (progress UI, diagnostics).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ContentCounts {
@@ -378,6 +386,32 @@ impl Store {
             .execute(params![generation, seq])?;
         tx.commit()?;
         Ok(written)
+    }
+
+    /// Owner item and the first `excerpt_chars` characters of each chunk that still exists,
+    /// in the order given.
+    ///
+    /// # Errors
+    /// SQLite failure.
+    pub fn chunk_refs(&self, chunk_ids: &[i64], excerpt_chars: usize) -> Result<Vec<ChunkRef>> {
+        let mut stmt = self
+            .conn
+            .prepare_cached("SELECT item_id, substr(text, 1, ?2) FROM chunks WHERE id = ?1")?;
+        let n = i64::try_from(excerpt_chars).unwrap_or(i64::MAX);
+        let mut out = Vec::with_capacity(chunk_ids.len());
+        for &chunk_id in chunk_ids {
+            if let Some((item_id, excerpt)) = stmt
+                .query_row(params![chunk_id, n], |r| Ok((r.get(0)?, r.get(1)?)))
+                .optional()?
+            {
+                out.push(ChunkRef {
+                    chunk_id,
+                    item_id,
+                    excerpt,
+                });
+            }
+        }
+        Ok(out)
     }
 
     /// Chunk totals and results for `generation`.

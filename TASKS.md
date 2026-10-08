@@ -27,7 +27,10 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
    `scripts\t204\run-windows-query-lane.ps1` (needs the T006 cache).
 7. ~~T203~~ persistent ANN generations — REVIEW (ADR-031): optional Windows timing run
    `scripts\t203\run-windows-ann-gen.ps1 -Large`.
-8. **T205** hybrid fusion + evaluation harness (content FTS on the settled query, T016).
+8. ~~T205~~ hybrid fusion + evaluation harness — REVIEW (ADR-032): Windows run
+   `scripts\t205\run-windows-eval.ps1`, and try the app (checklist in HANDOFF).
+9. **T211** harder evaluation set, then **T206** progressive semantic UI refinement,
+   **T210** model provisioning (semantic search for real users).
 
 # M0 — technical spikes and foundation
 
@@ -74,12 +77,13 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 | T202 | REVIEW | claude | Background embedding queue with bounded backpressure/cancel/pause       | T201                |
 | T203 | REVIEW | claude | Persistent ANN + generation/version management                          | T008,T202           |
 | T204 | REVIEW | claude | Warm query embedding service + cancellation                             | T006                |
-| T205 | TODO   | —     | Hybrid provider/lexical/vector fusion + evaluation harness              | T203,T204,T102,T011 |
+| T205 | REVIEW | claude | Hybrid provider/lexical/vector fusion + evaluation harness              | T203,T204,T102,T011 |
 | T206 | TODO   | —     | Progressive semantic UI refinement without focus jumps                  | T107,T205           |
 | T207 | TODO   | —     | Incremental watcher/reindex/delete/rename                               | T009,T202           |
 | T208 | TODO   | —     | Query syntax: type/ext/in/before/after/quoted exact                     | T205                |
 | T209 | TODO   | —     | Code result model: symbol/file/repository context + code actions        | T201,T108           |
 | T210 | TODO   | —     | Model + runtime provisioning: explicit download (consent, size), SHA-256 check, versioned app-data location, ORT DLL next to the exe, license notices, removal | T006,T202           |
+| T211 | TODO   | —     | Harder relevance set for fusion tuning: hundreds of synthetic documents, near-duplicates, folder noise, long documents, graded judgments; re-tune ADR-032 weights | T205                |
 
 # M3 — PDF/image intelligence and semantic objects
 

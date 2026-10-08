@@ -146,6 +146,7 @@ Benchmarks (release builds only; debug runs are flagged in the report):
 | File inventory coverage/speed (counts only) | `cargo run --release -p lumen-bench -- scan --root DIR --identity --json target/bench/scan.json` |
 | Stable identity semantics on a volume | `cargo run --release -p lumen-bench -- identity-check --dir DIR` |
 | Catalog sync + keystroke name lookup | `cargo run --release -p lumen-bench -- catalog --root DIR [--apps] [--show QUERY]` |
+| Search relevance of the three lanes + fusion | `cargo run --release -p lumen-bench [--features ort] -- eval [--backend ort --model-dir DIR --ort-dylib DLL] --sweep` |
 | Persistent ANN generation (build/open/delta/stale/rebuild) | `cargo run --release -p lumen-bench -- ann-gen --vectors 100000 --json target/bench/ann-gen.json` |
 | Options | `cargo run --release -p lumen-bench -- --help` (`--backend`, `--dim`, `--iterations`, `--batch-sizes`, `--label`, …) |
 

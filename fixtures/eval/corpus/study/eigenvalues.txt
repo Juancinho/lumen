@@ -1,0 +1,6 @@
+Linear algebra - eigenvalues and eigenvectors
+
+A non-zero vector v is an eigenvector of a square matrix A if A v = lambda v.
+The eigenvalues are the roots of the characteristic polynomial det(A - lambda I) = 0.
+A symmetric matrix has real eigenvalues and orthogonal eigenvectors (spectral theorem),
+which is why principal component analysis diagonalizes the covariance matrix.

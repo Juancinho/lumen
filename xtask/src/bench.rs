@@ -68,6 +68,9 @@ fn suite(quick: bool, repo: &Path, work: &Path) -> Vec<Bench> {
     ]);
     ann_gen.extend(["--work-dir".into(), path(&work.join("ann-gen"))]);
 
+    let mut eval = s(&["eval", "--fixture"]);
+    eval.push(path(&repo.join("fixtures").join("eval")));
+
     let mut identity = s(&["identity-check", "--dir"]);
     identity.push(path(work));
 
@@ -87,6 +90,10 @@ fn suite(quick: bool, repo: &Path, work: &Path) -> Vec<Bench> {
         Bench {
             name: "ann-gen",
             args: ann_gen,
+        },
+        Bench {
+            name: "eval-mock",
+            args: eval,
         },
         Bench {
             name: "storage",
@@ -214,12 +221,13 @@ mod tests {
                 "embed-mock",
                 "ann",
                 "ann-gen",
+                "eval-mock",
                 "storage",
                 "scan-repo",
                 "identity-check"
             ]
         );
-        let scan = &suite[4].args;
+        let scan = &suite[5].args;
         assert!(
             scan.windows(2)
                 .any(|w| w[0] == "--exclude-name" && w[1] == "target")

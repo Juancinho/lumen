@@ -6,17 +6,20 @@
 //!   HNSW file + exact in-memory delta, every hit checked against SQLite — with
 //!   [`build_file`], [`validate`] and [`cleanup_files`] for the indexing thread.
 //!
-//! Fusion with the lexical lanes (T205) builds on both.
+//! - [`SemanticProvider`] (T205): both behind the root-search provider contract, fused
+//!   with the name and content lanes by `lumen-search`.
 
 #![forbid(unsafe_code)]
 
 mod index;
+mod provider;
 mod query;
 
 pub use index::{
     FileState, IndexError, IndexSettings, IndexStatus, Maintenance, SemanticHit, SemanticIndex,
     Validation, ann_config, build_file, cleanup_files, file_name, validate,
 };
+pub use provider::{SEMANTIC_PROVIDER_ID, SemanticConfig, SemanticProvider, SharedIndex};
 pub use query::{MakeEmbedder, QueryConfig, QueryEmbedder, QueryError, QueryStats};
 
 #[cfg(test)]

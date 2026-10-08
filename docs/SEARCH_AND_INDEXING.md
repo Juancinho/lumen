@@ -15,7 +15,9 @@
   (ADR-029); warm latest-wins query embedder that preempts indexing (ADR-030) and
   persistent ANN generations (file + delta, hits validated, validated switch; ADR-031) in
   `lumen-semantic`, maintained by the app's indexing thread; not yet called by search (T205).
-- **Coordination (built):** latency-class lanes and latest-wins search thread (ADR-025).
+- **Coordination (built):** latency-class lanes and latest-wins search thread (ADR-025);
+  settled re-run after 80 ms and weighted-RRF fusion of names / contents / meaning
+  (ADR-032; `lumen-bench eval`: fused top-1 0.98 vs 0.96 meaning alone on `fixtures/eval`).
 
 ## 1. Retrieval philosophy
 
@@ -108,7 +110,9 @@ Never change index scalar type without generation/version migration.
 
 ## 5. Hybrid fusion
 
-Initial algorithm: weighted RRF.
+Initial algorithm: weighted RRF. Built (ADR-032): `lumen_search::fuse` — `Σ w / (60 + rank)`
+per entity over each lane's own order, exact/intent matches first, one row per entity;
+weights 1/1/1 until T211's harder set can discriminate them.
 
 Conceptual form:
 

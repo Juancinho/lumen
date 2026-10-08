@@ -137,6 +137,12 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
   generation as f16 in `chunk_vectors`), run by the catalog thread under the device policy
   (power/memory/idle); tray progress + pause, per-location content toggle. Model via env
   until T210.
+- **T205 REVIEW (ADR-032):** hybrid root search — names every keystroke; file contents
+  (FTS, function words dropped, two-of-n fallback) and meaning (query lane + ANN) on the
+  settled query (80 ms re-run); weighted-RRF fusion with exact matches first and one row
+  per file with a passage snippet. `lumen-bench eval` over `fixtures/eval` (48 documents,
+  56 queries): fused top-1 0.982, meaning alone 0.964, names + contents 0.571; weights
+  1/1/1 provisional (set saturated, T211). Linux smoke: semantic rows in the real app.
 - **T203 REVIEW (ADR-031):** persistent ANN generations in `lumen-semantic` —
   memory-mapped HNSW file built from a seq snapshot of `chunk_vectors` + exact in-memory
   delta, every hit validated against SQLite (deleted / re-embedded / reused chunk ids never

@@ -315,3 +315,147 @@ fn validation_and_cleanup() {
         Err(IndexError::Cancelled)
     ));
 }
+
+mod provider {
+    use std::sync::{Arc, RwLock};
+    use std::time::Duration;
+
+    use lumen_core::{MatchKind, Provider, ProviderQuery, QueryId};
+    use lumen_embedding::{Embedder, EmbeddingProfile, MockBackend, MockLatency};
+
+    use super::*;
+    use crate::{QueryConfig, QueryEmbedder, SemanticConfig, SemanticProvider};
+
+    fn query(text: &str, typing: bool) -> ProviderQuery<'_> {
+        ProviderQuery {
+            id: QueryId::new(1).unwrap(),
+            text,
+            typing,
+            limit: 5,
+        }
+    }
+
+    #[test]
+    fn settled_queries_find_files_through_the_active_generation() {
+        let dir =
+            std::env::temp_dir().join(format!("lumen-semantic-provider-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("lumen.db");
+        let mut store = Store::open_writer(&db).unwrap();
+        let make = || {
+            Embedder::new(
+                Arc::new(MockBackend::with_latency(MockLatency {
+                    per_call: Duration::ZERO,
+                    ..MockLatency::default()
+                })),
+                EmbeddingProfile::DEFAULT,
+            )
+            .map_err(|e| e.to_string())
+        };
+        let embedder =
+            Arc::new(QueryEmbedder::start(Box::new(make), None, QueryConfig::default()).unwrap());
+        let never = CancellationToken::new();
+        let space = make().unwrap().space().key();
+        let generation = store
+            .ensure_generation(
+                GenerationSpec {
+                    space_key: &space,
+                    chunker_version: 1,
+                    dim: 256,
+                },
+                0,
+            )
+            .unwrap();
+        let texts = ["budget spreadsheet", "beach photos", "kubernetes ingress"];
+        for (i, text) in texts.iter().enumerate() {
+            let item = store
+                .insert_item(&NewItem::file(&format!("/d/{i}.md"), &format!("{i}.md")))
+                .unwrap();
+            let ids = store
+                .insert_chunks(&[NewChunk {
+                    item_id: item,
+                    ordinal: 0,
+                    chunk_kind: "text",
+                    text,
+                    symbol_name: None,
+                    page_number: None,
+                    start_offset: None,
+                    end_offset: None,
+                }])
+                .unwrap();
+            // The stored vector is the query vector of the same text: an exact neighbour.
+            let v = embedder.embed(text, &never).unwrap();
+            store
+                .write_vectors(
+                    generation,
+                    &[VectorWrite {
+                        chunk_id: ids[0],
+                        result: Ok(&v),
+                    }],
+                    0,
+                )
+                .unwrap();
+        }
+        let shared: crate::SharedIndex = Arc::new(RwLock::new(None));
+        let p = SemanticProvider::new(
+            Arc::clone(&embedder),
+            Arc::clone(&shared),
+            Store::open_reader(&db).unwrap(),
+            SemanticConfig::default(),
+        );
+        // No index yet; then a building (not active) generation: nothing, no error.
+        assert!(
+            p.search(&query("beach photos", false), &never)
+                .unwrap()
+                .is_empty()
+        );
+        let info = |store: &Store| {
+            store
+                .generations()
+                .unwrap()
+                .into_iter()
+                .find(|g| g.id == generation)
+                .unwrap()
+        };
+        *shared.write().unwrap() = Some(
+            SemanticIndex::open(
+                &store,
+                &dir.join("v"),
+                info(&store),
+                IndexSettings::default(),
+            )
+            .unwrap(),
+        );
+        assert!(
+            p.search(&query("beach photos", false), &never)
+                .unwrap()
+                .is_empty()
+        );
+
+        store.promote_first(generation, 1).unwrap();
+        *shared.write().unwrap() = Some(
+            SemanticIndex::open(
+                &store,
+                &dir.join("v"),
+                info(&store),
+                IndexSettings::default(),
+            )
+            .unwrap(),
+        );
+        assert!(
+            p.search(&query("beach photos", true), &never)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(p.search(&query("be", false), &never).unwrap().is_empty());
+        let r = p.search(&query("beach photos", false), &never).unwrap();
+        assert_eq!(r[0].title, "1.md");
+        assert_eq!(r[0].score.match_kind, MatchKind::Semantic);
+        assert!(r[0].score.confidence.get() > 0.99);
+        assert_eq!(r[0].subtitle.as_deref(), Some("beach photos"));
+        assert_eq!(r[0].provider, crate::SEMANTIC_PROVIDER_ID);
+        drop(p);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

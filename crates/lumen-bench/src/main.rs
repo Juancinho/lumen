@@ -14,6 +14,7 @@ mod corpus;
 mod cpu;
 mod device;
 mod embed;
+mod eval;
 mod fidelity;
 mod generation;
 mod llama;
@@ -42,6 +43,7 @@ Commands:
   pipeline  Catalog -> content pass -> embedding queue over real folders (T202; counts only)
   query-lane  Warm query embedding alone / next to indexing / with preemption (T204)
   ann-gen   Persistent ANN generation on SQLite: build, mmap open, delta, stale rows (T203)
+  eval      Search relevance of name / content / semantic lanes and their fusion (T205)
   probe     Measure one embedding device for the device policy (T013), JSON probe
   device-policy   Device decisions from probe files across power/profile scenarios (T013)
 
@@ -111,6 +113,14 @@ storage options:
   --words N              words per chunk (default: 120)
   --batch N              chunks per transaction (default: 1000)
   --work-dir DIR         database location (default: temp dir; deleted afterwards)
+  --label TEXT / --json PATH
+
+eval options (plus the embed backend options, e.g. --backend ort --model-dir DIR):
+  --fixture DIR          folder with corpus/ and queries.json (default: fixtures/eval)
+  --weights N,C,S        fusion weights name, content, semantic (default: 1,1,1)
+  --sweep                also try a grid of content/semantic weights
+  --explain              print the lanes' top results for fused misses (stderr)
+  --work-dir DIR         keep the temporary database there
   --label TEXT / --json PATH
 
 ann-gen options:
@@ -185,6 +195,12 @@ fn main() -> ExitCode {
         },
         Some("query-lane") => match parse_query_lane(&args[1..]).and_then(|(opts, json)| {
             query_lane::run(&opts).map(|r| (query_lane::summarize(&r), to_json(&r), json))
+        }) {
+            Ok((summary, json, path)) => emit(&summary, json, path),
+            Err(err) => usage_error(&err),
+        },
+        Some("eval") => match parse_eval(&args[1..]).and_then(|(opts, json)| {
+            eval::run(&opts).map(|r| (eval::summarize(&r), to_json(&r), json))
         }) {
             Ok((summary, json, path)) => emit(&summary, json, path),
             Err(err) => usage_error(&err),
@@ -637,6 +653,55 @@ fn parse_pipeline(args: &[String]) -> Result<(pipeline::PipelineOptions, Option<
                     .parse()
                     .map_err(|_| format!("{flag}: not a positive integer"))?;
             }
+            "--label" => opts.label = Some(value),
+            "--json" => json = Some(value),
+            _ => rest.extend([flag.clone(), value]),
+        }
+    }
+    opts.embed = parse_embed(&rest)?.0;
+    Ok((opts, json))
+}
+
+fn parse_eval(args: &[String]) -> Result<(eval::EvalOptions, Option<String>), String> {
+    let mut opts = eval::EvalOptions::default();
+    let mut json = None;
+    let mut rest = Vec::new();
+    let mut it = args.iter();
+    while let Some(flag) = it.next() {
+        if flag == "--sweep" {
+            opts.sweep = true;
+            continue;
+        }
+        if flag == "--explain" {
+            opts.explain = true;
+            continue;
+        }
+        if matches!(flag.as_str(), "--placement" | "--no-cpu-fallback") {
+            rest.push(flag.clone());
+            continue;
+        }
+        let value = it
+            .next()
+            .cloned()
+            .ok_or_else(|| format!("{flag} needs a value"))?;
+        match flag.as_str() {
+            "--fixture" => opts.fixture = value.into(),
+            "--weights" => {
+                let w: Vec<f32> = value
+                    .split(',')
+                    .map(|v| {
+                        v.trim()
+                            .parse::<f32>()
+                            .ok()
+                            .filter(|x| x.is_finite() && *x >= 0.0)
+                    })
+                    .collect::<Option<_>>()
+                    .ok_or("--weights: three non-negative numbers N,C,S")?;
+                opts.weights = w
+                    .try_into()
+                    .map_err(|_| "--weights: three non-negative numbers N,C,S")?;
+            }
+            "--work-dir" => opts.work_dir = Some(value.into()),
             "--label" => opts.label = Some(value),
             "--json" => json = Some(value),
             _ => rest.extend([flag.clone(), value]),

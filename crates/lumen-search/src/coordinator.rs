@@ -1,9 +1,11 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use std::collections::HashMap;
+
 use lumen_core::{
-    CancellationToken, LatencyClass, Provider, ProviderError, ProviderId, ProviderQuery, QueryId,
-    ResultItem,
+    CancellationToken, Confidence, LatencyClass, MatchKind, Provider, ProviderError, ProviderId,
+    ProviderQuery, QueryId, ResultId, ResultItem,
 };
 
 /// Merged results for one query so far.
@@ -27,9 +29,15 @@ pub enum Outcome {
     Cancelled,
 }
 
-/// The provider registry and merge policy for the root search.
+/// Reciprocal-rank-fusion constant (`w / (K + rank)`, rank from 1): the usual 60 keeps the
+/// head of every list close together, so agreement between lanes decides the order.
+pub const RRF_K: f32 = 60.0;
+
+/// The provider registry and fusion policy for the root search.
 pub struct Coordinator {
     providers: Vec<Arc<dyn Provider>>,
+    /// Fusion weight per provider (same index).
+    weights: Vec<f32>,
     limit: usize,
 }
 
@@ -39,13 +47,37 @@ impl Coordinator {
     pub fn new(limit: usize) -> Self {
         Self {
             providers: Vec::new(),
+            weights: Vec::new(),
             limit: limit.max(1),
         }
     }
 
-    /// Registration order breaks confidence ties (earlier wins).
+    /// Registers with fusion weight 1. Registration order breaks fusion ties (earlier wins).
     pub fn register(&mut self, provider: Arc<dyn Provider>) {
+        self.register_weighted(provider, 1.0);
+    }
+
+    /// Registers with a fusion weight (docs/SEARCH_AND_INDEXING.md §5; tuned with the
+    /// evaluation harness, ADR-032).
+    pub fn register_weighted(&mut self, provider: Arc<dyn Provider>, weight: f32) {
         self.providers.push(provider);
+        self.weights.push(if weight.is_finite() {
+            weight.max(0.0)
+        } else {
+            0.0
+        });
+    }
+
+    /// Whether any provider waits for a settled query (the service re-runs settled
+    /// queries only then).
+    #[must_use]
+    pub fn has_settled_providers(&self) -> bool {
+        self.providers.iter().any(|p| {
+            matches!(
+                p.latency_class(),
+                LatencyClass::Semantic | LatencyClass::Deferred
+            )
+        })
     }
 
     #[must_use]
@@ -102,7 +134,7 @@ impl Coordinator {
                 return Outcome::Cancelled;
             }
             let last = pos + 1 == order.len();
-            let merged = merge(&lists, self.limit);
+            let merged = fuse(&lists, &self.weights, self.limit);
             let changed = emitted.as_ref().is_none_or(|e| !same_ids(e, &merged));
             if last || changed {
                 emit(Update {
@@ -132,27 +164,87 @@ fn same_ids(a: &[ResultItem], b: &[ResultItem]) -> bool {
     a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.id == y.id)
 }
 
-/// Global ranking (initial policy): provider-normalized confidence, then provider
-/// registration order, then the provider's own order; the first occurrence of a result id
-/// wins. Strong intent rules and fusion (T205) build on this.
+/// Global ranking (T205, ADR-032): weighted reciprocal-rank fusion over the providers'
+/// own orders — `Σ w_p / (RRF_K + rank_p)` per result id — with two rules on top:
+///
+/// - **intent first:** results some provider matched exactly (`MatchKind::Exact`, the
+///   query equals the name) or by deterministic intent rank before fused ones;
+/// - **one row per entity:** the copy from the provider contributing most is shown (ties:
+///   earlier registration, then better rank); a missing subtitle (snippet) is taken from
+///   another copy, and the confidence is the highest one.
+///
+/// `lists` holds `(provider index, results best first)`; `weights[provider index]`.
 #[must_use]
-pub fn merge(lists: &[(usize, Vec<ResultItem>)], limit: usize) -> Vec<ResultItem> {
-    let mut all: Vec<(usize, usize, &ResultItem)> = lists
-        .iter()
-        .flat_map(|(p, items)| items.iter().enumerate().map(move |(r, it)| (*p, r, it)))
-        .collect();
-    all.sort_by(|a, b| {
-        b.2.score
-            .confidence
-            .cmp(&a.2.score.confidence)
-            .then(a.0.cmp(&b.0))
-            .then(a.1.cmp(&b.1))
+pub fn fuse(lists: &[(usize, Vec<ResultItem>)], weights: &[f32], limit: usize) -> Vec<ResultItem> {
+    struct Entry<'a> {
+        score: f32,
+        best: f32,
+        best_key: (usize, usize),
+        item: &'a ResultItem,
+        intent: bool,
+        confidence: Confidence,
+        subtitle: Option<&'a String>,
+    }
+    let mut entries: Vec<Entry<'_>> = Vec::new();
+    let mut by_id: HashMap<&ResultId, usize> = HashMap::new();
+    for (provider, items) in lists {
+        let w = weights.get(*provider).copied().unwrap_or(1.0);
+        if w <= 0.0 {
+            // A lane switched off contributes nothing, not even unranked rows.
+            continue;
+        }
+        for (rank, item) in items.iter().enumerate() {
+            #[allow(clippy::cast_precision_loss)]
+            let contribution = w / (RRF_K + (rank + 1) as f32);
+            let intent = matches!(item.score.match_kind, MatchKind::Exact | MatchKind::Intent);
+            let key = (*provider, rank);
+            match by_id.get(&item.id) {
+                Some(&i) => {
+                    let e = &mut entries[i];
+                    e.score += contribution;
+                    e.intent |= intent;
+                    e.confidence = e.confidence.max(item.score.confidence);
+                    if e.subtitle.is_none() {
+                        e.subtitle = item.subtitle.as_ref();
+                    }
+                    if contribution > e.best || (contribution == e.best && key < e.best_key) {
+                        e.best = contribution;
+                        e.best_key = key;
+                        e.item = item;
+                    }
+                }
+                None => {
+                    by_id.insert(&item.id, entries.len());
+                    entries.push(Entry {
+                        score: contribution,
+                        best: contribution,
+                        best_key: key,
+                        item,
+                        intent,
+                        confidence: item.score.confidence,
+                        subtitle: item.subtitle.as_ref(),
+                    });
+                }
+            }
+        }
+    }
+    entries.sort_by(|a, b| {
+        b.intent
+            .cmp(&a.intent)
+            .then(b.score.total_cmp(&a.score))
+            .then(a.best_key.cmp(&b.best_key))
     });
-    let mut seen = std::collections::HashSet::new();
-    all.into_iter()
-        .filter(|(_, _, it)| seen.insert(it.id.clone()))
+    entries
+        .into_iter()
         .take(limit)
-        .map(|(_, _, it)| it.clone())
+        .map(|e| {
+            let mut item = e.item.clone();
+            item.score.confidence = e.confidence;
+            if item.subtitle.is_none() {
+                item.subtitle = e.subtitle.cloned();
+            }
+            item
+        })
         .collect()
 }
 
@@ -258,7 +350,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn merges_by_confidence_then_registration_order_and_dedupes() {
+    fn fuses_by_reciprocal_rank_and_dedupes() {
         let mut c = Coordinator::new(10);
         c.register(Arc::new(Fake::new(
             "test.fast",
@@ -268,18 +360,59 @@ pub(crate) mod tests {
         c.register(Arc::new(Fake::new(
             "test.instant",
             LatencyClass::Instant,
-            &[("item:1", 0.5), ("item:3", 0.95)],
+            &[("item:1", 0.4), ("item:3", 0.95)],
         )));
         let (updates, outcome) = run(&c, true);
         assert_eq!(outcome, Outcome::Completed { failed: vec![] });
-        // Instant runs first and is shown before the fast provider answers.
+        // Instant runs first and is shown before the fast provider answers, in its order.
         assert_eq!(updates.len(), 2);
-        assert_eq!(ids(&updates[0]), ["item:3", "item:1"]);
+        assert_eq!(ids(&updates[0]), ["item:1", "item:3"]);
         assert!(!updates[0].done);
-        // Tie at 0.5: the earlier-registered provider's copy is kept (deduplicated).
-        assert_eq!(ids(&updates[1]), ["item:3", "item:2", "item:1"]);
-        assert_eq!(updates[1].results[2].provider.as_str(), "test.fast");
+        // item:1 is in both lists (1/62 + 1/61) and wins; item:2 (fast #1, registered
+        // first) beats item:3 (instant #2).
+        assert_eq!(ids(&updates[1]), ["item:1", "item:2", "item:3"]);
+        // The copy shown is the one contributing most (instant rank 1), with the highest
+        // confidence of all copies.
+        assert_eq!(updates[1].results[0].provider.as_str(), "test.instant");
+        assert!((updates[1].results[0].score.confidence.get() - 0.5).abs() < 1e-6);
         assert!(updates[1].done);
+    }
+
+    #[test]
+    fn weights_exact_matches_and_snippets() {
+        let p = |s| ProviderId::new(s).unwrap();
+        let (name, content) = (p("test.name"), p("test.content"));
+        let mut exact = item("item:7", &name, 1.0);
+        exact.score.match_kind = MatchKind::Exact;
+        let mut snippet = item("item:8", &content, 0.6);
+        snippet.subtitle = Some("…matching words…".into());
+        let lists = vec![
+            (0, vec![item("item:8", &name, 0.7), exact]),
+            (
+                1,
+                vec![
+                    snippet,
+                    item("item:9", &content, 0.5),
+                    item("item:6", &content, 0.4),
+                ],
+            ),
+        ];
+        let fused = fuse(&lists, &[1.0, 3.0], 10);
+        let order: Vec<_> = fused.iter().map(|r| r.id.as_str()).collect();
+        // Exact first despite rank 2; then the heavier content lane decides.
+        assert_eq!(order, ["item:7", "item:8", "item:9", "item:6"]);
+        // item:8's best contribution is content (3/61 > 1/61): its copy, its snippet.
+        assert_eq!(fused[1].provider.as_str(), "test.content");
+        assert_eq!(fused[1].subtitle.as_deref(), Some("…matching words…"));
+        let name_only: Vec<_> = fuse(&lists, &[1.0, 0.0], 10)
+            .iter()
+            .map(|r| r.id.as_str().to_owned())
+            .collect();
+        assert_eq!(
+            name_only,
+            ["item:7", "item:8"],
+            "a zero weight drops the lane"
+        );
     }
 
     #[test]

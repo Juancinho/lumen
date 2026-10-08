@@ -221,3 +221,10 @@ Append-only. Keep entries compact.
 - `lumen_semantic::SemanticIndex`: mmap'd HNSW file (written `.tmp` → rename → recorded) + exact delta, candidates validated by seq so deleted, re-embedded and reused chunk ids never return old vectors; missing/mismatching files degrade to rebuild; `maintenance`, `build_file`, `validate` (drained, ≤ 1 % failed, self-recall), `cleanup_files`. `IndexConfig::fingerprint` in lumen-vector.
 - Shell: the indexing thread promotes the first generation, refreshes/rebuilds the ANN after slices, activates validated later generations and deletes retired vectors. Linux smoke: v2 database migrated to v3, generation active, re-embedding with seqs.
 - `lumen-bench ann-gen` (also in `cargo xtask bench`): sandbox 100k search p50 0.66 ms (2.3 ms with a 10k delta), recall@10 ≥ 0.998, build 25 s, open 7 ms. ADR-031.
+
+## 2026-10-08 — T205 hybrid fusion + evaluation harness (claude)
+
+- `lumen_search::fuse` (weighted RRF, exact/intent first, one row per entity with the strongest copy and any snippet) replaces the confidence merge; `SearchService` re-runs a typing query as settled after 80 ms so settled lanes answer.
+- `lumen_catalog::ContentProvider` (settled FTS over chunks, one file per result, plain snippet; `FtsQuery::content` drops English/Spanish function words, `two_of` fallback) and `lumen_semantic::SemanticProvider` (query lane + active generation, space check, relative floor, passage excerpt; `Store::chunk_refs`); `QueryEmbedder::space_key`.
+- Shell: three weighted lanes, query embedder with indexing preemption and 10-min idle unload, warmed on overlay show; ANN maintenance no longer holds the index lock while building.
+- `fixtures/eval` (48 synthetic documents EN/ES, 56 judged queries) + `lumen-bench eval [--sweep] [--explain]`; sandbox q4: fused top-1 0.982 / NDCG 0.986 vs meaning 0.964, contents 0.536, names 0.179. An any-word content fallback cost 0.18 top-1 and was replaced. ADR-032; T211 (harder set) added.

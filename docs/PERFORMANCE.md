@@ -13,8 +13,10 @@
 | Idle memory (§5 metric) | < 400 MB | ~7 MiB WebView + 3–4 MiB shell hidden; 168 MiB with the model warm | ADR-020, ADR-015 |
 | Indexing throughput (§9) | ≥ 8 chunks/s @ ≤ 50 % CPU | **~7 chunks/s @ 100 % CPU** (128-token estimate); sandbox q4: 3.4 chunks/s per busy core | ADR-015 — top risk, T014 run pending |
 
+Semantic results after settle (ADR-032, sandbox): 80 ms settle + meaning lane 48 / 57 ms
+p50/p95 (query embedding dominated) + contents 0.2 ms + fusion; Windows timing pending.
 Not measured yet: keystroke → painted results end to end, arrow-key response, Quick Look
-cached preview, semantic results after settle.
+cached preview.
 
 ## 1. Principle
 

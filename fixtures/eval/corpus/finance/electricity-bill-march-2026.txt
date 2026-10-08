@@ -1,0 +1,14 @@
+Northwind Energy - customer invoice
+Invoice number: NE-2026-03-55821
+Billing period: 1 March 2026 to 31 March 2026
+Supply address: flat 4B, the customer's home
+
+Consumption this period: 312 kWh (previous period 344 kWh)
+Energy charge: 312 kWh x 0.189 EUR = 58.97 EUR
+Standing charge: 31 days x 0.42 EUR = 13.02 EUR
+Taxes and levies: 12.21 EUR
+Total amount due: 84.20 EUR
+
+Payment will be collected by direct debit on 15 April 2026.
+Tip: your usage was 9% lower than last month. Heating and the water boiler are the
+largest share of your electricity consumption.

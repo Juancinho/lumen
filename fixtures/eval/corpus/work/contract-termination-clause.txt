@@ -1,0 +1,8 @@
+Section 14 - Termination
+
+14.1 Either party may terminate this agreement for convenience by giving the other party
+thirty (30) days' prior written notice.
+14.2 Either party may terminate immediately if the other party commits a material breach
+that is not remedied within fifteen (15) days of written notice describing the breach.
+14.3 Upon termination the customer shall pay all fees accrued up to the termination date,
+and each party shall return or destroy the other's confidential information.

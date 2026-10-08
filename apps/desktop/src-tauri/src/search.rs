@@ -1,14 +1,17 @@
-//! Root search wiring (T107): the core `SearchService` (latest query wins) with the catalog
-//! provider, streamed to the UI as `lumen:results` events.
+//! Root search wiring (T107, T205): the core `SearchService` (latest query wins, settled
+//! re-run) with three fused lanes — names (`lumen.catalog`, every keystroke), file contents
+//! (`lumen.content`, settled) and meaning (`lumen.semantic`, settled, when a model is
+//! configured) — streamed to the UI as `lumen:results` events.
 //!
 //! The UI numbers its queries (`search(queryId, text)`); the service drops older ids and
 //! cancels superseded work, and the UI also ignores updates that are not for its latest id.
 
 use std::sync::Arc;
 
-use lumen_catalog::CatalogProvider;
+use lumen_catalog::{CatalogProvider, ContentProvider};
 use lumen_core::QueryId;
 use lumen_search::{Coordinator, Request, SearchService};
+use lumen_semantic::{QueryConfig, QueryEmbedder, SemanticConfig, SemanticProvider};
 use lumen_storage::Store;
 use tauri::{App, AppHandle, Emitter, Manager, Runtime};
 
@@ -30,16 +33,75 @@ pub(crate) fn diagnostics_enabled() -> bool {
     *ON.get_or_init(|| std::env::var(ENV_DIAGNOSTICS).is_ok_and(|v| v == "1"))
 }
 
+/// Fusion weights per lane (ADR-032; tuned with `lumen-bench eval`).
+pub(crate) const WEIGHT_NAME: f32 = 1.0;
+pub(crate) const WEIGHT_CONTENT: f32 = 1.0;
+pub(crate) const WEIGHT_SEMANTIC: f32 = 1.0;
+
+/// The query model is unloaded after this long without searches (memory, §15).
+const QUERY_IDLE_UNLOAD: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+
 /// Managed state; `None` when the search thread could not start.
 pub(crate) struct Search(pub(crate) Option<SearchService>);
 
+/// The query-lane embedder, when a model is configured.
+pub(crate) struct QueryLane(pub(crate) Option<Arc<QueryEmbedder>>);
+
+/// Loads the query model in the background (overlay shown and semantic search possible).
+pub(crate) fn warm_semantic<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(QueryLane(Some(q))) = app.try_state::<QueryLane>().as_deref() {
+        q.warm();
+    }
+}
+
+fn query_threads() -> usize {
+    (std::thread::available_parallelism().map_or(2, usize::from) / 2).clamp(1, 4)
+}
+
 pub(crate) fn install<R: Runtime>(app: &App<R>) {
     let mut coordinator = Coordinator::new(RESULT_LIMIT);
-    match settings::db_path(app).map(|p| Store::open_reader(&p)) {
-        Some(Ok(store)) => coordinator.register(Arc::new(CatalogProvider::new(store))),
+    let reader = || settings::db_path(app).map(|p| Store::open_reader(&p));
+    match reader() {
+        Some(Ok(store)) => {
+            coordinator.register_weighted(Arc::new(CatalogProvider::new(store)), WEIGHT_NAME);
+        }
         Some(Err(err)) => eprintln!("lumen: catalog search unavailable: {err}"),
         None => eprintln!("lumen: no app-data directory; catalog search unavailable"),
     }
+    if let Some(Ok(store)) = reader() {
+        coordinator.register_weighted(Arc::new(ContentProvider::new(store)), WEIGHT_CONTENT);
+    }
+    let mut lane = None;
+    if crate::indexing::model_configured()
+        && let Some(indexing) = app.try_state::<crate::indexing::Indexing>()
+        && let Some(Ok(store)) = reader()
+    {
+        let threads = query_threads();
+        match QueryEmbedder::start(
+            Box::new(move || crate::indexing::build_embedder(threads)),
+            Some(indexing.control().clone()),
+            QueryConfig {
+                idle_unload: Some(QUERY_IDLE_UNLOAD),
+                ..QueryConfig::default()
+            },
+        ) {
+            Ok(q) => {
+                let q = Arc::new(q);
+                coordinator.register_weighted(
+                    Arc::new(SemanticProvider::new(
+                        Arc::clone(&q),
+                        indexing.shared_index(),
+                        store,
+                        SemanticConfig::default(),
+                    )),
+                    WEIGHT_SEMANTIC,
+                );
+                lane = Some(q);
+            }
+            Err(err) => eprintln!("lumen: semantic search unavailable: {err}"),
+        }
+    }
+    app.manage(QueryLane(lane));
     let handle = app.handle().clone();
     let service = SearchService::start(coordinator, move |update| {
         deliver(&handle, &update);

@@ -6,12 +6,12 @@
 ## Branch
 
 `main` on github.com/Juancinho/lumen (push pending from joao-pc). Last commits: T015 → T111 → T201
-→ T014 (instrumentation) → T202 → T204 → T203.
+→ T014 (instrumentation) → T202 → T204 → T203 → T205.
 
 ## Active task
 
-None claimed. T202, T014, T204 and T203 are in REVIEW (Windows runs below); next per
-`TASKS.md` → **Next**: T205 (hybrid fusion + evaluation harness).
+None claimed. T202, T014, T204, T203 and T205 are in REVIEW (Windows runs below); next
+per `TASKS.md` → **Next**: T211 (harder relevance set) → T206 → T210.
 
 ## Pending human checks (Windows, joao-pc)
 
@@ -58,6 +58,32 @@ None claimed. T202, T014, T204 and T203 are in REVIEW (Windows runs below); next
    Commit `docs\benchmarks\t203\<date>-joao-pc\`. With the app and a model (T202 run),
    `%APPDATA%\dev.lumen.desktop\vectors\` gets a `gen-*.usearch` file once ~2,000
    passages are embedded.
+
+8. T205 relevance + the app with semantic search (needs the T006 model):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\t205\run-windows-eval.ps1
+   ```
+   Commit `docs\benchmarks\t205\<date>-joao-pc\`. Then start the app with
+   `LUMEN_EMBED_MODEL_DIR` / `LUMEN_ORT_DYLIB` set (as in the T202 check) and, once the tray
+   shows passages embedded, type a sentence describing a document in your indexed folders:
+   after a short pause rows from contents and meaning join the name results without the
+   selection jumping; `LUMEN_DIAGNOSTICS=1` shows `lumen.content` / `lumen.semantic`.
+
+## T205 — outcome (REVIEW, ADR-032)
+
+- Core: `lumen_search::{fuse, RRF_K, DEFAULT_SETTLE}`, `Coordinator::{register_weighted,
+  has_settled_providers}`, `SearchService::start_with_settle`;
+  `lumen_catalog::{ContentProvider, CONTENT_PROVIDER_ID}`; `lumen_semantic::{
+  SemanticProvider, SemanticConfig, SharedIndex, SEMANTIC_PROVIDER_ID}`,
+  `QueryEmbedder::space_key`; `lumen_storage::{FtsQuery::{content, two_of}, STOPWORDS,
+  ChunkRef, Store::chunk_refs}`.
+- Shell: `search.rs` weights `WEIGHT_{NAME,CONTENT,SEMANTIC}` = 1, `QueryLane` (query
+  embedder, idle unload 10 min), `warm_semantic` on overlay show; `indexing` installs
+  first and shares `control()` / `shared_index()`.
+- Harness: `lumen-bench eval --fixture fixtures/eval [--weights N,C,S] [--sweep]
+  [--explain]`; `eval-mock` in `cargo xtask bench`.
+- Next (T211): a harder set (hundreds of documents, near-duplicates, long files) so the
+  weights and the semantic floor can be tuned for real.
 
 ## T203 — outcome (REVIEW, ADR-031)
 

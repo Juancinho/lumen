@@ -1,0 +1,408 @@
+{
+ "description": "T205 hybrid-search evaluation set: synthetic documents in fixtures/eval/corpus (English and Spanish, notes, code, recipes) and queries with the files judged relevant (graded 1). Categories: exact (name), lexical (words inside), paraphrase (meaning), multilingual (other language than the document), code (intent), ambiguous (several relevant). Fictional content only.",
+ "version": 1,
+ "queries": [
+  {
+   "q": "docker-compose",
+   "relevant": [
+    "code/docker-compose.yml"
+   ],
+   "category": "exact"
+  },
+  {
+   "q": "gazpacho",
+   "relevant": [
+    "recipes/gazpacho.txt",
+    "home/lista-compra.txt"
+   ],
+   "category": "exact"
+  },
+  {
+   "q": "retry.py",
+   "relevant": [
+    "code/retry.py"
+   ],
+   "category": "exact"
+  },
+  {
+   "q": "ingress",
+   "relevant": [
+    "code/ingress.yaml"
+   ],
+   "category": "exact"
+  },
+  {
+   "q": "workout plan",
+   "relevant": [
+    "home/workout-plan.md"
+   ],
+   "category": "exact"
+  },
+  {
+   "q": "tortilla",
+   "relevant": [
+    "recipes/tortilla-de-patatas.md"
+   ],
+   "category": "exact"
+  },
+  {
+   "q": "ECONNREFUSED 127.0.0.1:5432",
+   "relevant": [
+    "work/postmortem-database-outage.md"
+   ],
+   "category": "lexical"
+  },
+  {
+   "q": "netsh winsock reset",
+   "relevant": [
+    "home/network-reset-windows.md"
+   ],
+   "category": "lexical"
+  },
+  {
+   "q": "Northwind Energy",
+   "relevant": [
+    "finance/electricity-bill-march-2026.txt"
+   ],
+   "category": "lexical"
+  },
+  {
+   "q": "cert-manager letsencrypt",
+   "relevant": [
+    "code/ingress.yaml"
+   ],
+   "category": "lexical"
+  },
+  {
+   "q": "Acme procurement discount",
+   "relevant": [
+    "work/meeting-notes-client-acme.md"
+   ],
+   "category": "lexical"
+  },
+  {
+   "q": "QX7P2L",
+   "relevant": [
+    "travel/flight-booking-confirmation.txt"
+   ],
+   "category": "lexical"
+  },
+  {
+   "q": "useDebounce",
+   "relevant": [
+    "code/useDebounce.ts"
+   ],
+   "category": "lexical"
+  },
+  {
+   "q": "Robespierre",
+   "relevant": [
+    "study/revolucion-francesa-apuntes.md"
+   ],
+   "category": "lexical"
+  },
+  {
+   "q": "how much power did we use last month and what do we owe",
+   "relevant": [
+    "finance/electricity-bill-march-2026.txt"
+   ],
+   "category": "paraphrase"
+  },
+  {
+   "q": "the website went down because the database connections ran out",
+   "relevant": [
+    "work/postmortem-database-outage.md"
+   ],
+   "category": "paraphrase"
+  },
+  {
+   "q": "what papers I need to file my taxes",
+   "relevant": [
+    "finance/tax-return-2025-checklist.md"
+   ],
+   "category": "paraphrase"
+  },
+  {
+   "q": "how much we spend on advertising this quarter",
+   "relevant": [
+    "finance/marketing-budget-q3.md"
+   ],
+   "category": "paraphrase"
+  },
+  {
+   "q": "ending the agreement early with notice",
+   "relevant": [
+    "work/contract-termination-clause.txt"
+   ],
+   "category": "paraphrase"
+  },
+  {
+   "q": "what to bring for a week at the seaside",
+   "relevant": [
+    "travel/beach-trip-packing-list.md"
+   ],
+   "category": "paraphrase"
+  },
+  {
+   "q": "why the step size matters when minimizing a loss",
+   "relevant": [
+    "study/gradient-descent-notes.md"
+   ],
+   "category": "paraphrase"
+  },
+  {
+   "q": "predicting future sales with seasonal models",
+   "relevant": [
+    "study/thesis-time-series-chapter.md"
+   ],
+   "category": "paraphrase"
+  },
+  {
+   "q": "neural network architecture based only on attention",
+   "relevant": [
+    "study/attention-paper-summary.md"
+   ],
+   "category": "paraphrase"
+  },
+  {
+   "q": "things to do in my first days at the company",
+   "relevant": [
+    "work/onboarding-guide.md"
+   ],
+   "category": "paraphrase"
+  },
+  {
+   "q": "the radiators are cold, asking for a repair",
+   "relevant": [
+    "home/email-landlord-heating.txt"
+   ],
+   "category": "paraphrase"
+  },
+  {
+   "q": "when were the tyres changed",
+   "relevant": [
+    "home/car-maintenance-log.md"
+   ],
+   "category": "paraphrase"
+  },
+  {
+   "q": "games and cake for a kid's party",
+   "relevant": [
+    "home/birthday-party-ideas.md"
+   ],
+   "category": "paraphrase"
+  },
+  {
+   "q": "my internet stopped working on the laptop",
+   "relevant": [
+    "home/network-reset-windows.md"
+   ],
+   "category": "paraphrase"
+  },
+  {
+   "q": "slides for the demo of our search app",
+   "relevant": [
+    "work/lumen-presentation-outline.md"
+   ],
+   "category": "paraphrase"
+  },
+  {
+   "q": "matrix diagonalization and characteristic polynomial",
+   "relevant": [
+    "study/eigenvalues.txt"
+   ],
+   "category": "paraphrase"
+  },
+  {
+   "q": "factura de la luz de marzo",
+   "relevant": [
+    "finance/electricity-bill-march-2026.txt"
+   ],
+   "category": "multilingual"
+  },
+  {
+   "q": "household budget savings goal",
+   "relevant": [
+    "finance/presupuesto-hogar-2026.md"
+   ],
+   "category": "multilingual"
+  },
+  {
+   "q": "notas de la reunión con el cliente",
+   "relevant": [
+    "work/meeting-notes-client-acme.md"
+   ],
+   "category": "multilingual"
+  },
+  {
+   "q": "sprint retrospective slow integration tests",
+   "relevant": [
+    "work/notas-reunion-equipo.md"
+   ],
+   "category": "multilingual"
+  },
+  {
+   "q": "Spanish potato omelette recipe",
+   "relevant": [
+    "recipes/tortilla-de-patatas.md"
+   ],
+   "category": "multilingual"
+  },
+  {
+   "q": "cold tomato soup",
+   "relevant": [
+    "recipes/gazpacho.txt"
+   ],
+   "category": "multilingual"
+  },
+  {
+   "q": "trip to Japan temples in Kyoto",
+   "relevant": [
+    "travel/viaje-japon-itinerario.md"
+   ],
+   "category": "multilingual"
+  },
+  {
+   "q": "receta de pan de plátano",
+   "relevant": [
+    "recipes/banana-bread.md"
+   ],
+   "category": "multilingual"
+  },
+  {
+   "q": "rutina de ejercicio semanal",
+   "relevant": [
+    "home/workout-plan.md"
+   ],
+   "category": "multilingual"
+  },
+  {
+   "q": "storming of the Bastille",
+   "relevant": [
+    "study/revolucion-francesa-apuntes.md"
+   ],
+   "category": "multilingual"
+  },
+  {
+   "q": "vuelo a Lisboa reserva",
+   "relevant": [
+    "travel/flight-booking-confirmation.txt"
+   ],
+   "category": "multilingual"
+  },
+  {
+   "q": "shopping list milk eggs",
+   "relevant": [
+    "home/lista-compra.txt"
+   ],
+   "category": "multilingual"
+  },
+  {
+   "q": "function that retries failed http requests",
+   "relevant": [
+    "code/retry.py"
+   ],
+   "category": "code"
+  },
+  {
+   "q": "react hook to debounce input",
+   "relevant": [
+    "code/useDebounce.ts"
+   ],
+   "category": "code"
+  },
+  {
+   "q": "parse command line arguments in rust",
+   "relevant": [
+    "code/args.rs"
+   ],
+   "category": "code"
+  },
+  {
+   "q": "sql migration add index",
+   "relevant": [
+    "code/0007_add_email_index.sql"
+   ],
+   "category": "code"
+  },
+  {
+   "q": "kubernetes tls certificate",
+   "relevant": [
+    "code/ingress.yaml"
+   ],
+   "category": "code"
+  },
+  {
+   "q": "stop a long running task when the user cancels",
+   "relevant": [
+    "code/cancel.rs"
+   ],
+   "category": "code"
+  },
+  {
+   "q": "unit tests for the ranking fusion",
+   "relevant": [
+    "code/test_fusion.py"
+   ],
+   "category": "code"
+  },
+  {
+   "q": "readme installation steps",
+   "relevant": [
+    "code/README.md"
+   ],
+   "category": "code"
+  },
+  {
+   "q": "postgres container configuration",
+   "relevant": [
+    "code/docker-compose.yml"
+   ],
+   "category": "code"
+  },
+  {
+   "q": "postgres",
+   "relevant": [
+    "code/docker-compose.yml",
+    "work/postmortem-database-outage.md"
+   ],
+   "category": "ambiguous"
+  },
+  {
+   "q": "recipes",
+   "relevant": [
+    "recipes/tortilla-de-patatas.md",
+    "recipes/banana-bread.md",
+    "recipes/gazpacho.txt",
+    "recipes"
+   ],
+   "category": "ambiguous"
+  },
+  {
+   "q": "contract",
+   "relevant": [
+    "work/contract-termination-clause.txt",
+    "work/meeting-notes-client-acme.md"
+   ],
+   "category": "ambiguous"
+  },
+  {
+   "q": "budget",
+   "relevant": [
+    "finance/marketing-budget-q3.md",
+    "finance/presupuesto-hogar-2026.md"
+   ],
+   "category": "ambiguous"
+  },
+  {
+   "q": "travel plans",
+   "relevant": [
+    "travel/viaje-japon-itinerario.md",
+    "travel/beach-trip-packing-list.md",
+    "travel/flight-booking-confirmation.txt",
+    "travel"
+   ],
+   "category": "ambiguous"
+  }
+ ]
+}

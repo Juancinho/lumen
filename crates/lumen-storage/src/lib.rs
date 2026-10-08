@@ -29,10 +29,10 @@ use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
 
 pub use catalog::{CatalogEntry, CatalogItem, NameHit, Source, UpsertStats};
 pub use content::{
-    ContentCandidate, ContentCounts, ContentOutcome, ContentWrite, GenerationSpec, PendingChunk,
-    QueueCounts, VectorWrite,
+    ChunkRef, ContentCandidate, ContentCounts, ContentOutcome, ContentWrite, GenerationSpec,
+    PendingChunk, QueueCounts, VectorWrite,
 };
-pub use fts::{FtsQuery, MIN_PREFIX_CHARS};
+pub use fts::{FtsQuery, MIN_PREFIX_CHARS, STOPWORDS};
 pub use generations::{AnnFileRecord, GenerationInfo, GenerationState, SeqVector};
 pub use migrations::{MIGRATIONS, Migration, latest_version};
 pub use usage::{UsageSignal, UseKind};

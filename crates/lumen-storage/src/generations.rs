@@ -532,6 +532,9 @@ mod tests {
         assert_eq!(seqs.get(&ids[1]), Some(&2));
         assert!(!seqs.contains_key(&ids[2]), "failures carry no vector");
         assert_eq!(store.vector_count_through(g, snapshot).unwrap(), 1);
+        let refs = store.chunk_refs(&[ids[1], 9_999], 3).unwrap();
+        assert_eq!(refs.len(), 1);
+        assert_eq!((refs[0].item_id, refs[0].excerpt.as_str()), (item, "tex"));
         assert_eq!(store.vector_count(g).unwrap(), 2);
 
         let record = AnnFileRecord {

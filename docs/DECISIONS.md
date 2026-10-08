@@ -38,3 +38,4 @@
 | [ADR-029](adr/adr-029-content-indexing-db-is-the-queue.md) | Content indexing: the database is the queue, vectors in SQLite, thread cap before duty cycle | Accepted |
 | [ADR-030](adr/adr-030-query-lane-own-session-latest-wins-preempts-indexing.md) | Query lane: own runtime session, latest wins, preempts indexing at single-chunk boundaries | Proposed |
 | [ADR-031](adr/adr-031-ann-generations-file-plus-delta-validated-against-sqlite.md) | ANN generations: derived HNSW file + exact delta, every hit validated against SQLite | Accepted |
+| [ADR-032](adr/adr-032-hybrid-fusion-weighted-rrf-settled-lanes.md) | Hybrid root search: weighted RRF over names / contents / meaning, settled-query lanes | Accepted |
