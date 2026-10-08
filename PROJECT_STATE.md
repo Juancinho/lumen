@@ -129,7 +129,9 @@ Benchmark/ADR required:
 - **T108/T109 REVIEW (ADR-026):** Enter opens/launches, Ctrl+Enter reveals, click runs,
   Ctrl+K Action Panel (Open / Reveal in Explorer / Copy path); ids-only requests checked by
   the core policy against recently shown results; uses recorded for ranking.
-- Not yet: real icons, Quick Look (T105), pin/open-with UI, diagnostics mode (T110).
+- **T110 REVIEW:** `LUMEN_DIAGNOSTICS=1` shows provider/match kind/confidence per row and
+  logs per-query timings; absent from the wire otherwise.
+- Not yet: real icons, Quick Look (T105), pin/open-with UI.
 
 ## Immediate objective
 

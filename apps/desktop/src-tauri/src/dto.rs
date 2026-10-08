@@ -44,7 +44,7 @@ impl From<lumen_windows::material::Plan> for AppearanceDto {
 
 /// Mirrors `ResultView` in `src/ipc/types.ts`: one result row as the UI renders it (T107).
 /// Payloads (paths, launch keys) stay in Rust; actions refer to results by `id`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ResultDto {
     pub(crate) id: String,
@@ -55,6 +55,18 @@ pub(crate) struct ResultDto {
     pub(crate) extension: Option<String>,
     /// Action that Enter runs (`lumen.open`, `lumen.launch`).
     pub(crate) primary_action: String,
+    /// Development diagnostics (T110, `LUMEN_DIAGNOSTICS=1` only): never in normal UI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) diagnostics: Option<ResultDiagnosticsDto>,
+}
+
+/// Mirrors `ResultDiagnostics` in `src/ipc/types.ts`.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ResultDiagnosticsDto {
+    pub(crate) provider: String,
+    pub(crate) match_kind: String,
+    pub(crate) confidence: f32,
 }
 
 /// Mirrors `ActionView` in `src/ipc/types.ts`: one Action Panel entry (T108).
@@ -87,25 +99,67 @@ impl From<&lumen_core::ResultItem> for ResultDto {
                 _ => None,
             },
             primary_action: item.primary_action.as_str().to_owned(),
+            diagnostics: None,
+        }
+    }
+}
+
+impl ResultDto {
+    /// The row plus its provider/score evidence (diagnostics mode).
+    pub(crate) fn with_diagnostics(item: &lumen_core::ResultItem) -> Self {
+        Self {
+            diagnostics: Some(ResultDiagnosticsDto {
+                provider: item.provider.as_str().to_owned(),
+                match_kind: format!("{:?}", item.score.match_kind).to_lowercase(),
+                confidence: item.score.confidence.get(),
+            }),
+            ..Self::from(item)
         }
     }
 }
 
 /// Mirrors `ResultsUpdate` in `src/ipc/types.ts` (event `lumen:results`).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ResultsDto {
     pub(crate) query_id: u64,
     pub(crate) done: bool,
     pub(crate) results: Vec<ResultDto>,
+    /// Diagnostics mode only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) diagnostics: Option<QueryDiagnosticsDto>,
 }
 
-impl From<&lumen_search::Update> for ResultsDto {
-    fn from(update: &lumen_search::Update) -> Self {
+/// Mirrors `QueryDiagnostics` in `src/ipc/types.ts`.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct QueryDiagnosticsDto {
+    pub(crate) elapsed_ms: f64,
+    pub(crate) failed: Vec<String>,
+}
+
+impl ResultsDto {
+    /// `diagnostics`: include provider/score evidence and timings (T110).
+    pub(crate) fn new(update: &lumen_search::Update, diagnostics: bool) -> Self {
+        let row = |item: &lumen_core::ResultItem| {
+            if diagnostics {
+                ResultDto::with_diagnostics(item)
+            } else {
+                ResultDto::from(item)
+            }
+        };
         Self {
             query_id: update.query.get(),
             done: update.done,
-            results: update.results.iter().map(ResultDto::from).collect(),
+            results: update.results.iter().map(row).collect(),
+            diagnostics: diagnostics.then(|| QueryDiagnosticsDto {
+                elapsed_ms: update.elapsed.as_secs_f64() * 1000.0,
+                failed: update
+                    .failed
+                    .iter()
+                    .map(|p| p.as_str().to_owned())
+                    .collect(),
+            }),
         }
     }
 }
@@ -177,8 +231,15 @@ mod tests {
             elapsed: std::time::Duration::ZERO,
             failed: Vec::new(),
         };
+        let diag = serde_json::to_value(ResultsDto::new(&update, true)).unwrap();
         assert_eq!(
-            serde_json::to_value(ResultsDto::from(&update)).unwrap(),
+            diag["results"][0]["diagnostics"]["provider"],
+            "lumen.catalog"
+        );
+        assert_eq!(diag["results"][0]["diagnostics"]["matchKind"], "exact");
+        assert_eq!(diag["diagnostics"]["failed"], serde_json::json!([]));
+        assert_eq!(
+            serde_json::to_value(ResultsDto::new(&update, false)).unwrap(),
             serde_json::json!({
                 "queryId": 3,
                 "done": true,

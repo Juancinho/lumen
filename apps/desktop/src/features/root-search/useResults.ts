@@ -22,6 +22,9 @@ function toRow(view: ResultView): ResultRowModel {
     detail: view.detail,
     extension: view.extension,
     primaryAction: view.primaryAction,
+    diagnostics: view.diagnostics
+      ? `${view.diagnostics.provider} · ${view.diagnostics.matchKind} · ${view.diagnostics.confidence.toFixed(2)}`
+      : null,
   };
 }
 
@@ -59,6 +62,13 @@ export function useResults(query: string): ResultsState {
       () =>
         onResults((update) => {
           if (update.queryId !== latest.current.id) return;
+          if (update.diagnostics) {
+            const { elapsedMs, failed } = update.diagnostics;
+            console.debug(
+              `lumen: query ${String(update.queryId)} ${update.done ? "done" : "partial"} in ${elapsedMs.toFixed(2)} ms, ${String(update.results.length)} results`,
+              failed.length > 0 ? { failed } : "",
+            );
+          }
           setAnswer({
             key: latest.current.key,
             queryId: update.queryId,

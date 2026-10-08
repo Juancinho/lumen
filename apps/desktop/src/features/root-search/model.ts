@@ -15,6 +15,8 @@ export interface ResultRowModel {
   extension: string | null;
   /** Action id Enter runs. */
   primaryAction: string;
+  /** Development diagnostics line (T110), e.g. `lumen.catalog · prefix · 0.82`. */
+  diagnostics?: string | null;
 }
 
 /** Right-hand label of a row (low-emphasis, never colourful). */

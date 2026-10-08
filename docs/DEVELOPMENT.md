@@ -205,6 +205,9 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
   selection; Enter primary action, Ctrl+Enter reveal, Ctrl+K Action Panel, Ctrl+L query,
   Alt+Enter reserved for Quick Look (T105). Click runs the primary action.
 - On every show the shell emits `lumen:overlay-shown`; the UI focuses and selects the query.
+- Diagnostics mode (T110): `LUMEN_DIAGNOSTICS=1` adds provider · match kind · confidence
+  under every result row and logs per-query timing/failed providers to the WebView console
+  (`console.debug`). Off by default; never shown in normal UI.
 - Root search (T107, ADR-025): the UI calls `search(queryId, text)` per query change, on
   show and on `lumen:catalog-changed`; results stream as `lumen:results`. The catalog lives
   in the same `lumen.db`; the first sync starts 2 s after launch.

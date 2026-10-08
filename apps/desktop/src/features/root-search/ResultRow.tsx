@@ -64,6 +64,7 @@ export function ResultRow({
             <Detail text={row.detail} />
           </span>
         )}
+        {row.diagnostics && <span className="result-row__diagnostics">{row.diagnostics}</span>}
       </span>
       <span className="result-row__meta" aria-hidden={selected && !notice}>
         {selected && notice ? (

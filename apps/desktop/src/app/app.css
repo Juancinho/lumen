@@ -318,3 +318,14 @@ body,
     color: HighlightText;
   }
 }
+
+/* Development diagnostics (T110, LUMEN_DIAGNOSTICS=1): never shown otherwise. */
+.result-row__diagnostics {
+  overflow: hidden;
+  color: var(--lumen-text-secondary);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 10.5px;
+  line-height: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

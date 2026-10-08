@@ -29,6 +29,8 @@ export type {
   Appearance,
   CoreInfo,
   Invocation,
+  QueryDiagnostics,
+  ResultDiagnostics,
   ResultsUpdate,
   ResultView,
 } from "./types";

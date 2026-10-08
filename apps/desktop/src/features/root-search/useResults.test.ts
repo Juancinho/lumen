@@ -41,6 +41,7 @@ const row = (id: string) => ({
   detail: null,
   extension: null,
   primaryAction: "lumen.open",
+  diagnostics: null,
 });
 
 async function settle() {
@@ -70,22 +71,22 @@ describe("useResults", () => {
     });
     await settle();
     act(() => {
-      push?.({ queryId: 1, done: true, results: [row("item:1")] });
+      push?.({ queryId: 1, done: true, results: [row("item:1")], diagnostics: null });
     });
     expect(result.current).toEqual({ rows: [row("item:1")], queryId: 1, status: "done" });
 
     rerender({ q: "vs" }); // id 2
     expect(result.current.rows).toEqual([row("item:1")]);
     act(() => {
-      push?.({ queryId: 1, done: true, results: [row("item:9")] }); // stale
+      push?.({ queryId: 1, done: true, results: [row("item:9")], diagnostics: null }); // stale
     });
     expect(result.current.rows).toEqual([row("item:1")]);
     act(() => {
-      push?.({ queryId: 2, done: false, results: [row("item:2")] });
+      push?.({ queryId: 2, done: false, results: [row("item:2")], diagnostics: null });
     });
     expect(result.current).toEqual({ rows: [row("item:2")], queryId: 2, status: "searching" });
     act(() => {
-      push?.({ queryId: 2, done: true, results: [] });
+      push?.({ queryId: 2, done: true, results: [], diagnostics: null });
     });
     expect(result.current).toEqual({ rows: [], queryId: 2, status: "done" });
   });

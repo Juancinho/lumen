@@ -1,6 +1,12 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-import type { Appearance, ResultsUpdate, ResultView } from "./types";
+import type {
+  Appearance,
+  QueryDiagnostics,
+  ResultDiagnostics,
+  ResultsUpdate,
+  ResultView,
+} from "./types";
 
 /** Mirrors `overlay::EVENT_SHOWN` in `src-tauri/src/overlay/mod.rs`. */
 export const OVERLAY_SHOWN = "lumen:overlay-shown";
@@ -55,6 +61,25 @@ export const CATALOG_CHANGED = "lumen:catalog-changed";
 
 const KINDS = new Set(["application", "file", "folder", "command"]);
 
+function toResultDiagnostics(raw: unknown): ResultDiagnostics | null {
+  const d = raw as Partial<Record<keyof ResultDiagnostics, unknown>> | null | undefined;
+  if (typeof d?.provider !== "string" || typeof d.matchKind !== "string") return null;
+  return {
+    provider: d.provider,
+    matchKind: d.matchKind,
+    confidence: typeof d.confidence === "number" ? d.confidence : 0,
+  };
+}
+
+function toQueryDiagnostics(raw: unknown): QueryDiagnostics | null {
+  const d = raw as { elapsedMs?: unknown; failed?: unknown } | null | undefined;
+  if (typeof d?.elapsedMs !== "number") return null;
+  const failed = Array.isArray(d.failed)
+    ? d.failed.filter((f): f is string => typeof f === "string")
+    : [];
+  return { elapsedMs: d.elapsedMs, failed };
+}
+
 function toResult(raw: unknown): ResultView | null {
   const r = raw as Partial<Record<keyof ResultView, unknown>> | null;
   if (typeof r?.id !== "string" || typeof r.title !== "string") return null;
@@ -66,17 +91,24 @@ function toResult(raw: unknown): ResultView | null {
     detail: typeof r.detail === "string" ? r.detail : null,
     extension: typeof r.extension === "string" ? r.extension : null,
     primaryAction: typeof r.primaryAction === "string" ? r.primaryAction : "",
+    diagnostics: toResultDiagnostics(r.diagnostics),
   };
 }
 
 /** Validates a `lumen:results` payload; `null` when it is not one. */
 export function toResultsUpdate(payload: unknown): ResultsUpdate | null {
-  const p = payload as { queryId?: unknown; done?: unknown; results?: unknown } | null;
+  const p = payload as {
+    queryId?: unknown;
+    done?: unknown;
+    results?: unknown;
+    diagnostics?: unknown;
+  } | null;
   if (typeof p?.queryId !== "number" || !Array.isArray(p.results)) return null;
   return {
     queryId: p.queryId,
     done: p.done === true,
     results: p.results.map(toResult).filter((r): r is ResultView => r !== null),
+    diagnostics: toQueryDiagnostics(p.diagnostics),
   };
 }
 

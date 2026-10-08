@@ -153,3 +153,7 @@ Append-only. Keep entries compact.
 - Shell: executors (open/launch via ShellExecute, reveal via SHOpenFolderAndSelectItems, copy path via arboard), `list_actions`/`run_action`, usage recorded, overlay hides on success.
 - UI: Enter/click primary, Ctrl+Enter reveal, Ctrl+K panel with keyboard, Escape closes the panel before dismissing, failure notice on the row. 58 frontend tests; Linux smoke of the panel. ADR-026.
 
+## 2026-10-08 — T110 diagnostics mode (claude)
+
+- Env-gated provider/match/confidence per row and per-query timing/failures; fields are omitted from IPC payloads when off. 59 frontend tests.
+

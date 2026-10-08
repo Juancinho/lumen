@@ -14,6 +14,11 @@ T004 Acrylic vs Mica), T003 shortcut check. T101/T102 DONE (Windows run accepted
 Lumen is now usable end to end: type → results → Enter opens. Next: T105 (Quick Look) or
 T110 (diagnostics); T205-line work needs T201+ (M2).
 
+## T110 — outcome (REVIEW)
+
+- `LUMEN_DIAGNOSTICS=1`: `ResultDto.diagnostics` + `ResultsDto.diagnostics` (skipped from the
+  JSON otherwise), mono line under rows, `console.debug` per update.
+
 ## T108 + T109 — outcome (REVIEW, ADR-026)
 
 - Core: `lumen_search::{available, prepare, ActionError}`, `SearchService::lookup`;

@@ -21,6 +21,15 @@ pub(crate) const EVENT_RESULTS: &str = "lumen:results";
 /// Results per update: 8 visible rows, the rest scrolls.
 pub(crate) const RESULT_LIMIT: usize = 30;
 
+/// Development diagnostics (T110): provider, match kind and confidence on every row, and
+/// per-query timings. Never on unless `LUMEN_DIAGNOSTICS=1`.
+pub(crate) const ENV_DIAGNOSTICS: &str = "LUMEN_DIAGNOSTICS";
+
+pub(crate) fn diagnostics_enabled() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var(ENV_DIAGNOSTICS).is_ok_and(|v| v == "1"))
+}
+
 /// Managed state; `None` when the search thread could not start.
 pub(crate) struct Search(pub(crate) Option<SearchService>);
 
@@ -52,7 +61,7 @@ fn deliver<R: Runtime>(app: &AppHandle<R>, update: &lumen_search::Update) {
     for provider in &update.failed {
         eprintln!("lumen: provider {} failed", provider.as_str());
     }
-    let payload = ResultsDto::from(update);
+    let payload = ResultsDto::new(update, diagnostics_enabled());
     if let Err(err) = app.emit_to(overlay::WINDOW_LABEL, EVENT_RESULTS, payload) {
         eprintln!("lumen: emit {EVENT_RESULTS} failed: {err}");
     }

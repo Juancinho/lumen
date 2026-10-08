@@ -87,6 +87,7 @@ describe("results", () => {
           detail: "Application",
           extension: null,
           primaryAction: "",
+          diagnostics: null,
         },
         {
           id: "item:3",
@@ -95,8 +96,34 @@ describe("results", () => {
           detail: null,
           extension: "txt",
           primaryAction: "",
+          diagnostics: null,
         },
       ],
+      diagnostics: null,
     });
+  });
+});
+
+describe("diagnostics", () => {
+  it("passes development diagnostics through when present", () => {
+    const u = toResultsUpdate({
+      queryId: 1,
+      done: true,
+      results: [
+        {
+          id: "item:1",
+          kind: "file",
+          title: "a",
+          diagnostics: { provider: "lumen.catalog", matchKind: "prefix", confidence: 0.5 },
+        },
+      ],
+      diagnostics: { elapsedMs: 1.5, failed: ["x.y"] },
+    });
+    expect(u?.results[0]?.diagnostics).toEqual({
+      provider: "lumen.catalog",
+      matchKind: "prefix",
+      confidence: 0.5,
+    });
+    expect(u?.diagnostics).toEqual({ elapsedMs: 1.5, failed: ["x.y"] });
   });
 });

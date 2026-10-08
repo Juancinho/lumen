@@ -25,6 +25,21 @@ export interface ResultView {
   extension: string | null;
   /** Action id Enter runs (`lumen.open`, `lumen.launch`). */
   primaryAction: string;
+  /** Development diagnostics (`LUMEN_DIAGNOSTICS=1`), otherwise `null`. */
+  diagnostics: ResultDiagnostics | null;
+}
+
+/** Mirrors `ResultDiagnosticsDto` (T110). */
+export interface ResultDiagnostics {
+  provider: string;
+  matchKind: string;
+  confidence: number;
+}
+
+/** Mirrors `QueryDiagnosticsDto` (T110). */
+export interface QueryDiagnostics {
+  elapsedMs: number;
+  failed: string[];
 }
 
 /** Mirrors `ActionDto`: one Action Panel entry (T108). */
@@ -45,4 +60,6 @@ export interface ResultsUpdate {
   /** No further update follows for this query. */
   done: boolean;
   results: ResultView[];
+  /** Diagnostics mode only, otherwise `null`. */
+  diagnostics: QueryDiagnostics | null;
 }
