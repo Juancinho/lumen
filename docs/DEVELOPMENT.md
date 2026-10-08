@@ -39,6 +39,8 @@ crates/
   lumen-catalog/           app/file catalog: inventory -> items, Start-menu apps, CatalogProvider (ADR-021)
   lumen-search/            root-search Coordinator + latest-wins SearchService (ADR-025)
   lumen-extract/           text/code extraction + retrieval chunking (ADR-028)
+  lumen-content/           content pass (extract -> chunks) + persistent embedding queue
+                           (pause, duty cycle, interactive holds; ADR-029)
   lumen-windows/           Windows OS adapters (AppsFolder apps, window material/DWM plan,
                            process CPU time);
                            no GUI framework/WebView types

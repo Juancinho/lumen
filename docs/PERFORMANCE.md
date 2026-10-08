@@ -185,6 +185,11 @@ parameters per token), so the budget is a question of how many cores scale on a 
 cores. `scripts/t014/run-windows-throughput.ps1` sweeps 1/2/4/cores/threads and llama.cpp
 builds to draw the chunks/s-at-CPU-% curve; evidence in `docs/benchmarks/t014/`.
 
+T202 (ADR-029): the queue adds 0.026 ms per chunk (≈10⁻⁴ of embedding time). A duty cycle
+holds a CPU share exactly (2 threads at duty 0.5 → 50 %) but yields ~20 % fewer chunks per
+CPU than lowering the thread count (1 thread → 50 %, 2.8 vs 2.3 chunks/s): cap threads
+first, use the duty cycle for the remainder.
+
 Track:
 
 - files/s discovered;

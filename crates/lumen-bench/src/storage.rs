@@ -118,6 +118,8 @@ pub(crate) fn run(opts: &StorageOptions) -> Result<StorageReport, String> {
                     text,
                     symbol_name: None,
                     page_number: None,
+                    start_offset: None,
+                    end_offset: None,
                 }
             })
             .collect();

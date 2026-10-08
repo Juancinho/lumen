@@ -20,4 +20,9 @@ mod kinds;
 
 pub use chunk::{Chunk, ChunkConfig, ChunkKind, EstimateTokens, TokenCount, chunk};
 pub use decode::{DEFAULT_MAX_BYTES, ExtractError, Extracted, Skip, decode, extract_file};
-pub use kinds::{DocKind, Language, kind_for_extension};
+pub use kinds::{DocKind, Language, TEXT_EXTENSIONS, kind_for_extension};
+
+/// Version of what extraction + chunking produce for a file. Bump it whenever the chunks of
+/// an unchanged file would differ: the content pass then re-reads every file (stored as
+/// `items.extractor_version`), and it is part of the index generation (ADR-029).
+pub const EXTRACTOR_VERSION: u32 = 1;

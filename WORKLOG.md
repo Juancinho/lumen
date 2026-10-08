@@ -196,3 +196,9 @@ Append-only. Keep entries compact.
 - `lumen-bench embed` gains `--backend llama-server` (llama.cpp `llama-server --embedding` over localhost HTTP; GGUF variants are distinct spaces) and per-batch CPU accounting (`--cpu-pid` for the server), report schema v2. `lumen_windows::process::cpu_time` (GetProcessTimes); Linux reads `/proc/<pid>/stat`.
 - `scripts/t014/run-windows-throughput.ps1`: ORT q4 thread sweep + q8 + DirectML fp16, llama.cpp latest release (cpu/vulkan/cuda 12) on Q8_0 and UD-Q4_K_XL GGUF, fidelity each run, summary with chunks/s per core and the §9 budget check.
 - Sandbox ORT q4: 3.4 chunks/s per busy core, linear 1→2 threads, batch size irrelevant on CPU. Verdict waits for the joao-pc run.
+
+## 2026-10-08 — T202 content pass + persistent embedding queue, core (claude)
+
+- New `lumen-content` crate: content pass (text files new/changed/failed/stale → extract → chunk → replace chunks, 32 files per transaction, scope predicate for name-only locations) and `run_queue` (keyset over chunks without a vector in the generation, batches of 8, pause, interactive holds, duty cycle, time slices; device failures abort, other failures isolated per item).
+- Storage migration 0002: per-item content state, `generations`, `chunk_vectors` (f16 LE; failed rows carry a code), `chunks.embedding_generation` dropped; v1 databases with chunks upgrade (test).
+- `lumen-bench pipeline`: sandbox queue overhead 0.026 ms/chunk, ~600 B per vector, restart resumes with 0 pending; ORT q4 4.6 chunks/s at 2 threads, duty 0.5 → 50 % CPU at 2.3 chunks/s vs 1 thread → 50 % at 2.8. ADR-029. Added T210 (model/runtime provisioning).

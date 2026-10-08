@@ -35,3 +35,4 @@
 | [ADR-026](adr/adr-026-actions-ids-from-the-ui-recent-result.md) | Actions: ids from the UI, recent-result lookup, core policy, shell executors | Accepted |
 | [ADR-027](adr/adr-027-indexed-locations-one-versioned-setting.md) | Indexed locations: one versioned setting, visible default exclusions | Accepted |
 | [ADR-028](adr/adr-028-retrieval-chunks-128-token-target.md) | Retrieval chunks: ~128-token target, heuristic structure, bounded decoding | Accepted |
+| [ADR-029](adr/adr-029-content-indexing-db-is-the-queue.md) | Content indexing: the database is the queue, vectors in SQLite, thread cap before duty cycle | Accepted |

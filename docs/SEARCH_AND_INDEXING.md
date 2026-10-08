@@ -6,11 +6,13 @@
   (ADR-018), app + file catalog (ADR-021), tokenized name/path matching with typo,
   initials and folder context plus usage priors (ADR-022/023); every keystroke, p95 ≈ 5 ms
   on 26.5k entries + 330 apps (Windows).
-- **Lexical content (storage + chunker):** `chunks` + `chunks_fts` with budgeted queries
-  (ADR-017); text/code extraction and 128-token chunking exist (`lumen-extract`, ADR-028);
-  nothing writes chunks yet (T202 pipeline).
-- **Semantic (components only):** embedding backend + device policy (ADR-014/015/019), ANN
-  wrapper (ADR-016); no queue, generations or query lane yet (T202–T205).
+- **Lexical content (core built):** `chunks` + `chunks_fts` with budgeted queries
+  (ADR-017); text/code extraction and 128-token chunking (`lumen-extract`, ADR-028); the
+  content pass writes chunks incrementally (`lumen-content`, ADR-029) — not yet run by the
+  app (T202 shell integration).
+- **Semantic (components):** embedding backend + device policy (ADR-014/015/019), ANN
+  wrapper (ADR-016), persistent embedding queue with vectors per generation in SQLite
+  (ADR-029); no ANN generations or query lane yet (T203–T205).
 - **Coordination (built):** latency-class lanes and latest-wins search thread (ADR-025).
 
 ## 1. Retrieval philosophy
@@ -328,6 +330,10 @@ If these change incompatibly:
 5. delete old generation later.
 
 This prevents “update app → search broken for an hour”.
+
+Built (ADR-029): `generations` rows (space key × chunker version, created `building`) and
+`chunk_vectors` per generation, so steps 1–2 need no extra storage design; validation and
+the atomic switch are T203.
 
 ## 17. Prioritization of indexing jobs
 

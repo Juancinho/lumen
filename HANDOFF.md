@@ -10,8 +10,10 @@
 
 ## Active task
 
-None claimed. T014 is in REVIEW waiting for the Windows run below; next per `TASKS.md` →
-**Next**: T202 (embedding queue).
+**T202 (claude)** — core committed (ADR-029); next commit: shell integration (one indexing
+thread running catalog sync → content pass → queue slices; tray "Pause indexing"; progress
+event; per-location content toggle; model only when `LUMEN_EMBED_MODEL_DIR` +
+`LUMEN_ORT_DYLIB` are set, until T210). T014 waits for the Windows run below.
 
 ## Pending human checks (Windows, joao-pc)
 
@@ -32,6 +34,19 @@ None claimed. T014 is in REVIEW waiting for the Windows run below; next per `TAS
    ```
    Then commit `docs\benchmarks\t014\<date>-joao-pc\` (counts and timings only). Failed
    rows (e.g. CUDA without a recent driver) are fine — they are recorded.
+
+## T202 — core outcome (CLAIMED, ADR-029)
+
+- `lumen_content::{run_content_pass, run_queue, QueueJob, Control, Hold}`;
+  `lumen_storage::content` (candidates by keyset, `write_content`, generations,
+  `pending_chunks`, `write_vectors` f16, `queue_counts`, `vectors`); migration 0002 (drops
+  `chunks.embedding_generation`, adds content state, `generations`, `chunk_vectors`);
+  `NewChunk` now has `start_offset`/`end_offset`; `lumen_extract::{TEXT_EXTENSIONS,
+  EXTRACTOR_VERSION}`.
+- `lumen-bench pipeline --root DIR [--backend ort ...] [--duty F] [--max-seconds S]`.
+  Sandbox: queue overhead 0.026 ms/chunk, ~600 B/vector, duty 0.5 → exactly 50 % CPU, but
+  1 thread beats 2 threads × duty 0.5 by ~20 % per CPU.
+- Existing databases migrate to v2 on the next app start (tested v1-with-chunks → v2).
 
 ## T014 — outcome so far (REVIEW, Windows run pending)
 

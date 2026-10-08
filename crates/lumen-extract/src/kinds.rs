@@ -63,6 +63,81 @@ pub enum DocKind {
     Data,
 }
 
+/// Every extension [`kind_for_extension`] accepts (lowercase): what the content pass asks
+/// the catalog for.
+pub const TEXT_EXTENSIONS: &[&str] = &[
+    "txt",
+    "text",
+    "log",
+    "rst",
+    "srt",
+    "vtt",
+    "tex",
+    "org",
+    "adoc",
+    "md",
+    "markdown",
+    "mdx",
+    "json",
+    "jsonc",
+    "csv",
+    "tsv",
+    "yaml",
+    "yml",
+    "toml",
+    "ini",
+    "cfg",
+    "conf",
+    "xml",
+    "env",
+    "properties",
+    "rs",
+    "py",
+    "pyw",
+    "pyi",
+    "js",
+    "mjs",
+    "cjs",
+    "jsx",
+    "ts",
+    "mts",
+    "cts",
+    "tsx",
+    "cs",
+    "java",
+    "kt",
+    "kts",
+    "go",
+    "c",
+    "h",
+    "cc",
+    "cpp",
+    "cxx",
+    "hpp",
+    "hh",
+    "hxx",
+    "swift",
+    "php",
+    "rb",
+    "lua",
+    "sql",
+    "sh",
+    "bash",
+    "zsh",
+    "ps1",
+    "psm1",
+    "psd1",
+    "bat",
+    "cmd",
+    "html",
+    "htm",
+    "vue",
+    "svelte",
+    "css",
+    "scss",
+    "less",
+];
+
 /// The document kind for a lowercase-insensitive extension (without the dot); `None` for
 /// files that are not plain text (they are catalogued by name only).
 #[must_use]
@@ -101,6 +176,19 @@ pub fn kind_for_extension(ext: &str) -> Option<DocKind> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn text_extensions_lists_exactly_the_accepted_ones() {
+        assert!(
+            TEXT_EXTENSIONS
+                .iter()
+                .all(|e| kind_for_extension(e).is_some())
+        );
+        let mut unique = TEXT_EXTENSIONS.to_vec();
+        unique.sort_unstable();
+        unique.dedup();
+        assert_eq!(unique.len(), TEXT_EXTENSIONS.len());
+    }
 
     #[test]
     fn extensions_map_to_kinds() {

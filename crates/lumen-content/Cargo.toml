@@ -1,0 +1,20 @@
+[package]
+name = "lumen-content"
+description = "Content indexing (T202): content pass (extract -> chunk -> store) and the persistent, pausable, throttled embedding queue. Shell-agnostic."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+lumen-core.workspace = true
+lumen-catalog.workspace = true
+lumen-embedding.workspace = true
+lumen-extract.workspace = true
+lumen-storage.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+lumen-indexer.workspace = true

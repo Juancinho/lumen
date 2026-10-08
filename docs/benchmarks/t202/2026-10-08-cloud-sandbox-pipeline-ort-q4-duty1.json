@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "kind": "pipeline",
+  "label": "cloud sandbox 2 vCPU | ort q4 t2 duty 1",
+  "machine": {
+    "os": "linux",
+    "arch": "x86_64",
+    "logical_cpus": 2,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791466856
+  },
+  "backend": "onnxruntime-cpu",
+  "space": "embeddinggemma-2@onnx-community-q4/pre1/embeddinggemma-retrieval@1/d256/l2",
+  "catalog_entries": 165,
+  "catalog_seconds": 0.007673483,
+  "content": {
+    "files": 128,
+    "indexed": 128,
+    "skipped": 0,
+    "failed": 0,
+    "chunks": 3052,
+    "text_mib": 0.8235692977905273,
+    "seconds": 0.221345557,
+    "files_per_s": 578.2813160329214,
+    "text_mib_per_s": 3.72074013570793,
+    "rerun_seconds": 0.000166752
+  },
+  "queue": {
+    "embedded": 208,
+    "failed": 0,
+    "pending_after": 2844,
+    "batches": 26,
+    "batch": 8,
+    "duty": 1.0,
+    "stop": "time_limit",
+    "seconds": 45.713056641,
+    "busy_seconds": 45.702940973,
+    "yielded_seconds": 5.619e-6,
+    "chunks_per_s": 4.550122334489551,
+    "overhead_ms_per_chunk": 0.04860600480769231,
+    "cpu": {
+      "cpu_s": 88.48,
+      "cores": 1.935552039209786,
+      "machine_percent": 96.7776019604893
+    },
+    "db_bytes_per_vector": 610.4615384615385,
+    "resumed_pending": 2844
+  },
+  "db_mib": 2.375
+}

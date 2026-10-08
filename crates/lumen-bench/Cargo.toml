@@ -28,6 +28,7 @@ lumen-storage.workspace = true
 lumen-indexer.workspace = true
 lumen-catalog.workspace = true
 lumen-extract.workspace = true
+lumen-content.workspace = true
 tokenizers = { workspace = true, optional = true }
 usearch.workspace = true
 memory-stats.workspace = true

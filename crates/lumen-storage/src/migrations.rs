@@ -17,11 +17,18 @@ pub struct Migration {
 }
 
 /// All migrations, in order. Versions start at 1 and increase by exactly 1.
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "initial",
-    sql: include_str!("../migrations/0001_initial.sql"),
-}];
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "initial",
+        sql: include_str!("../migrations/0001_initial.sql"),
+    },
+    Migration {
+        version: 2,
+        name: "content_and_vectors",
+        sql: include_str!("../migrations/0002_content_and_vectors.sql"),
+    },
+];
 
 /// Schema version this binary produces.
 #[must_use]
@@ -129,5 +136,35 @@ mod tests {
             apply(&mut conn, MIGRATIONS),
             Err(StorageError::SchemaTooNew { .. })
         ));
+    }
+
+    #[test]
+    fn v1_database_with_chunks_upgrades_to_v2() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        apply(&mut conn, &MIGRATIONS[..1]).unwrap();
+        conn.execute_batch(
+            "INSERT INTO items (kind, canonical_path, display_name) VALUES ('file', '/a', 'a');
+             INSERT INTO chunks (item_id, ordinal, chunk_kind, text, embedding_generation)
+             VALUES (1, 0, 'text', 'hola mundo', NULL);",
+        )
+        .unwrap();
+        assert_eq!(apply(&mut conn, MIGRATIONS).unwrap(), (1, 2));
+        let (text, state): (String, Option<String>) = conn
+            .query_row(
+                "SELECT c.text, i.content_state FROM chunks c JOIN items i ON i.id = c.item_id",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((text.as_str(), state), ("hola mundo", None));
+        let fts: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM chunks_fts WHERE chunks_fts MATCH 'mundo'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(fts, 1);
     }
 }

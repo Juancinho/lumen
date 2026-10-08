@@ -132,6 +132,9 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
   (BOM/UTF-8/UTF-16/Windows-1252, binary and size skips with reasons), 128-token chunks with
   offsets for prose/Markdown/code/data, symbol names for code; estimator calibrated against
   the EmbeddingGemma 2 tokenizer; `lumen-bench chunk`.
+- **T202 core (ADR-029):** `crates/lumen-content` — incremental content pass and a
+  persistent, pausable, throttled embedding queue whose state is the database (vectors per
+  generation as f16 in `chunk_vectors`); shell integration next, model provisioning T210.
 - **T014 REVIEW (Windows run pending):** throughput harness for ORT thread sweeps and
   llama.cpp builds (CPU/Vulkan/CUDA, GGUF) with CPU share per run; sandbox ORT q4 3.4
   chunks/s per busy core. The runtime/thread verdict becomes an ADR after the joao-pc run.

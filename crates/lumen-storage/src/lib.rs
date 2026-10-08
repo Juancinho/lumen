@@ -6,11 +6,13 @@
 //! - any number of **readers** ([`Store::open_reader`]) for search: read-only, never blocked
 //!   by the writer thanks to WAL snapshot isolation.
 //!
-//! The ANN index is derived data rebuilt from `chunks` (ADR-016); this store is the truth.
+//! The ANN index is derived data rebuilt from `chunk_vectors` (ADR-016/029); this store is
+//! the truth.
 
 #![forbid(unsafe_code)]
 
 pub mod catalog;
+pub mod content;
 mod fts;
 pub mod migrations;
 mod settings;
@@ -25,6 +27,10 @@ use lumen_core::CancellationToken;
 use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
 
 pub use catalog::{CatalogEntry, CatalogItem, NameHit, Source, UpsertStats};
+pub use content::{
+    ContentCandidate, ContentCounts, ContentOutcome, ContentWrite, GenerationSpec, PendingChunk,
+    QueueCounts, VectorWrite,
+};
 pub use fts::{FtsQuery, MIN_PREFIX_CHARS};
 pub use migrations::{MIGRATIONS, Migration, latest_version};
 pub use usage::{UsageSignal, UseKind};
@@ -203,6 +209,9 @@ pub struct NewChunk<'a> {
     pub text: &'a str,
     pub symbol_name: Option<&'a str>,
     pub page_number: Option<i64>,
+    /// Byte range in the extracted text (T201 chunk offsets).
+    pub start_offset: Option<i64>,
+    pub end_offset: Option<i64>,
 }
 
 /// One lexical hit. `rank` is FTS5 bm25 (lower = better; negative values).
@@ -333,8 +342,9 @@ impl Store {
         let mut ids = Vec::with_capacity(chunks.len());
         {
             let mut stmt = tx.prepare_cached(
-                "INSERT INTO chunks (item_id, ordinal, chunk_kind, text, symbol_name, page_number)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                "INSERT INTO chunks (item_id, ordinal, chunk_kind, text, symbol_name, page_number,
+                                     start_offset, end_offset)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             )?;
             for c in chunks {
                 stmt.execute(params![
@@ -343,7 +353,9 @@ impl Store {
                     c.chunk_kind,
                     c.text,
                     c.symbol_name,
-                    c.page_number
+                    c.page_number,
+                    c.start_offset,
+                    c.end_offset
                 ])?;
                 ids.push(tx.last_insert_rowid());
             }
@@ -460,10 +472,10 @@ mod tests {
 
     use super::*;
 
-    struct TempDb(PathBuf);
+    pub(crate) struct TempDb(PathBuf);
 
     impl TempDb {
-        fn new(name: &str) -> Self {
+        pub(crate) fn new(name: &str) -> Self {
             let dir = std::env::temp_dir().join(format!(
                 "lumen-storage-{name}-{}-{:?}",
                 std::process::id(),
@@ -473,7 +485,7 @@ mod tests {
             std::fs::create_dir_all(&dir).unwrap();
             Self(dir)
         }
-        fn path(&self) -> PathBuf {
+        pub(crate) fn path(&self) -> PathBuf {
             self.0.join("lumen.db")
         }
     }
@@ -504,6 +516,8 @@ mod tests {
                     text: "Notas de la reunión con el cliente: enviar el contrato firmado.",
                     symbol_name: None,
                     page_number: None,
+                    start_offset: None,
+                    end_offset: None,
                 },
                 NewChunk {
                     item_id: code,
@@ -512,6 +526,8 @@ mod tests {
                     text: "def fetch_with_backoff(url): retry failed requests with exponential backoff",
                     symbol_name: Some("fetch_with_backoff"),
                     page_number: None,
+                    start_offset: None,
+                    end_offset: None,
                 },
                 NewChunk {
                     item_id: code,
@@ -520,6 +536,8 @@ mod tests {
                     text: "connection refused errors are retried; other HTTP errors are raised",
                     symbol_name: None,
                     page_number: None,
+                    start_offset: None,
+                    end_offset: None,
                 },
             ])
             .unwrap();
@@ -661,10 +679,10 @@ mod tests {
             .join(" | ");
         assert!(plan.contains("items_path_nocase"), "{plan}");
         let plan = store
-            .query_plan("SELECT id FROM chunks WHERE embedding_generation IS NULL AND item_id = 1")
+            .query_plan("SELECT 1 FROM chunk_vectors WHERE generation = 1 AND chunk_id = 2")
             .unwrap()
             .join(" | ");
-        assert!(plan.contains("chunks_unembedded"), "{plan}");
+        assert!(plan.contains("PRIMARY KEY"), "{plan}");
     }
 
     #[test]
@@ -679,6 +697,8 @@ mod tests {
                 text: "fresh chunk",
                 symbol_name: None,
                 page_number: None,
+                start_offset: None,
+                end_offset: None,
             },
             NewChunk {
                 item_id: notes,
@@ -687,6 +707,8 @@ mod tests {
                 text: "duplicate",
                 symbol_name: None,
                 page_number: None,
+                start_offset: None,
+                end_offset: None,
             },
         ]);
         assert!(err.is_err());
@@ -770,6 +792,8 @@ mod tests {
                 text: &text,
                 symbol_name: None,
                 page_number: None,
+                start_offset: None,
+                end_offset: None,
             })
             .collect();
         store.insert_chunks(&chunks).unwrap();

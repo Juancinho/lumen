@@ -17,6 +17,7 @@ mod embed;
 mod fidelity;
 mod llama;
 mod machine;
+mod pipeline;
 mod scan;
 mod stats;
 mod storage;
@@ -36,6 +37,7 @@ Commands:
   identity-check  Stable file identity under rename/move/copy/save/hard link (T009)
   catalog   App/file catalog: inventory -> SQLite, app discovery, keystroke name lookup (T101)
   chunk     Text/code extraction + chunking over real folders (T201; counts only)
+  pipeline  Catalog -> content pass -> embedding queue over real folders (T202; counts only)
   probe     Measure one embedding device for the device policy (T013), JSON probe
   device-policy   Device decisions from probe files across power/profile scenarios (T013)
 
@@ -70,6 +72,13 @@ ort backend (build with --features ort, or directml on Windows):
   --threads N            intra-op threads (default: runtime default)
   --placement            report which execution provider runs each graph node
   --no-cpu-fallback      fail instead of running unsupported GPU nodes on CPU
+
+pipeline options (plus every embed backend option above):
+  --root DIR             folder to index (repeatable)
+  --work-dir DIR         keep the database there (default: temporary, deleted)
+  --duty F               embedding duty cycle 0.05..1 (default: 1 = no cap)
+  --batch N              chunks per embedding call (default: 8)
+  --max-seconds S        stop the queue after S seconds (default: 120)
 
 ann options:
   --sizes A,B,..         vector counts (default: 100000)
@@ -145,6 +154,12 @@ fn main() -> ExitCode {
     match args.first().map(String::as_str) {
         Some("embed") => match parse_embed(&args[1..]).and_then(|(opts, json)| {
             embed::run(&opts).map(|r| (embed::summarize(&r), to_json(&r), json))
+        }) {
+            Ok((summary, json, path)) => emit(&summary, json, path),
+            Err(err) => usage_error(&err),
+        },
+        Some("pipeline") => match parse_pipeline(&args[1..]).and_then(|(opts, json)| {
+            pipeline::run(&opts).map(|r| (pipeline::summarize(&r), to_json(&r), json))
         }) {
             Ok((summary, json, path)) => emit(&summary, json, path),
             Err(err) => usage_error(&err),
@@ -524,6 +539,43 @@ fn parse_policy(args: &[String]) -> Result<PolicyArgs, String> {
         }
     }
     Ok((files, space, label, json))
+}
+
+fn parse_pipeline(args: &[String]) -> Result<(pipeline::PipelineOptions, Option<String>), String> {
+    let mut opts = pipeline::PipelineOptions::default();
+    let mut json = None;
+    let mut rest = Vec::new();
+    let mut it = args.iter();
+    while let Some(flag) = it.next() {
+        if matches!(flag.as_str(), "--placement" | "--no-cpu-fallback") {
+            rest.push(flag.clone());
+            continue;
+        }
+        let value = it
+            .next()
+            .cloned()
+            .ok_or_else(|| format!("{flag} needs a value"))?;
+        let float = |v: &str| {
+            v.parse::<f64>()
+                .map_err(|_| format!("{flag}: `{v}` is not a number"))
+        };
+        match flag.as_str() {
+            "--root" => opts.roots.push(value.into()),
+            "--work-dir" => opts.work_dir = Some(value.into()),
+            "--duty" => opts.duty = float(&value)?,
+            "--max-seconds" => opts.max_seconds = float(&value)?,
+            "--batch" => {
+                opts.batch = value
+                    .parse()
+                    .map_err(|_| format!("{flag}: not a positive integer"))?;
+            }
+            "--label" => opts.label = Some(value),
+            "--json" => json = Some(value),
+            _ => rest.extend([flag.clone(), value]),
+        }
+    }
+    opts.embed = parse_embed(&rest)?.0;
+    Ok((opts, json))
 }
 
 fn parse_embed(args: &[String]) -> Result<(embed::EmbedOptions, Option<String>), String> {

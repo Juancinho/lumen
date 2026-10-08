@@ -7,8 +7,9 @@ Built (M0 + M1, see `PROJECT_STATE.md`): one resident process — Tauri shell
 (ADR-017/021); name matching with usage priors (ADR-022/023); root-search coordinator with a
 latest-wins search thread (ADR-025); built-in actions behind the core policy (ADR-026);
 embedding backend on ONNX Runtime with a device policy (ADR-014/015/019); ANN wrapper
-(ADR-016). Not built yet: extraction/chunking (T201), embedding queue (T202), persistent ANN
-generations (T203), semantic/hybrid lanes (T204/T205), watcher (T207).
+(ADR-016); extraction/chunking (ADR-028) and the content pass + persistent embedding queue
+with vectors in SQLite (`lumen-content`, ADR-029; shell integration pending). Not built yet:
+persistent ANN generations (T203), semantic/hybrid lanes (T204/T205), watcher (T207).
 The crate/module layout lives only in `docs/DEVELOPMENT.md` §2; decisions in
 `docs/DECISIONS.md` (one file per ADR in `docs/adr/`).
 
@@ -126,11 +127,12 @@ Do not make the ANN index the source of truth. SQLite remains canonical; vector 
 
 ## 7. Schema
 
-The literal schema is `crates/lumen-storage/migrations/0001_initial.sql` (ADR-017; editable
-until the first release, then only new migrations): `items` (files, folders and apps:
-stable identity, exact + case-insensitive path, name tokens, status), `scans`, `chunks` +
-`chunks_fts`, `names_fts`, `settings`, and the usage aggregates `usage_stats`,
-`query_choices`, `pins` (ADR-023 — no raw event log).
+The literal schema is `crates/lumen-storage/migrations/` (ADR-017; append-only migrations):
+`0001_initial.sql` — `items` (files, folders and apps: stable identity, exact +
+case-insensitive path, name tokens, status), `scans`, `chunks` + `chunks_fts`, `names_fts`,
+`settings`, and the usage aggregates `usage_stats`, `query_choices`, `pins` (ADR-023 — no raw
+event log); `0002_content_and_vectors.sql` — per-item content state, `generations`, and
+`chunk_vectors` (f16 vectors per generation: the durable embedding results, ADR-029).
 
 Large binary previews/thumbnails should not be stored directly in SQLite unless benchmark evidence favors it. Prefer a bounded cache directory with content-addressed keys.
 
