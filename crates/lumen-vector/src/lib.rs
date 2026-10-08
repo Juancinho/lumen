@@ -121,6 +121,24 @@ impl IndexConfig {
         }
     }
 
+    /// Stable description of everything a saved file depends on (stored next to ANN files,
+    /// T203): a file built with another configuration is rebuilt, never loaded.
+    #[must_use]
+    pub fn fingerprint(&self) -> String {
+        let metric = match self.metric {
+            Metric::Cosine => "cos",
+            Metric::InnerProduct => "ip",
+        };
+        format!(
+            "usearch-hnsw d{} {} {} M{} efc{}",
+            self.dim,
+            metric,
+            self.scalar.name(),
+            self.params.connectivity,
+            self.params.expansion_add
+        )
+    }
+
     fn options(&self) -> IndexOptions {
         IndexOptions {
             dimensions: self.dim,
@@ -362,6 +380,15 @@ mod tests {
     use super::*;
 
     const DIM: usize = 8;
+
+    #[test]
+    fn fingerprint_names_the_build_parameters() {
+        let c = IndexConfig::new(256, Scalar::F16);
+        assert_eq!(c.fingerprint(), "usearch-hnsw d256 cos f16 M16 efc128");
+        let mut other = c;
+        other.params.expansion_search = 999; // search-time only: same file
+        assert_eq!(other.fingerprint(), c.fingerprint());
+    }
 
     fn unit(i: usize) -> Vec<f32> {
         let mut v = [0.05_f32; DIM];

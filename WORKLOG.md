@@ -214,3 +214,10 @@ Append-only. Keep entries compact.
 - New `lumen-semantic` crate: `QueryEmbedder` (own runtime session on one worker thread, latest-wins with `Superseded`, cancellation, 64-entry cache, warm/unload/idle unload, stats without query text) that holds the indexing queue while queries arrive (+1.5 s linger).
 - `lumen_content::Control::{mark_interactive, interactive_within}`: the queue embeds one chunk per call for 10 s after interactive use; the shell marks it when the overlay is shown.
 - `lumen-bench query-lane` (alone / with indexing / preempted): sandbox 2 vCPU q4 p95 60 ms alone, 189 ms next to indexing, 184 ms preempted with 8-chunk batches, 70 ms with 1-chunk batches. ADR-030 (proposed until the Windows run); `scripts/t204/run-windows-query-lane.ps1`.
+
+## 2026-10-08 — T203 persistent ANN generations (claude)
+
+- Migration 0003: per-generation write sequence numbers on `chunk_vectors`, `ann_files`; `lumen_storage::generations` (states, `promote_first`, atomic `activate_generation`, batched `delete_retired_vectors`, snapshot/delta/seq readers).
+- `lumen_semantic::SemanticIndex`: mmap'd HNSW file (written `.tmp` → rename → recorded) + exact delta, candidates validated by seq so deleted, re-embedded and reused chunk ids never return old vectors; missing/mismatching files degrade to rebuild; `maintenance`, `build_file`, `validate` (drained, ≤ 1 % failed, self-recall), `cleanup_files`. `IndexConfig::fingerprint` in lumen-vector.
+- Shell: the indexing thread promotes the first generation, refreshes/rebuilds the ANN after slices, activates validated later generations and deletes retired vectors. Linux smoke: v2 database migrated to v3, generation active, re-embedding with seqs.
+- `lumen-bench ann-gen` (also in `cargo xtask bench`): sandbox 100k search p50 0.66 ms (2.3 ms with a 10k delta), recall@10 ≥ 0.998, build 25 s, open 7 ms. ADR-031.

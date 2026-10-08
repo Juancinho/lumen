@@ -8,14 +8,19 @@
 //!    the live power/memory/idle state: paused on low battery or memory pressure, fewer
 //!    threads on battery or while the user is active. The model is unloaded when the queue
 //!    drains.
+//! 3. ANN maintenance for the generation being filled (T203, ADR-031): the first
+//!    generation is searchable at once; its HNSW file (`<app data>/vectors/`) is rebuilt
+//!    when the in-memory delta or the stale share grows; a later generation (new model or
+//!    chunker) replaces the active one only once it is complete and validated, and the
+//!    retired one is then deleted in small batches.
 //!
 //! The model is not provisioned by the app yet (T210): semantic indexing runs only when
 //! `LUMEN_EMBED_MODEL_DIR` (an `onnx-community/embeddinggemma-2-ONNX` copy) and
 //! `LUMEN_ORT_DYLIB` (onnxruntime.dll) are set. Pause/resume is a tray toggle, remembered in
 //! `indexing.paused`.
 
-use std::path::Path;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
 use std::time::{Duration, Instant};
 
 use lumen_catalog::IndexLocations;
@@ -29,7 +34,10 @@ use lumen_embedding::policy::{
 };
 use lumen_embedding::{Embedder, EmbeddingProfile, Modality};
 use lumen_extract::{EXTRACTOR_VERSION, EstimateTokens};
-use lumen_storage::{GenerationSpec, Store};
+use lumen_semantic::{
+    IndexSettings, Maintenance, SemanticIndex, build_file, cleanup_files, validate,
+};
+use lumen_storage::{GenerationSpec, GenerationState, Store};
 use tauri::{App, AppHandle, Manager, Runtime};
 
 use crate::{settings, tray};
@@ -48,6 +56,12 @@ const SLICE: Duration = Duration::from_secs(30);
 const POLICY_RETRY: Duration = Duration::from_secs(60);
 /// No input for this long = the user is away (Balanced may use more threads).
 const USER_IDLE: Duration = Duration::from_secs(120);
+/// ANN files live next to the database.
+const VECTOR_DIR: &str = "vectors";
+/// Vectors probed when validating a generation before it replaces the active one.
+const VALIDATION_SAMPLE: usize = 64;
+/// Retired vector rows deleted per transaction.
+const RETIRE_BATCH: usize = 5_000;
 
 /// Semantic-indexing state shown in the tray.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,6 +110,9 @@ pub(crate) struct Indexing {
     loaded: Mutex<Option<Loaded>>,
     /// The model failed: do not retry until restart (or a settings change, later).
     failed: Mutex<bool>,
+    /// The searchable index of the generation being filled (T203); the settled-query
+    /// lane (T205) reads it.
+    ann: RwLock<Option<SemanticIndex>>,
 }
 
 impl Indexing {
@@ -146,6 +163,7 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) {
         }),
         loaded: Mutex::new(None),
         failed: Mutex::new(false),
+        ann: RwLock::new(None),
     });
 }
 
@@ -374,6 +392,10 @@ pub(crate) fn embed_slice<R: Runtime>(
                 now_ms(),
             ) {
                 Ok(g) => {
+                    // The first generation of a database is searchable while it fills.
+                    if let Err(err) = store.promote_first(g, now_ms()) {
+                        eprintln!("lumen: generation {g} not promoted: {err}");
+                    }
                     l.generation = Some(g);
                     g
                 }
@@ -392,6 +414,7 @@ pub(crate) fn embed_slice<R: Runtime>(
         refresh_counts(&state, &store, generation);
         state.set_semantic(Semantic::Idle);
         unload(&state);
+        maintain_ann(&state, &mut store, db, generation, token);
         tray::refresh_indexing(app);
         return Next::Idle;
     }
@@ -412,6 +435,9 @@ pub(crate) fn embed_slice<R: Runtime>(
     let result = run_queue(&mut store, &job, &now, &mut |_| {});
     drop(loaded);
     refresh_counts(&state, &store, generation);
+    if result.as_ref().is_ok_and(|r| r.embedded > 0) {
+        maintain_ann(&state, &mut store, db, generation, token);
+    }
     let next = match result {
         Ok(r) => {
             if r.embedded > 0 && r.busy > Duration::ZERO {
@@ -448,6 +474,95 @@ pub(crate) fn embed_slice<R: Runtime>(
     };
     tray::refresh_indexing(app);
     next
+}
+
+fn vector_dir(db: &Path) -> PathBuf {
+    db.parent().unwrap_or(Path::new(".")).join(VECTOR_DIR)
+}
+
+/// ANN upkeep after a queue slice (ADR-031): refresh the delta, rebuild the file when due,
+/// and switch a completed, validated generation in. Failures are logged; search falls back
+/// to lexical results meanwhile.
+fn maintain_ann(
+    state: &Indexing,
+    store: &mut Store,
+    db: &Path,
+    generation: i64,
+    token: &CancellationToken,
+) {
+    let started = Instant::now();
+    if let Err(err) = try_maintain_ann(state, store, &vector_dir(db), generation, token) {
+        eprintln!("lumen: ANN maintenance: {err}");
+    }
+    crate::diag::record(
+        "ann_maintenance_ms",
+        started.elapsed().as_secs_f64() * 1000.0,
+    );
+}
+
+fn try_maintain_ann(
+    state: &Indexing,
+    store: &mut Store,
+    dir: &Path,
+    generation: i64,
+    token: &CancellationToken,
+) -> Result<(), String> {
+    let e = |e: &dyn std::fmt::Display| e.to_string();
+    let info = store
+        .generations()
+        .map_err(|x| e(&x))?
+        .into_iter()
+        .find(|g| g.id == generation)
+        .ok_or("generation vanished")?;
+    let mut ann = state.ann.write().unwrap_or_else(PoisonError::into_inner);
+    match ann.as_mut() {
+        Some(index) if index.generation().id == generation => {
+            index.refresh(store).map_err(|x| e(&x))?;
+        }
+        _ => {
+            *ann = Some(
+                SemanticIndex::open(store, dir, info.clone(), IndexSettings::default())
+                    .map_err(|x| e(&x))?,
+            );
+        }
+    }
+    let Some(index) = ann.as_mut() else {
+        return Ok(());
+    };
+    if index.maintenance(store).map_err(|x| e(&x))? == Maintenance::Rebuild {
+        let started = Instant::now();
+        let record = build_file(store, dir, generation, token, now_ms()).map_err(|x| e(&x))?;
+        store.set_ann_file(&record).map_err(|x| e(&x))?;
+        index.reopen_file(store).map_err(|x| e(&x))?;
+        crate::diag::record("ann_build_ms", started.elapsed().as_secs_f64() * 1000.0);
+        crate::diag::record("ann_vectors", count(record.vectors));
+    }
+    // A later generation takes over only when complete and validated.
+    if info.state == GenerationState::Building {
+        let v = validate(store, index, VALIDATION_SAMPLE).map_err(|x| e(&x))?;
+        if v.ok {
+            store
+                .activate_generation(generation, now_ms())
+                .map_err(|x| e(&x))?;
+        } else if v.complete {
+            eprintln!(
+                "lumen: generation {generation} not activated: self-recall {:.2}, {} of {} failed",
+                v.self_recall, v.failed, v.chunks
+            );
+        }
+    }
+    drop(ann);
+    while !token.is_cancelled() {
+        if store
+            .delete_retired_vectors(RETIRE_BATCH)
+            .map_err(|x| e(&x))?
+            == 0
+        {
+            break;
+        }
+    }
+    cleanup_files(store, dir).map_err(|x| e(&x))?;
+    Ok(())
 }
 
 fn refresh_counts(state: &Indexing, store: &Store, generation: i64) {

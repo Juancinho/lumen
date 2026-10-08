@@ -6,12 +6,12 @@
 ## Branch
 
 `main` on github.com/Juancinho/lumen (push pending from joao-pc). Last commits: T015 → T111 → T201
-→ T014 (instrumentation) → T202 → T204.
+→ T014 (instrumentation) → T202 → T204 → T203.
 
 ## Active task
 
-None claimed. T202, T014 and T204 are in REVIEW waiting for the Windows runs below; next
-per `TASKS.md` → **Next**: T203 (persistent ANN generations) → T205 (fusion).
+None claimed. T202, T014, T204 and T203 are in REVIEW (Windows runs below); next per
+`TASKS.md` → **Next**: T205 (hybrid fusion + evaluation harness).
 
 ## Pending human checks (Windows, joao-pc)
 
@@ -50,6 +50,30 @@ per `TASKS.md` → **Next**: T203 (persistent ANN generations) → T205 (fusion)
    ```
    Commit `docs\benchmarks\t204\<date>-joao-pc\`. Pass if the `with_indexing_preempted`
    p95 with `-b1` is ≤ 80 ms (then ADR-030 → Accepted).
+
+7. T203 ANN generations (optional timing, ~5 min with `-Large`, no model needed):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\t203\run-windows-ann-gen.ps1 -Large
+   ```
+   Commit `docs\benchmarks\t203\<date>-joao-pc\`. With the app and a model (T202 run),
+   `%APPDATA%\dev.lumen.desktop\vectors\` gets a `gen-*.usearch` file once ~2,000
+   passages are embedded.
+
+## T203 — outcome (REVIEW, ADR-031)
+
+- Storage: migration 0003 (`chunk_vectors.seq`, `generations.next_seq/activated_at`,
+  `ann_files`); `lumen_storage::{GenerationInfo, GenerationState, AnnFileRecord,
+  SeqVector}` + `Store::{generations, active_generation, promote_first,
+  activate_generation, delete_retired_vectors, ann_file, set_ann_file, clear_ann_file,
+  ann_file_names, vectors_through, vectors_after_seq, vector_seqs, vector_count,
+  vector_count_through}`.
+- `lumen_semantic::{SemanticIndex (open, reopen_file, refresh, search, status,
+  maintenance), build_file, validate, cleanup_files, ann_config, IndexSettings}`.
+- Shell `indexing::maintain_ann` after queue slices; `Indexing.ann: RwLock<Option<
+  SemanticIndex>>` is what T205's settled-query lane reads (with a reader `Store`), only
+  when that generation is `active`.
+- For T205: embed the settled query with the `QueryEmbedder` (ADR-030), search
+  `Indexing.ann`, map chunk ids → items, fuse with name + content FTS; evaluation harness.
 
 ## T204 — outcome (REVIEW, ADR-030 proposed)
 

@@ -2481,6 +2481,7 @@ dependencies = [
  "lumen-extract",
  "lumen-indexer",
  "lumen-search",
+ "lumen-semantic",
  "lumen-storage",
  "lumen-windows",
  "serde",
@@ -2541,6 +2542,8 @@ dependencies = [
  "lumen-content",
  "lumen-core",
  "lumen-embedding",
+ "lumen-storage",
+ "lumen-vector",
 ]
 
 [[package]]

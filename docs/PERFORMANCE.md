@@ -8,6 +8,7 @@
 | Keystroke → name results | 16 / 40 ms | provider p50 1.1 / p95 5.3 ms (26.5k entries + 330 apps) | ADR-021/022 |
 | Keystroke → content FTS | 16 / 40 ms | **13 / 68 ms at 100k chunks (sandbox)** → runs on the settled query | ADR-017 note (T016) |
 | Warm text query embedding | 60 / 120 ms | 30.0 / 36.9 ms (CPU, q4) | ADR-015 |
+| ANN search incl. validation (k=10) | — (≪ embedding) | sandbox 100k: 0.66 / 1.07 ms; 2.3 / 2.8 ms with a 10k delta; recall@10 ≥ 0.998 | ADR-031 |
 | …while indexing runs | 60 / 120 ms | sandbox 2 vCPU: 144 / 189 ms unprotected → **51 / 70 ms** preempted with 1-chunk batches (alone 52 / 60) | ADR-030 — Windows run pending |
 | Idle memory (§5 metric) | < 400 MB | ~7 MiB WebView + 3–4 MiB shell hidden; 168 MiB with the model warm | ADR-020, ADR-015 |
 | Indexing throughput (§9) | ≥ 8 chunks/s @ ≤ 50 % CPU | **~7 chunks/s @ 100 % CPU** (128-token estimate); sandbox q4: 3.4 chunks/s per busy core | ADR-015 — top risk, T014 run pending |
@@ -133,6 +134,10 @@ Example order of magnitude for 1,000,000 chunks:
 A practical total of roughly sub-GB to a few GB is plausible depending on corpus and caches; measure instead of advertising a fixed number.
 
 ## 7. ANN budgets
+
+Measured so far: ADR-016 (index alone, 100k/1M) and ADR-031 (the persistent generation on
+SQLite: build 4k vectors/s single-threaded, mmap open 7 ms, file + delta + validation
+≤ 3 ms at 100k on the sandbox). `lumen-bench ann-gen` is in `cargo xtask bench`.
 
 Benchmark at:
 

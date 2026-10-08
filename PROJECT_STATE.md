@@ -137,6 +137,12 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
   generation as f16 in `chunk_vectors`), run by the catalog thread under the device policy
   (power/memory/idle); tray progress + pause, per-location content toggle. Model via env
   until T210.
+- **T203 REVIEW (ADR-031):** persistent ANN generations in `lumen-semantic` —
+  memory-mapped HNSW file built from a seq snapshot of `chunk_vectors` + exact in-memory
+  delta, every hit validated against SQLite (deleted / re-embedded / reused chunk ids never
+  surface), rebuild on delta or stale growth, first generation active at once, later ones
+  switched after validation; maintained by the app's indexing thread (migration 0003).
+  Sandbox 100k: search 0.7 / 1.1 ms p50/p95, recall@10 0.999; build 25 s.
 - **T204 REVIEW (ADR-030, proposed):** `crates/lumen-semantic` — `QueryEmbedder` with its
   own runtime session, latest-wins requests, cancellation, cache, warm/unload, and indexing
   preemption (hold + 1.5 s linger; one-chunk queue batches for 10 s after the overlay is

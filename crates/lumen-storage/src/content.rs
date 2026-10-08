@@ -325,7 +325,8 @@ impl Store {
     }
 
     /// Stores embedding results for `generation` in one transaction; returns how many
-    /// were written. Chunks deleted since they were read are skipped.
+    /// were written. Chunks deleted since they were read are skipped. Each row gets the
+    /// generation's next write sequence number (ADR-031: what an ANN file contains).
     ///
     /// # Errors
     /// A vector whose length is not the generation's dimension; SQLite failure.
@@ -344,11 +345,14 @@ impl Store {
         let dim = usize::try_from(dim).unwrap_or(0);
         let tx = self.conn.transaction()?;
         let mut written = 0;
+        let mut seq: i64 = tx
+            .prepare_cached("SELECT next_seq FROM generations WHERE id = ?1")?
+            .query_row([generation], |r| r.get(0))?;
         {
             let mut stmt = tx.prepare_cached(
                 "INSERT OR REPLACE INTO chunk_vectors
-                     (chunk_id, generation, vector, error_code, embedded_at)
-                 SELECT ?1, ?2, ?3, ?4, ?5 WHERE EXISTS (SELECT 1 FROM chunks WHERE id = ?1)",
+                     (chunk_id, generation, vector, error_code, embedded_at, seq)
+                 SELECT ?1, ?2, ?3, ?4, ?5, ?6 WHERE EXISTS (SELECT 1 FROM chunks WHERE id = ?1)",
             )?;
             for w in writes {
                 let (blob, error) = match w.result {
@@ -363,9 +367,15 @@ impl Store {
                     }
                     Err(code) => (None, Some(code)),
                 };
-                written += stmt.execute(params![w.chunk_id, generation, blob, error, now_ms])?;
+                let n = stmt.execute(params![w.chunk_id, generation, blob, error, now_ms, seq])?;
+                written += n;
+                if n > 0 {
+                    seq += 1;
+                }
             }
         }
+        tx.prepare_cached("UPDATE generations SET next_seq = ?2 WHERE id = ?1")?
+            .execute(params![generation, seq])?;
         tx.commit()?;
         Ok(written)
     }

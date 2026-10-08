@@ -9,8 +9,9 @@ latest-wins search thread (ADR-025); built-in actions behind the core policy (AD
 embedding backend on ONNX Runtime with a device policy (ADR-014/015/019); ANN wrapper
 (ADR-016); extraction/chunking (ADR-028) and the content pass + persistent embedding queue
 with vectors in SQLite (`lumen-content`, ADR-029), run by the catalog thread under the
-device policy (model via env until T210). Not built yet:
-persistent ANN generations (T203), semantic/hybrid lanes (T204/T205), watcher (T207).
+device policy (model via env until T210); the warm query embedder (ADR-030) and persistent
+ANN generations — memory-mapped HNSW file + exact delta, hits validated against SQLite
+(`lumen-semantic`, ADR-031). Not built yet: the hybrid search lane (T205), watcher (T207).
 The crate/module layout lives only in `docs/DEVELOPMENT.md` §2; decisions in
 `docs/DECISIONS.md` (one file per ADR in `docs/adr/`).
 
@@ -133,7 +134,9 @@ The literal schema is `crates/lumen-storage/migrations/` (ADR-017; append-only m
 case-insensitive path, name tokens, status), `scans`, `chunks` + `chunks_fts`, `names_fts`,
 `settings`, and the usage aggregates `usage_stats`, `query_choices`, `pins` (ADR-023 — no raw
 event log); `0002_content_and_vectors.sql` — per-item content state, `generations`, and
-`chunk_vectors` (f16 vectors per generation: the durable embedding results, ADR-029).
+`chunk_vectors` (f16 vectors per generation: the durable embedding results, ADR-029);
+`0003_ann_generations.sql` — per-generation write sequence numbers and `ann_files` (the
+derived HNSW file of each generation and the snapshot it contains, ADR-031).
 
 Large binary previews/thumbnails should not be stored directly in SQLite unless benchmark evidence favors it. Prefer a bounded cache directory with content-addressed keys.
 
@@ -281,6 +284,9 @@ If the embedding runtime does not support safe concurrent calls, serialize insid
 - Build a new generation to a temporary path and atomically promote when complete where possible.
 - On startup, reconcile `chunks` marked embedded but absent from active vector generation.
 - Corrupt vector index must degrade to lexical search and offer rebuild.
+- Built (ADR-031): ANN files are written to `.tmp`, renamed, then recorded; a missing or
+  mismatching file only triggers a rebuild from `chunk_vectors`; every ANN hit is checked
+  against the canonical rows, so no reconciliation pass is needed on startup.
 - Indexing errors never prevent the overlay from opening.
 
 ## 15. Filesystem watcher

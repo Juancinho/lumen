@@ -28,6 +28,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "content_and_vectors",
         sql: include_str!("../migrations/0002_content_and_vectors.sql"),
     },
+    Migration {
+        version: 3,
+        name: "ann_generations",
+        sql: include_str!("../migrations/0003_ann_generations.sql"),
+    },
 ];
 
 /// Schema version this binary produces.
@@ -149,7 +154,7 @@ mod tests {
              VALUES (1, 0, 'text', 'hola mundo', NULL);",
         )
         .unwrap();
-        assert_eq!(apply(&mut conn, MIGRATIONS).unwrap(), (1, 2));
+        assert_eq!(apply(&mut conn, &MIGRATIONS[..2]).unwrap(), (1, 2));
         let (text, state): (String, Option<String>) = conn
             .query_row(
                 "SELECT c.text, i.content_state FROM chunks c JOIN items i ON i.id = c.item_id",
@@ -166,5 +171,30 @@ mod tests {
             )
             .unwrap();
         assert_eq!(fts, 1);
+    }
+
+    #[test]
+    fn v2_vectors_upgrade_to_v3_with_sequence_zero() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        apply(&mut conn, &MIGRATIONS[..2]).unwrap();
+        conn.execute_batch(
+            "INSERT INTO items (kind, canonical_path, display_name) VALUES ('file', '/a', 'a');
+             INSERT INTO chunks (item_id, ordinal, chunk_kind, text) VALUES (1, 0, 'text', 'x');
+             INSERT INTO generations (space_key, chunker_version, dim, scalar, created_at)
+             VALUES ('k', 1, 2, 'f16', 0);
+             INSERT INTO chunk_vectors (chunk_id, generation, vector, embedded_at)
+             VALUES (1, 1, x'0000003c', 0);",
+        )
+        .unwrap();
+        assert_eq!(apply(&mut conn, MIGRATIONS).unwrap(), (2, 3));
+        let (seq, next): (i64, i64) = conn
+            .query_row(
+                "SELECT v.seq, g.next_seq FROM chunk_vectors v JOIN generations g ON g.id = v.generation",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((seq, next), (0, 1));
     }
 }

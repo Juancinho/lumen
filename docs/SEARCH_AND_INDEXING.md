@@ -12,8 +12,9 @@
   every catalog pass over locations with "Index file contents" on (not searched yet: T205).
 - **Semantic (components):** embedding backend + device policy (ADR-014/015/019), ANN
   wrapper (ADR-016), persistent embedding queue with vectors per generation in SQLite
-  (ADR-029); warm latest-wins query embedder that preempts indexing (`lumen-semantic`,
-  ADR-030, not yet called by search); no ANN generations or fusion yet (T203, T205).
+  (ADR-029); warm latest-wins query embedder that preempts indexing (ADR-030) and
+  persistent ANN generations (file + delta, hits validated, validated switch; ADR-031) in
+  `lumen-semantic`, maintained by the app's indexing thread; not yet called by search (T205).
 - **Coordination (built):** latency-class lanes and latest-wins search thread (ADR-025).
 
 ## 1. Retrieval philosophy
@@ -333,8 +334,9 @@ If these change incompatibly:
 This prevents “update app → search broken for an hour”.
 
 Built (ADR-029): `generations` rows (space key × chunker version, created `building`) and
-`chunk_vectors` per generation, so steps 1–2 need no extra storage design; validation and
-the atomic switch are T203.
+`chunk_vectors` per generation. Built (ADR-031): the first generation is active at once;
+a later one is activated atomically after its queue drains and a validation (≤ 1 % failed,
+sampled self-recall ≥ 0.95); retired vectors are then deleted in small transactions.
 
 ## 17. Prioritization of indexing jobs
 

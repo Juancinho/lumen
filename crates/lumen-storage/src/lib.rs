@@ -14,6 +14,7 @@
 pub mod catalog;
 pub mod content;
 mod fts;
+pub mod generations;
 pub mod migrations;
 mod settings;
 pub mod usage;
@@ -32,6 +33,7 @@ pub use content::{
     QueueCounts, VectorWrite,
 };
 pub use fts::{FtsQuery, MIN_PREFIX_CHARS};
+pub use generations::{AnnFileRecord, GenerationInfo, GenerationState, SeqVector};
 pub use migrations::{MIGRATIONS, Migration, latest_version};
 pub use usage::{UsageSignal, UseKind};
 

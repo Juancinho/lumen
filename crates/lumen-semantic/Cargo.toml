@@ -1,6 +1,6 @@
 [package]
 name = "lumen-semantic"
-description = "Semantic query lane (T204+): warm query embedder with latest-wins requests, cache and indexing preemption. Shell-agnostic."
+description = "Semantic lane: warm latest-wins query embedder with indexing preemption (T204), persistent ANN generations with an in-memory delta (T203). Shell-agnostic."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,6 +10,8 @@ publish.workspace = true
 lumen-core.workspace = true
 lumen-content.workspace = true
 lumen-embedding.workspace = true
+lumen-storage.workspace = true
+lumen-vector.workspace = true
 
 [lints]
 workspace = true
