@@ -36,3 +36,4 @@
 | [ADR-027](adr/adr-027-indexed-locations-one-versioned-setting.md) | Indexed locations: one versioned setting, visible default exclusions | Accepted |
 | [ADR-028](adr/adr-028-retrieval-chunks-128-token-target.md) | Retrieval chunks: ~128-token target, heuristic structure, bounded decoding | Accepted |
 | [ADR-029](adr/adr-029-content-indexing-db-is-the-queue.md) | Content indexing: the database is the queue, vectors in SQLite, thread cap before duty cycle | Accepted |
+| [ADR-030](adr/adr-030-query-lane-own-session-latest-wins-preempts-indexing.md) | Query lane: own runtime session, latest wins, preempts indexing at single-chunk boundaries | Proposed |

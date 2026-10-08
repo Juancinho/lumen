@@ -137,6 +137,10 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
   generation as f16 in `chunk_vectors`), run by the catalog thread under the device policy
   (power/memory/idle); tray progress + pause, per-location content toggle. Model via env
   until T210.
+- **T204 REVIEW (ADR-030, proposed):** `crates/lumen-semantic` — `QueryEmbedder` with its
+  own runtime session, latest-wins requests, cancellation, cache, warm/unload, and indexing
+  preemption (hold + 1.5 s linger; one-chunk queue batches for 10 s after the overlay is
+  shown). Sandbox: query p95 189 → 70 ms next to indexing. Not yet called by search (T205).
 - **T014 REVIEW (Windows run pending):** throughput harness for ORT thread sweeps and
   llama.cpp builds (CPU/Vulkan/CUDA, GGUF) with CPU share per run; sandbox ORT q4 3.4
   chunks/s per busy core. The runtime/thread verdict becomes an ADR after the joao-pc run.

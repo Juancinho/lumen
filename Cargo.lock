@@ -2428,6 +2428,7 @@ dependencies = [
  "lumen-embedding-ort",
  "lumen-extract",
  "lumen-indexer",
+ "lumen-semantic",
  "lumen-storage",
  "lumen-vector",
  "lumen-windows",
@@ -2531,6 +2532,15 @@ name = "lumen-search"
 version = "0.1.0"
 dependencies = [
  "lumen-core",
+]
+
+[[package]]
+name = "lumen-semantic"
+version = "0.1.0"
+dependencies = [
+ "lumen-content",
+ "lumen-core",
+ "lumen-embedding",
 ]
 
 [[package]]

@@ -41,6 +41,8 @@ crates/
   lumen-extract/           text/code extraction + retrieval chunking (ADR-028)
   lumen-content/           content pass (extract -> chunks) + persistent embedding queue
                            (pause, duty cycle, interactive holds; ADR-029)
+  lumen-semantic/          semantic query lane: warm latest-wins QueryEmbedder that
+                           preempts indexing (ADR-030); ANN generations + fusion next
   lumen-windows/           Windows OS adapters (AppsFolder apps, window material/DWM plan,
                            process CPU time);
                            no GUI framework/WebView types

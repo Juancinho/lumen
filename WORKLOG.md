@@ -208,3 +208,9 @@ Append-only. Keep entries compact.
 - The catalog thread now runs catalog pass → content pass → 30 s embedding-queue slices (re-checking catalog work between slices); the plan comes from the device policy with live power / free memory / input idle (`lumen_windows::system`), the model unloads when the queue drains, and the model is configured by env until T210.
 - Tray → Content indexing (status line, remembered Pause) and per-location "Index file contents"; `index.locations` v2 (v1 `names` upgrades to `names+content`).
 - Linux smoke with the real app: 154 chunks embedded into generation 1; `scripts/t202/run-windows-indexing.ps1` for the Windows check. T202 → REVIEW.
+
+## 2026-10-08 — T204 warm query embedding service (claude)
+
+- New `lumen-semantic` crate: `QueryEmbedder` (own runtime session on one worker thread, latest-wins with `Superseded`, cancellation, 64-entry cache, warm/unload/idle unload, stats without query text) that holds the indexing queue while queries arrive (+1.5 s linger).
+- `lumen_content::Control::{mark_interactive, interactive_within}`: the queue embeds one chunk per call for 10 s after interactive use; the shell marks it when the overlay is shown.
+- `lumen-bench query-lane` (alone / with indexing / preempted): sandbox 2 vCPU q4 p95 60 ms alone, 189 ms next to indexing, 184 ms preempted with 8-chunk batches, 70 ms with 1-chunk batches. ADR-030 (proposed until the Windows run); `scripts/t204/run-windows-query-lane.ps1`.

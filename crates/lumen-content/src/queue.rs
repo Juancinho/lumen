@@ -36,11 +36,14 @@ struct State {
     duty: f64,
     /// Bumped on every change, so sleepers wake and re-check.
     epoch: u64,
+    /// Last sign of interactive use (a hold taken or released, the overlay shown).
+    last_interactive: Option<Instant>,
 }
 
 impl Default for State {
     fn default() -> Self {
         Self {
+            last_interactive: None,
             paused: false,
             holds: 0,
             duty: 1.0,
@@ -57,7 +60,10 @@ pub struct Hold {
 
 impl Drop for Hold {
     fn drop(&mut self) {
-        self.control.update(|s| s.holds = s.holds.saturating_sub(1));
+        self.control.update(|s| {
+            s.holds = s.holds.saturating_sub(1);
+            s.last_interactive = Some(Instant::now());
+        });
     }
 }
 
@@ -108,10 +114,26 @@ impl Control {
     /// Preempts indexing until the returned guard is dropped (interactive embedding).
     #[must_use]
     pub fn hold(&self) -> Hold {
-        self.update(|s| s.holds += 1);
+        self.update(|s| {
+            s.holds += 1;
+            s.last_interactive = Some(Instant::now());
+        });
         Hold {
             control: self.clone(),
         }
+    }
+
+    /// The user may be about to search (overlay shown): indexing switches to single-chunk
+    /// batches for a while, so a query never waits behind a long batch.
+    pub fn mark_interactive(&self) {
+        self.lock().last_interactive = Some(Instant::now());
+    }
+
+    /// Held now, or interactive use within `window`.
+    #[must_use]
+    pub fn interactive_within(&self, window: Duration) -> bool {
+        let s = self.lock();
+        s.holds > 0 || s.last_interactive.is_some_and(|t| t.elapsed() < window)
     }
 
     /// Wakes every waiter (e.g. after cancelling their token).
@@ -166,6 +188,9 @@ impl Control {
         }
     }
 }
+
+/// How long after interactive use indexing keeps single-chunk batches.
+const INTERACTIVE_WINDOW: Duration = Duration::from_secs(10);
 
 #[derive(Debug, Clone, Copy)]
 pub struct QueueConfig {
@@ -295,7 +320,14 @@ pub fn run_queue(
         }
         report.yielded += waited.elapsed();
 
-        let batch = store.pending_chunks(generation, cursor, cfg.batch.max(1))?;
+        // Near interactive use, one chunk per call: a query that arrives mid-batch then
+        // waits for at most one chunk (T204: p95 70 vs 184 ms with 8-chunk batches).
+        let size = if control.interactive_within(INTERACTIVE_WINDOW) {
+            1
+        } else {
+            cfg.batch.max(1)
+        };
+        let batch = store.pending_chunks(generation, cursor, size)?;
         let Some(last) = batch.last() else {
             // A deleted top chunk id can be reused below the cursor: one rescan from the
             // start before declaring the queue empty.

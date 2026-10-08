@@ -149,6 +149,14 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) {
     });
 }
 
+/// The user may be about to search: indexing switches to one-chunk batches for a while so
+/// a query never waits behind a long batch (ADR-030).
+pub(crate) fn on_overlay_shown<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(state) = app.try_state::<Indexing>() {
+        state.control.mark_interactive();
+    }
+}
+
 /// Tray toggle: pauses or resumes indexing (remembered across restarts).
 pub(crate) fn set_paused<R: Runtime>(app: &AppHandle<R>, paused: bool) {
     let state = app.state::<Indexing>();

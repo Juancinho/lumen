@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "kind": "query-lane",
+  "label": "cloud sandbox 2 vCPU | q4 query t1 index t1",
+  "machine": {
+    "os": "linux",
+    "arch": "x86_64",
+    "logical_cpus": 2,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791468330
+  },
+  "backend": "onnxruntime-cpu",
+  "query_threads": 1,
+  "index_threads": 1,
+  "gap_ms": 80.0,
+  "scenarios": [
+    {
+      "name": "queries_only",
+      "latency": {
+        "n": 40,
+        "min_ms": 74.014234,
+        "mean_ms": 92.43317635000001,
+        "p50_ms": 87.89115699999999,
+        "p95_ms": 119.29142800000001,
+        "p99_ms": 125.759639,
+        "max_ms": 125.759639
+      },
+      "indexing_chunks_per_s": null
+    },
+    {
+      "name": "with_indexing",
+      "latency": {
+        "n": 40,
+        "min_ms": 79.436648,
+        "mean_ms": 93.59738229999996,
+        "p50_ms": 91.32496800000001,
+        "p95_ms": 109.296781,
+        "p99_ms": 125.840169,
+        "max_ms": 125.840169
+      },
+      "indexing_chunks_per_s": 4.6038560611302515
+    },
+    {
+      "name": "with_indexing_preempted",
+      "latency": {
+        "n": 40,
+        "min_ms": 82.39015099999999,
+        "mean_ms": 89.35300752500002,
+        "p50_ms": 86.660428,
+        "p95_ms": 100.075375,
+        "p99_ms": 122.184938,
+        "max_ms": 122.184938
+      },
+      "indexing_chunks_per_s": 1.1799061704838416
+    }
+  ]
+}

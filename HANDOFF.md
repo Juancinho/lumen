@@ -6,12 +6,12 @@
 ## Branch
 
 `main` on github.com/Juancinho/lumen (push pending from joao-pc). Last commits: T015 → T111 → T201
-→ T014 (instrumentation).
+→ T014 (instrumentation) → T202 → T204.
 
 ## Active task
 
-None claimed. T202 and T014 are in REVIEW waiting for the Windows runs below; next per
-`TASKS.md` → **Next**: T204 (warm query embedding service) → T203 (ANN generations).
+None claimed. T202, T014 and T204 are in REVIEW waiting for the Windows runs below; next
+per `TASKS.md` → **Next**: T203 (persistent ANN generations) → T205 (fusion).
 
 ## Pending human checks (Windows, joao-pc)
 
@@ -43,6 +43,26 @@ None claimed. T202 and T014 are in REVIEW waiting for the Windows runs below; ne
    "Pause indexing" stops it within a second or two and survives a restart; unplugging a
    laptop drops to 1 thread; tray → Indexed locations → a location → "Index file contents"
    off stops new content there. Commit `docs\benchmarks\t202\<date>-joao-pc\`.
+
+6. T204 query lane (~10 min, T006 cache, PC idle and plugged in):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\t204\run-windows-query-lane.ps1
+   ```
+   Commit `docs\benchmarks\t204\<date>-joao-pc\`. Pass if the `with_indexing_preempted`
+   p95 with `-b1` is ≤ 80 ms (then ADR-030 → Accepted).
+
+## T204 — outcome (REVIEW, ADR-030 proposed)
+
+- `lumen_semantic::{QueryEmbedder, QueryConfig, QueryError, QueryStats, MakeEmbedder}`:
+  `start(make, indexing: Option<Control>, config)`, `embed(text, &cancel)`, `warm`,
+  `unload`, `clear_cache`, `stats`.
+- `lumen_content::Control::{mark_interactive, interactive_within}` + one-chunk batches for
+  10 s after interactive use; shell `indexing::on_overlay_shown` (called from
+  `overlay::show`).
+- `lumen-bench query-lane --backend ort ... --query-threads N --index-threads M
+  --index-batch B --queries Q`.
+- For T205: create the `QueryEmbedder` in the shell with the indexing `Control`, call
+  `warm()` on overlay show, embed only the settled query.
 
 ## T202 — outcome (REVIEW, ADR-029)
 

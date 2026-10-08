@@ -12,7 +12,8 @@
   every catalog pass over locations with "Index file contents" on (not searched yet: T205).
 - **Semantic (components):** embedding backend + device policy (ADR-014/015/019), ANN
   wrapper (ADR-016), persistent embedding queue with vectors per generation in SQLite
-  (ADR-029); no ANN generations or query lane yet (T203–T205).
+  (ADR-029); warm latest-wins query embedder that preempts indexing (`lumen-semantic`,
+  ADR-030, not yet called by search); no ANN generations or fusion yet (T203, T205).
 - **Coordination (built):** latency-class lanes and latest-wins search thread (ADR-025).
 
 ## 1. Retrieval philosophy

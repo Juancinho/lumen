@@ -18,6 +18,7 @@ mod fidelity;
 mod llama;
 mod machine;
 mod pipeline;
+mod query_lane;
 mod scan;
 mod stats;
 mod storage;
@@ -38,6 +39,7 @@ Commands:
   catalog   App/file catalog: inventory -> SQLite, app discovery, keystroke name lookup (T101)
   chunk     Text/code extraction + chunking over real folders (T201; counts only)
   pipeline  Catalog -> content pass -> embedding queue over real folders (T202; counts only)
+  query-lane  Warm query embedding alone / next to indexing / with preemption (T204)
   probe     Measure one embedding device for the device policy (T013), JSON probe
   device-policy   Device decisions from probe files across power/profile scenarios (T013)
 
@@ -79,6 +81,13 @@ pipeline options (plus every embed backend option above):
   --duty F               embedding duty cycle 0.05..1 (default: 1 = no cap)
   --batch N              chunks per embedding call (default: 8)
   --max-seconds S        stop the queue after S seconds (default: 120)
+
+query-lane options (plus every embed backend option above):
+  --query-threads N      query session intra-op threads (default: runtime default)
+  --index-threads N      indexing session intra-op threads (default: runtime default)
+  --index-batch N        chunks per indexing call (default: 8)
+  --queries N            measured queries per scenario (default: 60)
+  --gap-ms N             pause between queries, typing cadence (default: 80)
 
 ann options:
   --sizes A,B,..         vector counts (default: 100000)
@@ -160,6 +169,12 @@ fn main() -> ExitCode {
         },
         Some("pipeline") => match parse_pipeline(&args[1..]).and_then(|(opts, json)| {
             pipeline::run(&opts).map(|r| (pipeline::summarize(&r), to_json(&r), json))
+        }) {
+            Ok((summary, json, path)) => emit(&summary, json, path),
+            Err(err) => usage_error(&err),
+        },
+        Some("query-lane") => match parse_query_lane(&args[1..]).and_then(|(opts, json)| {
+            query_lane::run(&opts).map(|r| (query_lane::summarize(&r), to_json(&r), json))
         }) {
             Ok((summary, json, path)) => emit(&summary, json, path),
             Err(err) => usage_error(&err),
@@ -569,6 +584,37 @@ fn parse_pipeline(args: &[String]) -> Result<(pipeline::PipelineOptions, Option<
                     .parse()
                     .map_err(|_| format!("{flag}: not a positive integer"))?;
             }
+            "--label" => opts.label = Some(value),
+            "--json" => json = Some(value),
+            _ => rest.extend([flag.clone(), value]),
+        }
+    }
+    opts.embed = parse_embed(&rest)?.0;
+    Ok((opts, json))
+}
+
+fn parse_query_lane(
+    args: &[String],
+) -> Result<(query_lane::QueryLaneOptions, Option<String>), String> {
+    let mut opts = query_lane::QueryLaneOptions::default();
+    let mut json = None;
+    let mut rest = Vec::new();
+    let mut it = args.iter();
+    while let Some(flag) = it.next() {
+        let value = it
+            .next()
+            .cloned()
+            .ok_or_else(|| format!("{flag} needs a value"))?;
+        let num = |v: &str| {
+            v.parse::<usize>()
+                .map_err(|_| format!("{flag}: `{v}` is not a non-negative integer"))
+        };
+        match flag.as_str() {
+            "--query-threads" => opts.query_threads = Some(num(&value)?.max(1)),
+            "--index-threads" => opts.index_threads = Some(num(&value)?.max(1)),
+            "--index-batch" => opts.index_batch = num(&value)?.max(1),
+            "--queries" => opts.queries = num(&value)?.max(1),
+            "--gap-ms" => opts.gap = Duration::from_millis(num(&value)? as u64),
             "--label" => opts.label = Some(value),
             "--json" => json = Some(value),
             _ => rest.extend([flag.clone(), value]),

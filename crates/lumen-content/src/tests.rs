@@ -326,6 +326,13 @@ fn pause_cancel_and_hold() {
     releaser.join().unwrap();
     assert_eq!(r.stop, Stop::Drained);
     assert!(r.yielded >= Duration::from_millis(100), "{r:?}");
+    // Right after interactive use the queue embeds one chunk per batch.
+    assert!(control.interactive_within(Duration::from_secs(10)));
+    assert_eq!(r.batches, r.embedded + r.failed, "{r:?}");
+    let fresh = Control::new();
+    assert!(!fresh.interactive_within(Duration::from_secs(10)));
+    fresh.mark_interactive();
+    assert!(fresh.interactive_within(Duration::from_secs(10)));
 }
 
 #[test]

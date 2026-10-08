@@ -8,6 +8,7 @@
 | Keystroke → name results | 16 / 40 ms | provider p50 1.1 / p95 5.3 ms (26.5k entries + 330 apps) | ADR-021/022 |
 | Keystroke → content FTS | 16 / 40 ms | **13 / 68 ms at 100k chunks (sandbox)** → runs on the settled query | ADR-017 note (T016) |
 | Warm text query embedding | 60 / 120 ms | 30.0 / 36.9 ms (CPU, q4) | ADR-015 |
+| …while indexing runs | 60 / 120 ms | sandbox 2 vCPU: 144 / 189 ms unprotected → **51 / 70 ms** preempted with 1-chunk batches (alone 52 / 60) | ADR-030 — Windows run pending |
 | Idle memory (§5 metric) | < 400 MB | ~7 MiB WebView + 3–4 MiB shell hidden; 168 MiB with the model warm | ADR-020, ADR-015 |
 | Indexing throughput (§9) | ≥ 8 chunks/s @ ≤ 50 % CPU | **~7 chunks/s @ 100 % CPU** (128-token estimate); sandbox q4: 3.4 chunks/s per busy core | ADR-015 — top risk, T014 run pending |
 
@@ -44,7 +45,9 @@ Tray mode keeps the process and minimal search state alive. The overlay itself i
 
 ### 3.2 Keep the text query path warm
 
-When enabled and memory budget allows, retain the text embedding backend/model in warm state. Vision/audio encoders are not needed for normal text queries and may be loaded lazily.
+When enabled and memory budget allows, retain the text embedding backend/model in warm state.
+Built (T204, ADR-030): `lumen_semantic::QueryEmbedder` — its own runtime session and thread,
+`warm()` on overlay show, `unload()` on idle/memory pressure, 64-entry in-memory cache. Vision/audio encoders are not needed for normal text queries and may be loaded lazily.
 
 ### 3.3 Progressive search
 
@@ -64,6 +67,11 @@ Timeline target:
 ### 3.4 Cancellation
 
 If query changes from `trans` → `transformer`, stale embedding/search work must be cancelable or ignorable. Do not enqueue every keystroke indefinitely.
+
+Built (ADR-030): a query that has not started is superseded by the newer one; the one inside
+the runtime finishes but its caller can stop waiting. While queries arrive (+1.5 s linger)
+indexing is held at its next batch boundary, and for 10 s after the overlay is shown
+indexing uses one-chunk batches so that boundary is at most one chunk away.
 
 ## 4. UI performance rules
 

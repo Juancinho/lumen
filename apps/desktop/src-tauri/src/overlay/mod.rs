@@ -116,6 +116,7 @@ fn show_window<R: Runtime>(window: &WebviewWindow<R>) {
     }
     focus_window(window, seq);
     crate::diag::record("show_native_ms", started.elapsed().as_secs_f64() * 1000.0);
+    crate::indexing::on_overlay_shown(window.app_handle());
     if cfg!(debug_assertions) {
         eprintln!(
             "lumen: overlay shown in {:?} (native calls only)",
