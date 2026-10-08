@@ -56,7 +56,7 @@ mod platform {
     }
 
     pub(super) fn decode_raw(bytes: &[u8]) -> Option<PathBuf> {
-        if bytes.len() % 2 != 0 {
+        if !bytes.len().is_multiple_of(2) {
             return None;
         }
         let units: Vec<u16> = bytes

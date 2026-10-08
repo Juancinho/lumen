@@ -38,7 +38,7 @@ mod platform {
     };
     use windows::Win32::UI::Shell::{
         BHID_EnumItems, FOLDERID_AppsFolder, IEnumShellItems, IShellItem, KF_FLAG_DEFAULT,
-        SHGetKnownFolderItem, SIGDN, SIGDN_NORMALDISPLAY, SIGDN_PARSINGNAME,
+        SHGetKnownFolderItem, SIGDN, SIGDN_NORMALDISPLAY, SIGDN_PARENTRELATIVEPARSING,
     };
 
     use super::StartApp;
@@ -94,14 +94,15 @@ mod platform {
             let mut batch: [Option<IShellItem>; 1] = [None];
             let mut fetched = 0u32;
             // SAFETY: `batch` has room for exactly the one element requested.
-            let next = unsafe { enumerator.Next(&mut batch, Some(&mut fetched)) };
+            let next = unsafe { enumerator.Next(&mut batch, Some(&raw mut fetched)) };
             if next.is_err() || fetched == 0 {
                 break;
             }
             let Some(item) = batch[0].take() else { break };
             if let (Some(name), Some(parsing_name)) = (
                 display_name(&item, SIGDN_NORMALDISPLAY),
-                display_name(&item, SIGDN_PARSINGNAME),
+                // Relative to AppsFolder: the AUMID (packaged) or path/GUID path (desktop).
+                display_name(&item, SIGDN_PARENTRELATIVEPARSING),
             ) && !name.trim().is_empty()
                 && !parsing_name.is_empty()
             {
