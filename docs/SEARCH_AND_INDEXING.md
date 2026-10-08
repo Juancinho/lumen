@@ -8,8 +8,8 @@
   on 26.5k entries + 330 apps (Windows).
 - **Lexical content (core built):** `chunks` + `chunks_fts` with budgeted queries
   (ADR-017); text/code extraction and 128-token chunking (`lumen-extract`, ADR-028); the
-  content pass writes chunks incrementally (`lumen-content`, ADR-029) — not yet run by the
-  app (T202 shell integration).
+  content pass writes chunks incrementally (`lumen-content`, ADR-029), run by the app after
+  every catalog pass over locations with "Index file contents" on (not searched yet: T205).
 - **Semantic (components):** embedding backend + device policy (ADR-014/015/019), ANN
   wrapper (ADR-016), persistent embedding queue with vectors per generation in SQLite
   (ADR-029); no ANN generations or query lane yet (T203–T205).

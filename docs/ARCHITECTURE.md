@@ -8,7 +8,8 @@ Built (M0 + M1, see `PROJECT_STATE.md`): one resident process — Tauri shell
 latest-wins search thread (ADR-025); built-in actions behind the core policy (ADR-026);
 embedding backend on ONNX Runtime with a device policy (ADR-014/015/019); ANN wrapper
 (ADR-016); extraction/chunking (ADR-028) and the content pass + persistent embedding queue
-with vectors in SQLite (`lumen-content`, ADR-029; shell integration pending). Not built yet:
+with vectors in SQLite (`lumen-content`, ADR-029), run by the catalog thread under the
+device policy (model via env until T210). Not built yet:
 persistent ANN generations (T203), semantic/hybrid lanes (T204/T205), watcher (T207).
 The crate/module layout lives only in `docs/DEVELOPMENT.md` §2; decisions in
 `docs/DECISIONS.md` (one file per ADR in `docs/adr/`).

@@ -10,10 +10,8 @@
 
 ## Active task
 
-**T202 (claude)** — core committed (ADR-029); next commit: shell integration (one indexing
-thread running catalog sync → content pass → queue slices; tray "Pause indexing"; progress
-event; per-location content toggle; model only when `LUMEN_EMBED_MODEL_DIR` +
-`LUMEN_ORT_DYLIB` are set, until T210). T014 waits for the Windows run below.
+None claimed. T202 and T014 are in REVIEW waiting for the Windows runs below; next per
+`TASKS.md` → **Next**: T204 (warm query embedding service) → T203 (ANN generations).
 
 ## Pending human checks (Windows, joao-pc)
 
@@ -34,8 +32,19 @@ event; per-location content toggle; model only when `LUMEN_EMBED_MODEL_DIR` +
    ```
    Then commit `docs\benchmarks\t014\<date>-joao-pc\` (counts and timings only). Failed
    rows (e.g. CUDA without a recent driver) are fine — they are recorded.
+5. T202 content indexing (needs the T006 model in `.cache\t006`; quit Lumen first — a
+   second launch only focuses the running one):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\t202\run-windows-indexing.ps1 -Root D:\Proyectos\lumen
+   powershell -ExecutionPolicy Bypass -File scripts\t202\run-windows-indexing.ps1 -Launch -SkipBench
+   ```
+   Check: tray → Content indexing counts files, then "semantic N% (x of y passages)" rising;
+   Task Manager CPU ≈ a quarter of the machine while you use the PC, about half when idle;
+   "Pause indexing" stops it within a second or two and survives a restart; unplugging a
+   laptop drops to 1 thread; tray → Indexed locations → a location → "Index file contents"
+   off stops new content there. Commit `docs\benchmarks\t202\<date>-joao-pc\`.
 
-## T202 — core outcome (CLAIMED, ADR-029)
+## T202 — outcome (REVIEW, ADR-029)
 
 - `lumen_content::{run_content_pass, run_queue, QueueJob, Control, Hold}`;
   `lumen_storage::content` (candidates by keyset, `write_content`, generations,
@@ -47,6 +56,10 @@ event; per-location content toggle; model only when `LUMEN_EMBED_MODEL_DIR` +
   Sandbox: queue overhead 0.026 ms/chunk, ~600 B/vector, duty 0.5 → exactly 50 % CPU, but
   1 thread beats 2 threads × duty 0.5 by ~20 % per CPU.
 - Existing databases migrate to v2 on the next app start (tested v1-with-chunks → v2).
+- Shell: `indexing.rs` (content pass + 30 s queue slices on the catalog thread, plan from
+  `lumen_windows::system` power/memory/idle via `policy::plan`, unload on drain), tray →
+  Content indexing (status + Pause, `indexing.paused`), per-location "Index file contents"
+  (`index.locations` v2; v1 upgrades to content on). Linux smoke: 154 chunks embedded.
 
 ## T014 — outcome so far (REVIEW, Windows run pending)
 

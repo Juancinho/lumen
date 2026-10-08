@@ -1,6 +1,7 @@
 //! Tray icon: the always-available way to reach a hidden, resident Lumen, and (T003) where
 //! the keyboard shortcut, (T004) the window material and (T111) the indexed locations and
-//! exclusions are chosen, until a settings window exists.
+//! exclusions are chosen, and (T202) content indexing is watched and paused, until a
+//! settings window exists.
 
 use lumen_catalog::LocationState;
 use lumen_catalog::locations::BUILD_DIRS_RULE;
@@ -11,7 +12,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{App, AppHandle, Manager, Runtime};
 use tauri_plugin_dialog::DialogExt;
 
-use crate::{catalog, material, overlay, shortcut};
+use crate::{catalog, indexing, material, overlay, shortcut};
 
 const TRAY_ID: &str = "lumen";
 const MENU_SHOW: &str = "show";
@@ -24,6 +25,14 @@ const EX_ADD: &str = "ex-add";
 const EX_REMOVE: &str = "ex-remove:";
 const EX_NAME_REMOVE: &str = "ex-name-remove:";
 const EX_DEFAULT: &str = "ex-default:";
+const LOC_CONTENT: &str = "loc-content:";
+const INDEX_PAUSE: &str = "index-pause";
+
+/// The content-indexing submenu's live entries.
+struct IndexingItems<R: Runtime> {
+    status: MenuItem<R>,
+    pause: CheckMenuItem<R>,
+}
 
 /// The two submenus rebuilt whenever locations, exclusions or their states change.
 struct LocationMenus<R: Runtime> {
@@ -145,6 +154,21 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
         .map(|(_, i)| i as &dyn tauri::menu::IsMenuItem<R>)
         .collect();
     let materials = Submenu::with_items(app, "Window material", true, &refs)?;
+    let index_status = MenuItem::new(app, "Content indexing", false, None::<&str>)?;
+    let index_pause = CheckMenuItem::with_id(
+        app,
+        INDEX_PAUSE,
+        "Pause indexing",
+        true,
+        false,
+        None::<&str>,
+    )?;
+    let indexing_menu = Submenu::with_items(
+        app,
+        "Content indexing",
+        true,
+        &[&index_status, &index_pause],
+    )?;
     let locations = Submenu::new(app, "Indexed locations", true)?;
     let exclusions = Submenu::new(app, "Exclusions", true)?;
     let separator = PredefinedMenuItem::separator(app)?;
@@ -156,6 +180,7 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
             &separator2,
             &locations,
             &exclusions,
+            &indexing_menu,
             &shortcuts,
             &materials,
             &separator,
@@ -168,6 +193,10 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
         locations,
         exclusions,
     });
+    app.manage(IndexingItems {
+        status: index_status,
+        pause: index_pause,
+    });
 
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .menu(&menu)
@@ -178,6 +207,9 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
                 overlay::show(app);
             } else if id == MENU_QUIT {
                 app.exit(0);
+            } else if id == INDEX_PAUSE {
+                let paused = app.state::<indexing::Indexing>().paused();
+                indexing::set_paused(app, !paused);
             } else if let Some(label) = id.strip_prefix(SHORTCUT_PREFIX) {
                 shortcut::choose(app, label);
             } else if let Some(choice) = id
@@ -208,7 +240,22 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
     refresh(app.handle());
     refresh_material(app.handle());
     refresh_locations(app.handle());
+    refresh_indexing(app.handle());
     Ok(())
+}
+
+/// Updates the content-indexing status line and pause check (no-op before the tray).
+pub(crate) fn refresh_indexing<R: Runtime>(app: &AppHandle<R>) {
+    let (Some(items), Some(state)) = (
+        app.try_state::<IndexingItems<R>>(),
+        app.try_state::<indexing::Indexing>(),
+    ) else {
+        return;
+    };
+    let _ = items
+        .status
+        .set_text(indexing::status_text(&state.status()));
+    let _ = items.pause.set_checked(state.paused());
 }
 
 fn pick_folder<R: Runtime>(
@@ -234,6 +281,15 @@ fn location_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
         pick_folder(app, "Exclude a folder from Lumen", catalog::exclude_path);
     } else if let Some(path) = id.strip_prefix(LOC_REMOVE) {
         catalog::remove_location(app, path);
+    } else if let Some(path) = id.strip_prefix(LOC_CONTENT) {
+        let on = app
+            .state::<catalog::Catalog>()
+            .locations()
+            .locations
+            .iter()
+            .any(|l| l.path == path && l.content != lumen_catalog::locations::CONTENT_NAMES);
+        catalog::set_content(app, path, !on);
+        refresh_locations(app); // the check toggled itself; show the real state
     } else if let Some(path) = id.strip_prefix(EX_REMOVE) {
         catalog::unexclude_path(app, path);
     } else if let Some(name) = id.strip_prefix(EX_NAME_REMOVE) {
@@ -282,6 +338,14 @@ fn fill_locations<R: Runtime>(
 
     clear(&menus.locations)?;
     for view in state.views() {
+        let content = CheckMenuItem::with_id(
+            app,
+            format!("{LOC_CONTENT}{}", view.path),
+            "Index file contents",
+            editable,
+            model.indexes_content(&view.path),
+            None::<&str>,
+        )?;
         let remove = MenuItem::with_id(
             app,
             format!("{LOC_REMOVE}{}", view.path),
@@ -289,8 +353,12 @@ fn fill_locations<R: Runtime>(
             editable,
             None::<&str>,
         )?;
-        let entry =
-            Submenu::with_items(app, location_text(&view.path, view.state), true, &[&remove])?;
+        let entry = Submenu::with_items(
+            app,
+            location_text(&view.path, view.state),
+            true,
+            &[&content, &remove],
+        )?;
         menus.locations.append(&entry)?;
     }
     if model.locations.is_empty() {

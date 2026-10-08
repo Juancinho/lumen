@@ -14,8 +14,14 @@ use serde_json::{Map, Value};
 /// Settings key in `lumen.db`.
 pub const SETTING_KEY: &str = "index.locations";
 
-/// Schema version this build reads and writes.
-pub const VERSION: u32 = 1;
+/// Schema version this build reads and writes. v2 (T202): `content` is meaningful; v1
+/// values (where `names` was the only possible value) upgrade to [`CONTENT_FULL`].
+pub const VERSION: u32 = 2;
+
+/// `Location::content`: catalogue names only.
+pub const CONTENT_NAMES: &str = "names";
+/// `Location::content`: names plus text/code content (lexical + semantic, ADR-029).
+pub const CONTENT_FULL: &str = "names+content";
 
 /// Name of the toggle for build folders next to project markers in `disabled`.
 pub const BUILD_DIRS_RULE: &str = "build-dirs";
@@ -25,15 +31,16 @@ pub struct Location {
     pub path: String,
     #[serde(default)]
     pub added_ms: i64,
-    /// `names` now; `names+content` once content indexing exists (M2).
-    #[serde(default = "names")]
+    /// [`CONTENT_FULL`] (default) or [`CONTENT_NAMES`]; any other value (from a newer
+    /// Lumen) counts as content-indexed and is kept.
+    #[serde(default = "full")]
     pub content: String,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
 
-fn names() -> String {
-    "names".into()
+fn full() -> String {
+    CONTENT_FULL.into()
 }
 
 fn yes() -> bool {
@@ -162,7 +169,16 @@ impl IndexLocations {
         if version > VERSION {
             return Err(LocationsError::NewerVersion(version));
         }
-        serde_json::from_value(value).map_err(|e| LocationsError::Invalid(e.to_string()))
+        let mut me: Self =
+            serde_json::from_value(value).map_err(|e| LocationsError::Invalid(e.to_string()))?;
+        if version < 2 {
+            // v1 could only say `names` (content indexing did not exist): not a choice.
+            for l in &mut me.locations {
+                l.content = full();
+            }
+            me.version = VERSION;
+        }
+        Ok(me)
     }
 
     #[must_use]
@@ -227,7 +243,7 @@ impl IndexLocations {
         self.locations.push(Location {
             path: text,
             added_ms: now_ms,
-            content: names(),
+            content: full(),
             extra: Map::new(),
         });
         for p in prefill {
@@ -275,6 +291,32 @@ impl IndexLocations {
             self.default_rules.dev_noise
         };
         group && !self.default_rules.disabled.iter().any(|d| d == rule)
+    }
+
+    /// Whether the content of files at `path` is indexed: the innermost location holding
+    /// it is not names-only (and the path is covered at all).
+    #[must_use]
+    pub fn indexes_content(&self, path: &str) -> bool {
+        self.covers(path)
+            && self
+                .locations
+                .iter()
+                .filter(|l| within(path, &l.path))
+                .max_by_key(|l| key(&l.path).len())
+                .is_some_and(|l| l.content != CONTENT_NAMES)
+    }
+
+    /// Switches content indexing for one location. Returns `false` if not listed or
+    /// unchanged.
+    pub fn set_content(&mut self, path: &str, enabled: bool) -> bool {
+        let value = if enabled { CONTENT_FULL } else { CONTENT_NAMES };
+        match self.locations.iter_mut().find(|l| same(&l.path, path)) {
+            Some(l) if (l.content != CONTENT_NAMES) != enabled => {
+                l.content = value.to_owned();
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Whether `path` is inside a location and not inside an excluded folder.
@@ -342,25 +384,36 @@ mod tests {
             .insert("schedule".into(), Value::String("nightly".into()));
         let back = IndexLocations::parse(&l.to_json()).unwrap();
         assert_eq!(back, l);
-        assert_eq!(back.locations[0].content, "names");
+        assert_eq!(back.locations[0].content, CONTENT_FULL);
         assert!(back.default_rules.dev_noise && back.build_dirs_excluded());
     }
 
     #[test]
     fn newer_or_broken_values_are_refused() {
         assert_eq!(
-            IndexLocations::parse(r#"{"version":2,"locations":[]}"#),
-            Err(LocationsError::NewerVersion(2))
+            IndexLocations::parse(r#"{"version":3,"locations":[]}"#),
+            Err(LocationsError::NewerVersion(3))
         );
         assert!(matches!(
             IndexLocations::parse("not json"),
             Err(LocationsError::Invalid(_))
         ));
-        // Old minimal value: defaults filled in.
-        let l = IndexLocations::parse(r#"{"version":1,"locations":[{"path":"D:\\Proyectos"}]}"#)
-            .unwrap();
-        assert_eq!(l.locations[0].content, "names");
+        // Old minimal value: defaults filled in; v1 `names` upgrades to content.
+        let l = IndexLocations::parse(
+            r#"{"version":1,"locations":[{"path":"D:\\Proyectos","content":"names"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            (l.version, l.locations[0].content.as_str()),
+            (2, CONTENT_FULL)
+        );
         assert!(l.default_rules.dev_noise);
+        // v2 keeps a names-only choice.
+        let l = IndexLocations::parse(
+            r#"{"version":2,"locations":[{"path":"D:\\Fotos","content":"names"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(l.locations[0].content, CONTENT_NAMES);
     }
 
     #[test]
@@ -380,6 +433,20 @@ mod tests {
         assert!(!l.remove_location("/data"));
         assert!(l.unexclude_path("/proc"));
         assert_eq!(l.roots(), [PathBuf::from("/")]);
+    }
+
+    #[test]
+    fn content_follows_the_innermost_location() {
+        let mut l = IndexLocations::standard(&[PathBuf::from("/d")], 0);
+        l.add_location(Path::new("/d/media"), 1, &[]);
+        assert!(l.set_content("/d/media", false));
+        assert!(!l.set_content("/d/media", false), "unchanged");
+        assert!(!l.set_content("/elsewhere", true), "not listed");
+        assert!(l.indexes_content("/d/notes.md"));
+        assert!(!l.indexes_content("/d/media/song.txt"));
+        assert!(!l.indexes_content("/other/x.md"));
+        l.exclude_path(Path::new("/d/private"));
+        assert!(!l.indexes_content("/d/private/a.md"));
     }
 
     #[test]

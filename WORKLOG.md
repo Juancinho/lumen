@@ -202,3 +202,9 @@ Append-only. Keep entries compact.
 - New `lumen-content` crate: content pass (text files new/changed/failed/stale → extract → chunk → replace chunks, 32 files per transaction, scope predicate for name-only locations) and `run_queue` (keyset over chunks without a vector in the generation, batches of 8, pause, interactive holds, duty cycle, time slices; device failures abort, other failures isolated per item).
 - Storage migration 0002: per-item content state, `generations`, `chunk_vectors` (f16 LE; failed rows carry a code), `chunks.embedding_generation` dropped; v1 databases with chunks upgrade (test).
 - `lumen-bench pipeline`: sandbox queue overhead 0.026 ms/chunk, ~600 B per vector, restart resumes with 0 pending; ORT q4 4.6 chunks/s at 2 threads, duty 0.5 → 50 % CPU at 2.3 chunks/s vs 1 thread → 50 % at 2.8. ADR-029. Added T210 (model/runtime provisioning).
+
+## 2026-10-08 — T202 shell integration (claude)
+
+- The catalog thread now runs catalog pass → content pass → 30 s embedding-queue slices (re-checking catalog work between slices); the plan comes from the device policy with live power / free memory / input idle (`lumen_windows::system`), the model unloads when the queue drains, and the model is configured by env until T210.
+- Tray → Content indexing (status line, remembered Pause) and per-location "Index file contents"; `index.locations` v2 (v1 `names` upgrades to `names+content`).
+- Linux smoke with the real app: 154 chunks embedded into generation 1; `scripts/t202/run-windows-indexing.ps1` for the Windows check. T202 → REVIEW.

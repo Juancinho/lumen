@@ -15,7 +15,13 @@ tauri-build.workspace = true
 
 [dependencies]
 lumen-catalog.workspace = true
+lumen-content.workspace = true
 lumen-core.workspace = true
+# Content indexing (T202): queue policy + EmbeddingGemma 2 on ONNX Runtime (runtime DLL
+# loaded at run time; model provisioning is T210).
+lumen-embedding.workspace = true
+lumen-embedding-ort.workspace = true
+lumen-extract.workspace = true
 lumen-indexer.workspace = true
 lumen-search.workspace = true
 lumen-storage.workspace = true

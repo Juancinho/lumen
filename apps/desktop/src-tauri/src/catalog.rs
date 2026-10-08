@@ -5,6 +5,10 @@
 //! `lumen:catalog-changed`, sent during long passes too so a small location is not held back
 //! by a big drive. Incremental watching is T207.
 //!
+//! The same thread then runs content indexing (`indexing.rs`, T202): the content pass after
+//! every catalog pass, and embedding-queue slices while chunks are pending — one SQLite
+//! writer for all of it (ADR-025/029).
+//!
 //! Locations live in one versioned setting (`index.locations`, `lumen_catalog::locations`).
 //! Until the user edits them they are the standard folders and nothing is saved; a value
 //! written by a newer Lumen is used read-only and never overwritten.
@@ -20,6 +24,7 @@ use lumen_core::CancellationToken;
 use lumen_storage::Store;
 use tauri::{App, AppHandle, Emitter, Manager, Runtime};
 
+use crate::indexing::{self, Next};
 use crate::{overlay, settings, tray};
 
 /// Event (no payload) when a sync pass made new entries searchable or removed some.
@@ -96,6 +101,8 @@ pub(crate) struct LocationView {
 struct Control {
     /// A pass should start now (an edit or start-up).
     wanted: bool,
+    /// Indexing work may be possible now (resume): wake without a catalog pass.
+    kick: bool,
     running: Option<CancellationToken>,
 }
 
@@ -145,6 +152,21 @@ impl Catalog {
         drop(c);
         self.wake.notify_all();
     }
+
+    fn request_work(&self) {
+        self.control
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .kick = true;
+        self.wake.notify_all();
+    }
+}
+
+/// Wakes the indexing thread without a catalog pass (e.g. indexing resumed).
+pub(crate) fn request_work<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(catalog) = app.try_state::<Catalog>() {
+        catalog.request_work();
+    }
 }
 
 fn now_ms() -> i64 {
@@ -189,6 +211,7 @@ pub(crate) fn start<R: Runtime>(app: &App<R>) {
         states: Mutex::new(Vec::new()),
         control: Mutex::new(Control {
             wanted: true,
+            kick: false,
             running: None,
         }),
         wake: Condvar::new(),
@@ -201,16 +224,31 @@ pub(crate) fn start<R: Runtime>(app: &App<R>) {
         .name("lumen-catalog".into())
         .spawn(move || {
             std::thread::sleep(START_DELAY);
+            let mut next = Next::Idle;
+            let mut last_full: Option<Instant> = None;
             loop {
-                let token = wait_for_pass(&handle);
-                pass(&handle, &db, &token);
-                let catalog = handle.state::<Catalog>();
-                catalog
+                let (token, full) = wait_for_work(&handle, next, last_full);
+                if full {
+                    pass(&handle, &db, &token);
+                    if !token.is_cancelled() {
+                        let model = handle.state::<Catalog>().locations();
+                        indexing::content_pass(&handle, &db, &model, &token);
+                        last_full = Some(Instant::now());
+                    }
+                    tray::refresh_locations(&handle);
+                }
+                next = if token.is_cancelled() {
+                    Next::More
+                } else {
+                    indexing::embed_slice(&handle, &db, &token)
+                };
+                handle
+                    .state::<Catalog>()
                     .control
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
                     .running = None;
-                tray::refresh_locations(&handle);
+                tray::refresh_indexing(&handle);
             }
         });
     if let Err(err) = spawned {
@@ -218,24 +256,42 @@ pub(crate) fn start<R: Runtime>(app: &App<R>) {
     }
 }
 
-/// Blocks until a pass is wanted or [`RESYNC_EVERY`] elapsed; returns its token.
-fn wait_for_pass<R: Runtime>(app: &AppHandle<R>) -> CancellationToken {
+/// How long the thread may sleep before its next round.
+pub(crate) fn wait_time(next: Next, since_full: Option<Duration>) -> Duration {
+    let due = since_full.map_or(Duration::ZERO, |d| RESYNC_EVERY.saturating_sub(d));
+    match next {
+        Next::More => Duration::ZERO,
+        Next::RetryIn(d) => d.min(due),
+        Next::Idle => due,
+    }
+}
+
+/// Blocks until catalog work is wanted, indexing work may be possible, or the wait for
+/// `next` ends. Returns the round's token and whether it starts with a catalog pass.
+fn wait_for_work<R: Runtime>(
+    app: &AppHandle<R>,
+    next: Next,
+    last_full: Option<Instant>,
+) -> (CancellationToken, bool) {
     let catalog = app.state::<Catalog>();
     let mut c = catalog
         .control
         .lock()
         .unwrap_or_else(PoisonError::into_inner);
-    if !c.wanted {
+    let timeout = wait_time(next, last_full.map(|t| t.elapsed()));
+    if !c.wanted && !c.kick && !timeout.is_zero() {
         let (guard, _) = catalog
             .wake
-            .wait_timeout_while(c, RESYNC_EVERY, |c| !c.wanted)
+            .wait_timeout_while(c, timeout, |c| !c.wanted && !c.kick)
             .unwrap_or_else(PoisonError::into_inner);
         c = guard;
     }
+    let full = c.wanted || last_full.is_none_or(|t| t.elapsed() >= RESYNC_EVERY);
     c.wanted = false;
+    c.kick = false;
     let token = CancellationToken::new();
     c.running = Some(token.clone());
-    token
+    (token, full)
 }
 
 fn pass<R: Runtime>(app: &AppHandle<R>, db: &Path, token: &CancellationToken) {
@@ -349,6 +405,11 @@ pub(crate) fn unexclude_path<R: Runtime>(app: &AppHandle<R>, path: &str) -> bool
     edit(app, |m| m.unexclude_path(path))
 }
 
+/// Tray toggle: index the contents of one location, or only its names.
+pub(crate) fn set_content<R: Runtime>(app: &AppHandle<R>, path: &str, enabled: bool) -> bool {
+    edit(app, |m| m.set_content(path, enabled))
+}
+
 pub(crate) fn set_default<R: Runtime>(app: &AppHandle<R>, rule: &str, enabled: bool) -> bool {
     edit(app, |m| {
         if m.default_enabled(rule) == enabled {
@@ -387,6 +448,20 @@ mod tests {
         ]);
         assert_eq!(roots, [base.join("Desktop"), base.join("OneDrive")]);
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn the_thread_sleeps_until_the_next_due_work() {
+        let min = Duration::from_secs(60);
+        assert_eq!(wait_time(Next::More, Some(min)), Duration::ZERO);
+        assert_eq!(wait_time(Next::Idle, None), Duration::ZERO, "never synced");
+        assert_eq!(wait_time(Next::Idle, Some(min)), RESYNC_EVERY - min);
+        assert_eq!(wait_time(Next::RetryIn(min), Some(min)), min);
+        assert_eq!(
+            wait_time(Next::RetryIn(RESYNC_EVERY), Some(RESYNC_EVERY - min)),
+            min,
+            "the resync comes first"
+        );
     }
 
     #[test]

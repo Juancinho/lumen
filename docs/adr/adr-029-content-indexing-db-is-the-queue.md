@@ -1,6 +1,6 @@
 # ADR-029 — Content indexing: the database is the queue, vectors live in SQLite, thread cap before duty cycle
 
-**Status:** Accepted (T202, core). Code: `crates/lumen-content` (`run_content_pass`,
+**Status:** Accepted (T202). Code: `crates/lumen-content` (`run_content_pass`,
 `run_queue`, `Control`), `lumen_storage::content`, migration `0002_content_and_vectors.sql`.
 Evidence: `docs/benchmarks/t202/2026-10-08-cloud-sandbox-pipeline-*.json`
 (`lumen-bench pipeline`, 2 vCPU sandbox, this repository's sources: 128 files → 3,052 chunks).
@@ -59,6 +59,19 @@ Content pass: 545 files/s, 3.5 MiB/s of text; a re-run with nothing changed take
 - Queue overhead is ~10⁻⁴ of embedding time: storage is never the bottleneck.
 - 100k chunks ≈ 60 MB of vectors in SQLite on top of the ANN file — accepted for the
   ability to rebuild the ANN and switch generations without re-embedding.
-- Open: the shell integration (indexing thread, tray pause/resume, progress), model and
-  runtime provisioning in the app (T210), per-location content toggle, prioritisation
-  beyond insertion order (docs/SEARCH_AND_INDEXING.md §17).
+- **Shell integration:** the catalog thread runs catalog pass → content pass → 30 s queue
+  slices, re-checking catalog work between slices (`indexing.rs`). Each slice asks the
+  device policy for a plan from live power / free memory / input-idle state
+  (`lumen_windows::system`): paused on low battery or memory pressure (retry in 60 s),
+  1 thread on battery, a quarter of the logical CPUs while the user is active, half when
+  idle. The model is unloaded when the queue drains or pauses. Tray → Content indexing shows
+  progress and a remembered "Pause indexing" (`indexing.paused`); each location has "Index
+  file contents".
+- **Locations setting v2:** `content` is now meaningful (`names+content` default,
+  `names` = names only). v1 values, where `names` was the only possible value, upgrade to
+  `names+content`; the innermost location decides.
+- Linux smoke (real app, temp home, model via env): 9 text files → 154 chunks, all
+  embedded and stored in generation 1 within the first minute.
+- Open: model and runtime provisioning in the app (T210: until then semantic indexing runs
+  only with `LUMEN_EMBED_MODEL_DIR` + `LUMEN_ORT_DYLIB`), prioritisation beyond insertion
+  order (docs/SEARCH_AND_INDEXING.md §17), query-lane holds (T204).

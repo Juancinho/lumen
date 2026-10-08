@@ -20,10 +20,9 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
    llama.cpp CPU/Vulkan/CUDA on GGUF Q8_0 and UD-Q4_K_XL, fidelity on every run). The
    verdict (runtime, threads, budget) becomes an ADR once the numbers are in. LiteRT-LM
    stays out until it ships a Windows runtime.
-5. **T202** background embedding queue — core done (ADR-029: content pass, DB-as-queue,
-   vectors in SQLite, pause/duty/holds); **next: shell integration** (one indexing thread,
-   tray pause/resume + progress, per-location content toggle), dev-only model via env until
-   **T210** provisions model + runtime.
+5. ~~T202~~ content pass + embedding queue — REVIEW on Windows (ADR-029):
+   `scripts\t202\run-windows-indexing.ps1 -Root <folder>` then `-Launch` (checklist in
+   HANDOFF). Model via env until **T210** provisions model + runtime.
 6. **T204** warm query embedding service, then **T203** persistent ANN generations.
 7. **T205** hybrid fusion + evaluation harness (content FTS on the settled query, T016).
 
@@ -69,7 +68,7 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 | ID   | Status | Owner | Task                                                                    | Depends on          |
 | ---- | ------ | ----- | ----------------------------------------------------------------------- | ------------------- |
 | T201 | REVIEW | claude | Text/code extractor + language-aware chunker (Tree-sitter where useful) | T006,T007           |
-| T202 | CLAIMED | claude | Background embedding queue with bounded backpressure/cancel/pause       | T201                |
+| T202 | REVIEW | claude | Background embedding queue with bounded backpressure/cancel/pause       | T201                |
 | T203 | TODO   | —     | Persistent ANN + generation/version management                          | T008,T202           |
 | T204 | TODO   | —     | Warm query embedding service + cancellation                             | T006                |
 | T205 | TODO   | —     | Hybrid provider/lexical/vector fusion + evaluation harness              | T203,T204,T102,T011 |

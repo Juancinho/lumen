@@ -15,6 +15,7 @@ mod catalog;
 mod commands;
 mod diag;
 mod dto;
+mod indexing;
 mod instance;
 mod lifecycle;
 mod material;
@@ -55,6 +56,7 @@ fn main() {
             app.manage(settings::open(app));
             material::install(app);
             search::install(app);
+            indexing::install(app);
             catalog::start(app);
             shortcut::install(app)?;
             tray::install(app)?;
