@@ -13,6 +13,8 @@ export interface ResultRowModel {
   detail: string | null;
   /** Lowercase file extension without the dot, for the file glyph badge. */
   extension: string | null;
+  /** Action id Enter runs. */
+  primaryAction: string;
 }
 
 /** Right-hand label of a row (low-emphasis, never colourful). */
@@ -66,4 +68,12 @@ export const RESULT_LIST_ID = "lumen-results";
 /** DOM id of the row at `index` (for `aria-activedescendant`). */
 export function rowDomId(index: number): string {
   return `${RESULT_LIST_ID}-${String(index)}`;
+}
+
+/** Id of the Action Panel listbox. */
+export const ACTION_LIST_ID = "lumen-actions";
+
+/** DOM id of action `index` (for the combobox's `aria-activedescendant`). */
+export function actionDomId(index: number): string {
+  return `${ACTION_LIST_ID}-${String(index)}`;
 }

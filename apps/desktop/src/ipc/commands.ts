@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { toAppearance } from "./events";
-import type { Appearance, CoreInfo } from "./types";
+import type { ActionView, Appearance, CoreInfo, Invocation } from "./types";
 
 /** Identity of the linked Rust core. Command: `core_info`. */
 export function getCoreInfo(): Promise<CoreInfo> {
@@ -51,4 +51,22 @@ export function resizeOverlay(height: number): Promise<number> {
  */
 export function search(queryId: number, text: string): Promise<boolean> {
   return invoke<boolean>("search", { queryId, text });
+}
+
+/** Action Panel entries for a result of query `queryId`. Command: `list_actions`. */
+export function listActions(queryId: number, resultId: string): Promise<ActionView[]> {
+  return invoke<ActionView[]>("list_actions", { queryId, resultId });
+}
+
+/**
+ * Runs an action on a result the user saw; the shell checks it is offered, executes it,
+ * learns from it and hides the overlay. Rejects with a short reason. Command: `run_action`.
+ */
+export function runAction(
+  queryId: number,
+  resultId: string,
+  actionId: string,
+  invocation: Invocation,
+): Promise<void> {
+  return invoke("run_action", { queryId, resultId, actionId, invocation });
 }

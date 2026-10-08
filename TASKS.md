@@ -37,8 +37,8 @@ Do not renumber task IDs. New tasks get new IDs.
 | T105 | TODO   | —     | Quick Look preview shell                                                      | T103           |
 | T106 | DONE   | claude | Recent/frequency/pin signals + local usage store                              | T101           |
 | T107 | REVIEW | claude | Progressive result stream Rust → UI                                           | T102,T103      |
-| T108 | TODO   | —     | Universal Action Panel (`Ctrl+K`/Tab policy) with contextual action discovery | T104,T011      |
-| T109 | TODO   | —     | Core actions: open, reveal, copy path/value, pin/favorite, open with          | T108           |
+| T108 | REVIEW | claude | Universal Action Panel (`Ctrl+K`/Tab policy) with contextual action discovery | T104,T011      |
+| T109 | REVIEW | claude | Core actions: open, reveal, copy path/value, pin/favorite, open with          | T108           |
 | T110 | TODO   | —     | Provider/result diagnostics mode for development only                         | T107           |
 
 # M2 — text/code semantic search

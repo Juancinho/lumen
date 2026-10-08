@@ -147,3 +147,9 @@ Append-only. Keep entries compact.
 
 - Pure keymap (launcher keys claimed, text editing/IME untouched) and an id-following selection (top row until moved; follows its result through re-orders; keeps the position when it disappears). 51 frontend tests.
 
+## 2026-10-08 — T108 Action Panel + T109 core actions (claude)
+
+- Core: contextual action listing in panel order and request preparation over the existing `ExecutionContext::authorize`; recent-results window (4 queries) in the search service for id lookup; catalog usage recording from actions.
+- Shell: executors (open/launch via ShellExecute, reveal via SHOpenFolderAndSelectItems, copy path via arboard), `list_actions`/`run_action`, usage recorded, overlay hides on success.
+- UI: Enter/click primary, Ctrl+Enter reveal, Ctrl+K panel with keyboard, Escape closes the panel before dismissing, failure notice on the row. 58 frontend tests; Linux smoke of the panel. ADR-026.
+

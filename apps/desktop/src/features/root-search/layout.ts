@@ -33,13 +33,31 @@ export function overlayHeight(state: ListState): number {
 }
 
 /** What the list area shows for a query and its results. */
-export function listState(query: string, results: ResultsState): ListState {
+export function listState(
+  query: string,
+  results: Pick<ResultsState, "rows" | "status">,
+): ListState {
   if (results.rows.length > 0) return { kind: "rows", count: results.rows.length };
   if (query.trim() !== "" && results.status === "done") return { kind: "message" };
   return { kind: "none" };
 }
 
 /** Window height (logical px) the root search needs. */
-export function rootSearchHeight(query: string, results: ResultsState): number {
-  return overlayHeight(listState(query, results));
+export function rootSearchHeight(
+  query: string,
+  results: Pick<ResultsState, "rows" | "status">,
+  panelActions = 0,
+): number {
+  const list = overlayHeight(listState(query, results));
+  if (panelActions <= 0) return list;
+  return Math.max(list, SEARCH_HEIGHT + DIVIDER + 2 * LIST_PADDING + panelHeight(panelActions));
+}
+
+/** Action Panel entry height and chrome (mirrors `--action-height`, `--panel-chrome`). */
+export const ACTION_HEIGHT = 36;
+export const PANEL_CHROME = 40;
+
+/** Height of an Action Panel listing `actions` entries. */
+export function panelHeight(actions: number): number {
+  return PANEL_CHROME + actions * ACTION_HEIGHT;
 }

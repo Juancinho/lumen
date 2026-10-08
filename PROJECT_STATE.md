@@ -126,7 +126,10 @@ Benchmark/ADR required:
 - **T104 REVIEW:** keyboard model (`keymap.ts`: arrows, PageUp/Down, Enter / Ctrl+Enter /
   Alt+Enter / Ctrl+K claimed, Ctrl+L, Escape; text-editing keys and IME left alone) and a
   selection that follows its result id while results stream (`selection.ts`).
-- Not yet: actions (T108/T109), real icons, Quick Look (T105).
+- **T108/T109 REVIEW (ADR-026):** Enter opens/launches, Ctrl+Enter reveals, click runs,
+  Ctrl+K Action Panel (Open / Reveal in Explorer / Copy path); ids-only requests checked by
+  the core policy against recently shown results; uses recorded for ranking.
+- Not yet: real icons, Quick Look (T105), pin/open-with UI, diagnostics mode (T110).
 
 ## Immediate objective
 

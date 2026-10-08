@@ -8,6 +8,8 @@ export type ResultsStatus = "idle" | "searching" | "done";
 
 export interface ResultsState {
   rows: readonly ResultRowModel[];
+  /** Query that produced `rows` (actions name it); `null` before any answer. */
+  queryId: number | null;
   /** `idle`: nothing asked yet; `searching`: rows may still change; `done`: final. */
   status: ResultsStatus;
 }
@@ -19,6 +21,7 @@ function toRow(view: ResultView): ResultRowModel {
     title: view.title,
     detail: view.detail,
     extension: view.extension,
+    primaryAction: view.primaryAction,
   };
 }
 
@@ -42,11 +45,12 @@ export function useResults(query: string): ResultsState {
   const [rerun, setRerun] = useState(0);
   const [listening, setListening] = useState(false);
   // Rows of the latest answered request, tagged with that request's key.
-  const [answer, setAnswer] = useState<{ key: string; rows: ResultRowModel[]; done: boolean }>({
-    key: "",
-    rows: [],
-    done: false,
-  });
+  const [answer, setAnswer] = useState<{
+    key: string;
+    queryId: number | null;
+    rows: ResultRowModel[];
+    done: boolean;
+  }>({ key: "", queryId: null, rows: [], done: false });
   const latest = useRef({ id: 0, key: "" });
   const key = `${String(rerun)}:${query}`;
 
@@ -57,6 +61,7 @@ export function useResults(query: string): ResultsState {
           if (update.queryId !== latest.current.id) return;
           setAnswer({
             key: latest.current.key,
+            queryId: update.queryId,
             rows: update.results.map(toRow),
             done: update.done,
           });
@@ -85,7 +90,8 @@ export function useResults(query: string): ResultsState {
     search(id, query).catch(reportError("search"));
   }, [query, key, listening]);
 
-  if (!listening) return { rows: answer.rows, status: "idle" };
+  const { rows, queryId } = answer;
+  if (!listening) return { rows, queryId, status: "idle" };
   const current = answer.key === key;
-  return { rows: answer.rows, status: current && answer.done ? "done" : "searching" };
+  return { rows, queryId, status: current && answer.done ? "done" : "searching" };
 }

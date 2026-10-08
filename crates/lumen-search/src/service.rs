@@ -1,7 +1,8 @@
+use std::collections::VecDeque;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::thread::JoinHandle;
 
-use lumen_core::{CancellationToken, QueryId};
+use lumen_core::{CancellationToken, QueryId, ResultId, ResultItem};
 
 use crate::coordinator::{Coordinator, Update};
 
@@ -22,9 +23,21 @@ struct Slot {
     shutdown: bool,
 }
 
+/// Queries whose last results stay available to actions: the user acts on what they saw,
+/// which can be a query or two behind what they are typing.
+const RECENT_QUERIES: usize = 4;
+
+/// The latest results of one recent query.
+struct Recent {
+    id: QueryId,
+    text: String,
+    results: Vec<ResultItem>,
+}
+
 struct Shared {
     slot: Mutex<Slot>,
     wake: Condvar,
+    recent: Mutex<VecDeque<Recent>>,
 }
 
 /// A single search thread where the newest query wins (docs/PERFORMANCE.md §3.4):
@@ -48,6 +61,7 @@ impl SearchService {
         let shared = Arc::new(Shared {
             slot: Mutex::new(Slot::default()),
             wake: Condvar::new(),
+            recent: Mutex::new(VecDeque::with_capacity(RECENT_QUERIES + 1)),
         });
         let worker = Arc::clone(&shared);
         let thread = std::thread::Builder::new()
@@ -61,6 +75,7 @@ impl SearchService {
                         &token,
                         &mut |u| {
                             if !token.is_cancelled() {
+                                remember(&worker, &request.text, &u);
                                 sink(u);
                             }
                         },
@@ -89,6 +104,49 @@ impl SearchService {
         drop(slot);
         self.shared.wake.notify_one();
         true
+    }
+}
+
+impl SearchService {
+    /// A result Lumen showed recently, with the text of the query it answered: the newest
+    /// copy from query `query` if that query is still recent, else from any recent query.
+    #[must_use]
+    pub fn lookup(&self, query: QueryId, result: &ResultId) -> Option<(String, ResultItem)> {
+        let recent = self
+            .shared
+            .recent
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let find = |r: &Recent| {
+            r.results
+                .iter()
+                .find(|it| &it.id == result)
+                .map(|it| (r.text.clone(), it.clone()))
+        };
+        recent
+            .iter()
+            .rev()
+            .filter(|r| r.id == query)
+            .find_map(find)
+            .or_else(|| recent.iter().rev().find_map(find))
+    }
+}
+
+fn remember(shared: &Shared, text: &str, update: &Update) {
+    let mut recent = shared.recent.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some(last) = recent.back_mut()
+        && last.id == update.query
+    {
+        last.results.clone_from(&update.results);
+        return;
+    }
+    recent.push_back(Recent {
+        id: update.query,
+        text: text.to_owned(),
+        results: update.results.clone(),
+    });
+    while recent.len() > RECENT_QUERIES {
+        recent.pop_front();
     }
 }
 
@@ -195,6 +253,25 @@ mod tests {
         let u = rx.recv_timeout(Duration::from_secs(5)).unwrap();
         assert_eq!(u.query.get(), 5);
         assert!(rx.recv_timeout(Duration::from_millis(100)).is_err());
+    }
+
+    #[test]
+    fn recent_results_can_be_looked_up_for_actions() {
+        let (s, rx, _) = service(Duration::ZERO);
+        let id = ResultId::new("item:1").unwrap();
+        for (n, text) in [(1, "a"), (2, "ab"), (3, "abc"), (4, "abcd"), (5, "abcde")] {
+            assert!(s.submit(request(n, text)));
+            rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        }
+        let q = |n| QueryId::new(n).unwrap();
+        assert_eq!(s.lookup(q(4), &id).map(|(t, _)| t).as_deref(), Some("abcd"));
+        // Query 1 fell out of the window: the newest copy answers.
+        assert_eq!(
+            s.lookup(q(1), &id).map(|(t, _)| t).as_deref(),
+            Some("abcde")
+        );
+        let other = ResultId::new("item:2").unwrap();
+        assert!(s.lookup(q(5), &other).is_none());
     }
 
     #[test]

@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getAppearance,
   hideOverlay,
+  listActions,
+  runAction,
   onAppearanceChanged,
   onOverlayShown,
   overlayPainted,
@@ -21,6 +23,8 @@ vi.mock("../features/root-search/useResults", () => ({ useResults: vi.fn() }));
 vi.mock("../ipc", () => ({
   getAppearance: vi.fn(),
   hideOverlay: vi.fn(),
+  listActions: vi.fn(),
+  runAction: vi.fn(),
   onAppearanceChanged: vi.fn(),
   onOverlayShown: vi.fn(),
   overlayPainted: vi.fn(),
@@ -38,12 +42,23 @@ function nthOption(index: number): HTMLElement {
   return option;
 }
 
-let results: ResultsState = { rows: [], status: "idle" };
+let results: ResultsState = { rows: [], queryId: null, status: "idle" };
 
 beforeEach(() => {
-  results = { rows: [], status: "idle" };
+  results = { rows: [], queryId: null, status: "idle" };
   vi.mocked(useResults).mockImplementation(() => results);
   vi.mocked(resizeOverlay).mockImplementation((h) => Promise.resolve(h));
+  vi.mocked(runAction).mockResolvedValue(undefined);
+  vi.mocked(listActions).mockResolvedValue([
+    { id: "lumen.open", title: "Open", group: "primary", shortcut: "Enter" },
+    {
+      id: "lumen.reveal",
+      title: "Reveal in Explorer",
+      group: "navigation",
+      shortcut: "Ctrl+Enter",
+    },
+    { id: "lumen.copy-path", title: "Copy path", group: "navigation", shortcut: null },
+  ]);
   shownHandler = undefined;
   appearanceHandler = undefined;
   delete document.documentElement.dataset.material;
@@ -195,10 +210,25 @@ describe("App overlay", () => {
 
     results = {
       rows: [
-        { id: "item:1", kind: "application", title: "Calculator", detail: null, extension: null },
-        { id: "item:2", kind: "file", title: "calc.xlsx", detail: null, extension: "xlsx" },
+        {
+          id: "item:1",
+          kind: "application",
+          title: "Calculator",
+          detail: null,
+          extension: null,
+          primaryAction: "lumen.open",
+        },
+        {
+          id: "item:2",
+          kind: "file",
+          title: "calc.xlsx",
+          detail: null,
+          extension: "xlsx",
+          primaryAction: "lumen.open",
+        },
       ],
       status: "done",
+      queryId: 1,
     };
     rerender(<App />);
     expect(resizeOverlay).toHaveBeenLastCalledWith(64 + 1 + 12 + 2 * 52);
@@ -216,8 +246,9 @@ describe("App overlay", () => {
       title: id,
       detail: null,
       extension: null,
+      primaryAction: "lumen.open",
     });
-    results = { rows: [r("a"), r("b"), r("c")], status: "searching" };
+    results = { rows: [r("a"), r("b"), r("c")], status: "searching", queryId: 1 };
     const { rerender } = render(<App />);
     const input = screen.getByRole("combobox");
     await userEvent.keyboard("{ArrowDown}");
@@ -225,7 +256,7 @@ describe("App overlay", () => {
     expect(input).toHaveAttribute("aria-activedescendant", nthOption(1).id);
 
     // A later update re-orders: the selection follows "b".
-    results = { rows: [r("x"), r("a"), r("c"), r("b")], status: "done" };
+    results = { rows: [r("x"), r("a"), r("c"), r("b")], status: "done", queryId: 1 };
     rerender(<App />);
     expect(nthOption(3)).toHaveAttribute("aria-selected", "true");
 
@@ -236,5 +267,73 @@ describe("App overlay", () => {
     // Enter is claimed (no text typed), the query is untouched.
     await userEvent.keyboard("{Enter}");
     expect(input).toHaveValue("");
+  });
+
+  describe("actions", () => {
+    const file = (id: string) => ({
+      id,
+      kind: "file" as const,
+      title: `${id}.txt`,
+      detail: null,
+      extension: "txt",
+      primaryAction: "lumen.open",
+    });
+
+    beforeEach(() => {
+      results = { rows: [file("item:1"), file("item:2")], status: "done", queryId: 7 };
+    });
+
+    it("Enter runs the selected result's primary action, Ctrl+Enter reveals", async () => {
+      render(<App />);
+      await userEvent.keyboard("{ArrowDown}{Enter}");
+      expect(runAction).toHaveBeenLastCalledWith(7, "item:2", "lumen.open", "primary");
+      await userEvent.keyboard("{Control>}{Enter}{/Control}");
+      expect(runAction).toHaveBeenLastCalledWith(7, "item:2", "lumen.reveal", "shortcut");
+    });
+
+    it("clicking a row runs it", async () => {
+      render(<App />);
+      await userEvent.click(nthOption(1));
+      expect(runAction).toHaveBeenLastCalledWith(7, "item:2", "lumen.open", "primary");
+    });
+
+    it("Ctrl+K opens the Action Panel; arrows + Enter run an action from it", async () => {
+      render(<App />);
+      await userEvent.keyboard("{Control>}k{/Control}");
+      const panel = await screen.findByRole("listbox", { name: "Actions" });
+      expect(listActions).toHaveBeenCalledWith(7, "item:1");
+      expect(screen.getByRole("region", { name: "Actions for item:1.txt" })).toContainElement(
+        panel,
+      );
+      const input = screen.getByRole("combobox");
+      expect(input).toHaveAttribute("aria-controls", panel.id);
+      await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+      const options = screen.getAllByRole("option", { name: /Copy path/ });
+      expect(options[0]).toHaveAttribute("aria-selected", "true");
+      await userEvent.keyboard("{Enter}");
+      expect(runAction).toHaveBeenLastCalledWith(7, "item:1", "lumen.copy-path", "panel");
+      expect(screen.queryByRole("listbox", { name: "Actions" })).not.toBeInTheDocument();
+    });
+
+    it("Escape closes the panel first, then dismisses", async () => {
+      render(<App />);
+      await userEvent.keyboard("{Control>}k{/Control}");
+      await screen.findByRole("listbox", { name: "Actions" });
+      await userEvent.keyboard("{Escape}");
+      expect(screen.queryByRole("listbox", { name: "Actions" })).not.toBeInTheDocument();
+      expect(hideOverlay).not.toHaveBeenCalled();
+      await userEvent.keyboard("{Escape}");
+      expect(hideOverlay).toHaveBeenCalledOnce();
+    });
+
+    it("a failed action leaves a short notice on the row", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      vi.mocked(runAction).mockRejectedValueOnce("result has no local path");
+      render(<App />);
+      await userEvent.keyboard("{Enter}");
+      expect(await screen.findByRole("status")).toHaveTextContent("Couldn't do that");
+      await userEvent.keyboard("{ArrowDown}");
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    });
   });
 });

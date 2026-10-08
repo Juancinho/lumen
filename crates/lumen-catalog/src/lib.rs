@@ -9,7 +9,9 @@ pub mod path;
 pub mod provider;
 pub mod rank;
 pub mod text;
+pub mod usage;
 
 pub use apps::{AppsReport, sync_apps};
 pub use files::{FilesReport, sync_files};
 pub use provider::CatalogProvider;
+pub use usage::record_action;

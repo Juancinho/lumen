@@ -4,7 +4,14 @@ import type { ResultRowModel } from "./model";
 import { INITIAL_SELECTION, moveSelection, selectedIndex, selectIndex } from "./selection";
 
 const rows = (...ids: string[]): ResultRowModel[] =>
-  ids.map((id) => ({ id, kind: "file", title: id, detail: null, extension: null }));
+  ids.map((id) => ({
+    id,
+    kind: "file",
+    title: id,
+    detail: null,
+    extension: null,
+    primaryAction: "lumen.open",
+  }));
 
 describe("selection", () => {
   it("is the top row until the user moves it", () => {

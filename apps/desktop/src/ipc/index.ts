@@ -3,9 +3,11 @@ export {
   getAppearance,
   getCoreInfo,
   hideOverlay,
+  listActions,
   overlayPainted,
   overlayReady,
   resizeOverlay,
+  runAction,
   search,
 } from "./commands";
 export {
@@ -22,4 +24,11 @@ export {
   type OverlayShown,
   type UnlistenFn,
 } from "./events";
-export type { Appearance, CoreInfo, ResultsUpdate, ResultView } from "./types";
+export type {
+  ActionView,
+  Appearance,
+  CoreInfo,
+  Invocation,
+  ResultsUpdate,
+  ResultView,
+} from "./types";

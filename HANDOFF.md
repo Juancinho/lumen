@@ -11,7 +11,19 @@
 **Pending on Windows (user):** try the real search (T107: type an app or file name — results
 should appear within ~1 s of start-up once the catalog sync ran), judge the look (T103 rows,
 T004 Acrylic vs Mica), T003 shortcut check. T101/T102 DONE (Windows run accepted).
-Next: T108 (action panel) + T109 (core actions: Enter opens/launches).
+Lumen is now usable end to end: type → results → Enter opens. Next: T105 (Quick Look) or
+T110 (diagnostics); T205-line work needs T201+ (M2).
+
+## T108 + T109 — outcome (REVIEW, ADR-026)
+
+- Core: `lumen_search::{available, prepare, ActionError}`, `SearchService::lookup`;
+  `lumen_catalog::usage::{record_action, item_id, use_kind}`.
+- Shell: `actions.rs` (REGISTRY = built-ins, executors via tauri-plugin-opener + arboard),
+  commands `list_actions`, `run_action`; `ResultDto.primaryAction`, `ActionDto`.
+- UI: `useActions` (run, panel state, notice), `ActionPanel`, layout grows for the panel.
+- Windows check: Enter on an app launches it; on a file opens it; Ctrl+Enter selects it in
+  Explorer; Ctrl+K → Copy path → paste somewhere; picking the same item a few times makes it
+  rise for that query.
 
 ## T104 — outcome (REVIEW)
 

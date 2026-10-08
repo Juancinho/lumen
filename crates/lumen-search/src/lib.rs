@@ -5,10 +5,15 @@
 //! - [`SearchService`]: one background thread, latest query wins: a new query cancels the
 //!   running one, older query ids are ignored, and nothing is queued per keystroke.
 //!
+//! - [`available`] / [`prepare`]: a result's contextual actions and the policy check before
+//!   an executor runs one (results are looked up with [`SearchService::lookup`]).
+//!
 //! No Tauri/WebView types: the shell turns updates into IPC events.
 
+mod actions;
 mod coordinator;
 mod service;
 
+pub use actions::{ActionError, available, prepare};
 pub use coordinator::{Coordinator, Outcome, Update, merge};
 pub use service::{Request, SearchService};

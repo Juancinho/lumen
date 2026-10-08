@@ -5,9 +5,11 @@ import {
   getAppearance,
   getCoreInfo,
   hideOverlay,
+  listActions,
   overlayPainted,
   overlayReady,
   resizeOverlay,
+  runAction,
   search,
 } from "./commands";
 
@@ -58,5 +60,19 @@ describe("ipc commands", () => {
     vi.mocked(invoke).mockResolvedValueOnce(true);
     await expect(search(7, "notas")).resolves.toBe(true);
     expect(invoke).toHaveBeenCalledExactlyOnceWith("search", { queryId: 7, text: "notas" });
+  });
+
+  it("listActions and runAction send ids only", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce([]);
+    await listActions(2, "item:5");
+    expect(invoke).toHaveBeenLastCalledWith("list_actions", { queryId: 2, resultId: "item:5" });
+    vi.mocked(invoke).mockResolvedValueOnce(undefined);
+    await runAction(2, "item:5", "lumen.open", "primary");
+    expect(invoke).toHaveBeenLastCalledWith("run_action", {
+      queryId: 2,
+      resultId: "item:5",
+      actionId: "lumen.open",
+      invocation: "primary",
+    });
   });
 });

@@ -58,6 +58,7 @@ apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
     src/material.rs        window material (ADR-024): apply plan, re-check before show
     src/search.rs          search thread + catalog provider -> `lumen:results` (ADR-025)
     src/catalog.rs         background catalog sync (apps + standard folders, every 30 min)
+    src/actions.rs         action executors behind the core policy (ADR-026)
     src/instance.rs        second-launch commands (--show/--hide/--toggle/--quit)
     src/tray.rs            tray icon + menu (Show, Keyboard shortcut, Window material, Quit)
     src/dto.rs             wire DTOs mapped from core types
@@ -200,8 +201,9 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
   its content height (`resize_overlay`, from `features/root-search/layout.ts`); the shell caps
   it at 72% of the work area so the top edge never moves, and re-applies it on every show.
 - Dismiss: Escape (ignored during IME composition), focus loss, Alt+F4. Quit: tray → Quit Lumen.
-- Keys (T104, `features/root-search/keymap.ts`): ↑/↓, PageUp/PageDown move the selection;
-  Enter, Ctrl+Enter, Alt+Enter, Ctrl+K, Ctrl+L are reserved for actions/details/panel/query.
+- Keys (T104/T108, `features/root-search/keymap.ts`): ↑/↓, PageUp/PageDown move the
+  selection; Enter primary action, Ctrl+Enter reveal, Ctrl+K Action Panel, Ctrl+L query,
+  Alt+Enter reserved for Quick Look (T105). Click runs the primary action.
 - On every show the shell emits `lumen:overlay-shown`; the UI focuses and selects the query.
 - Root search (T107, ADR-025): the UI calls `search(queryId, text)` per query change, on
   show and on `lumen:catalog-changed`; results stream as `lumen:results`. The catalog lives

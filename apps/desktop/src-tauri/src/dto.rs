@@ -53,6 +53,20 @@ pub(crate) struct ResultDto {
     pub(crate) title: String,
     pub(crate) detail: Option<String>,
     pub(crate) extension: Option<String>,
+    /// Action that Enter runs (`lumen.open`, `lumen.launch`).
+    pub(crate) primary_action: String,
+}
+
+/// Mirrors `ActionView` in `src/ipc/types.ts`: one Action Panel entry (T108).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ActionDto {
+    pub(crate) id: String,
+    pub(crate) title: String,
+    /// `primary` | `common` | `navigation` | `advanced` | `destructive`
+    pub(crate) group: &'static str,
+    /// Keyboard hint, e.g. `Enter`, `Ctrl+Enter`.
+    pub(crate) shortcut: Option<&'static str>,
 }
 
 impl From<&lumen_core::ResultItem> for ResultDto {
@@ -72,6 +86,7 @@ impl From<&lumen_core::ResultItem> for ResultDto {
                 IconRef::FileExtension(ext) => Some(ext.to_string()),
                 _ => None,
             },
+            primary_action: item.primary_action.as_str().to_owned(),
         }
     }
 }
@@ -172,8 +187,28 @@ mod tests {
                     "kind": "file",
                     "title": "notas.md",
                     "detail": "C:\\Users\\Joao",
-                    "extension": "md"
+                    "extension": "md",
+                    "primaryAction": "lumen.open"
                 }]
+            })
+        );
+    }
+
+    #[test]
+    fn action_wire_shape() {
+        let dto = ActionDto {
+            id: "lumen.reveal".into(),
+            title: "Reveal in Explorer".into(),
+            group: "navigation",
+            shortcut: Some("Ctrl+Enter"),
+        };
+        assert_eq!(
+            serde_json::to_value(dto).unwrap(),
+            serde_json::json!({
+                "id": "lumen.reveal",
+                "title": "Reveal in Explorer",
+                "group": "navigation",
+                "shortcut": "Ctrl+Enter"
             })
         );
     }

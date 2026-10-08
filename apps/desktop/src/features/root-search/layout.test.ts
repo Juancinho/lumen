@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import tokens from "../../design/tokens.css?raw";
 import {
+  ACTION_HEIGHT,
   LIST_PADDING,
+  PANEL_CHROME,
+  panelHeight,
+  rootSearchHeight,
   MAX_VISIBLE_ROWS,
   MESSAGE_HEIGHT,
   overlayHeight,
@@ -22,6 +26,8 @@ describe("overlay layout", () => {
     expect(token("--row-height")).toBe(ROW_HEIGHT);
     expect(token("--list-padding")).toBe(LIST_PADDING);
     expect(token("--message-height")).toBe(MESSAGE_HEIGHT);
+    expect(token("--action-height")).toBe(ACTION_HEIGHT);
+    expect(token("--panel-chrome")).toBe(PANEL_CHROME);
   });
 
   it("is the bare search bar without a list", () => {
@@ -39,5 +45,22 @@ describe("overlay layout", () => {
 
   it("fits the no-results message", () => {
     expect(overlayHeight({ kind: "message" })).toBe(64 + 1 + 56);
+  });
+
+  it("grows to fit an open Action Panel over a short list", () => {
+    const rows = [
+      {
+        id: "a",
+        kind: "file" as const,
+        title: "a",
+        detail: null,
+        extension: null,
+        primaryAction: "lumen.open",
+      },
+    ];
+    const short = rootSearchHeight("a", { rows, status: "done" });
+    const withPanel = rootSearchHeight("a", { rows, status: "done" }, 3);
+    expect(withPanel).toBe(64 + 1 + 12 + panelHeight(3));
+    expect(withPanel).toBeGreaterThan(short);
   });
 });

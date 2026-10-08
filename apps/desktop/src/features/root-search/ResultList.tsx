@@ -6,12 +6,19 @@ import { ResultRow } from "./ResultRow";
 interface ResultListProps {
   rows: readonly ResultRowModel[];
   selectedIndex: number;
+  notice?: string | null;
   onSelect: (index: number) => void;
   onActivate: (index: number) => void;
 }
 
 /** The result listbox. Focus stays in the query; the input points at the selected row. */
-export function ResultList({ rows, selectedIndex, onSelect, onActivate }: ResultListProps) {
+export function ResultList({
+  rows,
+  selectedIndex,
+  notice = null,
+  onSelect,
+  onActivate,
+}: ResultListProps) {
   // Keep the keyboard selection visible when the list scrolls (more than 8 rows).
   useEffect(() => {
     const row = document.getElementById(rowDomId(selectedIndex));
@@ -26,6 +33,7 @@ export function ResultList({ rows, selectedIndex, onSelect, onActivate }: Result
           row={row}
           domId={rowDomId(index)}
           selected={index === selectedIndex}
+          notice={index === selectedIndex ? notice : null}
           onHover={() => {
             if (index !== selectedIndex) onSelect(index);
           }}

@@ -25,6 +25,10 @@ serde_json.workspace = true
 tauri.workspace = true
 tauri-plugin-global-shortcut.workspace = true
 tauri-plugin-single-instance.workspace = true
+# Executors of the built-in actions (T109): ShellExecute open, SHOpenFolderAndSelectItems
+# reveal; called from Rust only (no JS permission is granted).
+tauri-plugin-opener.workspace = true
+arboard.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 # Same versions as wry/tauri (Cargo.lock): the controller type comes from tauri's PlatformWebview.

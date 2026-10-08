@@ -86,8 +86,16 @@ describe("results", () => {
           title: "Calculator",
           detail: "Application",
           extension: null,
+          primaryAction: "",
         },
-        { id: "item:3", kind: "file", title: "x.txt", detail: null, extension: "txt" },
+        {
+          id: "item:3",
+          kind: "file",
+          title: "x.txt",
+          detail: null,
+          extension: "txt",
+          primaryAction: "",
+        },
       ],
     });
   });

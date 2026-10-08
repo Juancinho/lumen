@@ -23,7 +23,21 @@ export interface ResultView {
   title: string;
   detail: string | null;
   extension: string | null;
+  /** Action id Enter runs (`lumen.open`, `lumen.launch`). */
+  primaryAction: string;
 }
+
+/** Mirrors `ActionDto`: one Action Panel entry (T108). */
+export interface ActionView {
+  id: string;
+  title: string;
+  group: "primary" | "common" | "navigation" | "advanced" | "destructive";
+  /** Keyboard hint such as `Enter` or `Ctrl+Enter`. */
+  shortcut: string | null;
+}
+
+/** How an action was triggered (mirrors `actions::parse_invocation`). */
+export type Invocation = "primary" | "panel" | "shortcut";
 
 /** Mirrors `ResultsDto` (event `lumen:results`): merged results of query `queryId` so far. */
 export interface ResultsUpdate {

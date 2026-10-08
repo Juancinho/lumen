@@ -6,6 +6,8 @@ interface ResultRowProps {
   /** DOM id, referenced by the input's `aria-activedescendant`. */
   domId: string;
   selected: boolean;
+  /** Short failure message for the selected row (an action could not run). */
+  notice?: string | null;
   onHover: () => void;
   onActivate: () => void;
 }
@@ -25,7 +27,14 @@ function Detail({ text }: { text: string }) {
  * One result (DESIGN_SYSTEM §10): icon tile, title, location (middle-truncated), kind
  * label; the selected row shows the primary-action hint instead of the kind.
  */
-export function ResultRow({ row, domId, selected, onHover, onActivate }: ResultRowProps) {
+export function ResultRow({
+  row,
+  domId,
+  selected,
+  notice = null,
+  onHover,
+  onActivate,
+}: ResultRowProps) {
   return (
     // Keyboard selection/activation is owned by the combobox input (focus never moves
     // into the list), so the option only needs pointer handlers.
@@ -56,8 +65,12 @@ export function ResultRow({ row, domId, selected, onHover, onActivate }: ResultR
           </span>
         )}
       </span>
-      <span className="result-row__meta" aria-hidden={selected}>
-        {selected ? (
+      <span className="result-row__meta" aria-hidden={selected && !notice}>
+        {selected && notice ? (
+          <span className="result-row__notice" role="status">
+            {notice}
+          </span>
+        ) : selected ? (
           <>
             <span className="result-row__hint">Open</span>
             <kbd className="result-row__key">↵</kbd>

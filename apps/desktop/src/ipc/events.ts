@@ -65,6 +65,7 @@ function toResult(raw: unknown): ResultView | null {
     title: r.title,
     detail: typeof r.detail === "string" ? r.detail : null,
     extension: typeof r.extension === "string" ? r.extension : null,
+    primaryAction: typeof r.primaryAction === "string" ? r.primaryAction : "",
   };
 }
 

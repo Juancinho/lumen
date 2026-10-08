@@ -14,6 +14,7 @@ const rows: ResultRowModel[] = [
     title: "Visual Studio Code",
     detail: "Application",
     extension: null,
+    primaryAction: "lumen.open",
   },
   {
     id: "item:2",
@@ -21,8 +22,16 @@ const rows: ResultRowModel[] = [
     title: "notas.md",
     detail: "C:\\Users\\Joao\\Proyectos\\lumen",
     extension: "md",
+    primaryAction: "lumen.open",
   },
-  { id: "item:3", kind: "folder", title: "Proyectos", detail: "C:\\Users\\Joao", extension: null },
+  {
+    id: "item:3",
+    kind: "folder",
+    title: "Proyectos",
+    detail: "C:\\Users\\Joao",
+    extension: null,
+    primaryAction: "lumen.open",
+  },
 ];
 
 function nth<T>(items: readonly T[], index: number): T {
@@ -31,7 +40,11 @@ function nth<T>(items: readonly T[], index: number): T {
   return item;
 }
 
-function renderSearch(query: string, results: ResultsState, selectedIndex = 0) {
+function renderSearch(
+  query: string,
+  results: Pick<ResultsState, "rows" | "status">,
+  selectedIndex = 0,
+) {
   const props = {
     onQueryChange: vi.fn(),
     onSelect: vi.fn(),

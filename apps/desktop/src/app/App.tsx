@@ -9,6 +9,7 @@ import {
   selectedIndex,
   selectIndex,
 } from "../features/root-search/selection";
+import { REVEAL_ACTION, useActions } from "../features/root-search/useActions";
 import { useResults } from "../features/root-search/useResults";
 import {
   getAppearance,
@@ -18,6 +19,7 @@ import {
   overlayPainted,
   overlayReady,
   resizeOverlay,
+  type Invocation,
 } from "../ipc";
 import { subscribe } from "../lib/subscribe";
 import { applyAppearance } from "./appearance";
@@ -67,8 +69,9 @@ function focusQuery(input: HTMLInputElement | null) {
  *   frame already paints the right surface.
  * - the window height follows the content (T103): the shell resizes it, top edge fixed.
  * - keyboard (T104): arrows/PageUp/PageDown move a selection that stays on its result
- *   while results stream in; Enter/Ctrl+Enter/Alt+Enter/Ctrl+K are claimed for the
- *   actions (T108/T109). Text-editing keys stay with the query field.
+ *   while results stream in. Text-editing keys stay with the query field.
+ * - actions (T108/T109): Enter / click runs the primary action, Ctrl+Enter reveals,
+ *   Ctrl+K opens the Action Panel (arrows + Enter inside, Escape/Ctrl+K close it).
  */
 export function App() {
   const [query, setQuery] = useState("");
@@ -76,8 +79,10 @@ export function App() {
   const inputRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const results = useResults(query);
-  const height = rootSearchHeight(query, results);
+  const actions = useActions();
+  const height = rootSearchHeight(query, results, actions.panel?.actions.length ?? 0);
   const selected = selectedIndex(selection, results.rows);
+  const selectedRow = results.rows[selected];
 
   useEffect(() => {
     resizeOverlay(height).catch(reportIpcError("resize_overlay"));
@@ -124,6 +129,19 @@ export function App() {
   const changeQuery = (next: string) => {
     setQuery(next);
     setSelection(INITIAL_SELECTION);
+    actions.closePanel();
+    actions.clearNotice();
+  };
+
+  const select = (index: number) => {
+    setSelection(selectIndex(results.rows, index));
+    actions.clearNotice();
+  };
+
+  const runOn = (row: typeof selectedRow, actionId: string | undefined, how: Invocation) => {
+    if (row && actionId && results.queryId !== null) {
+      actions.run(results.queryId, row, actionId, how);
+    }
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -139,24 +157,50 @@ export function App() {
     });
     if (!command) return;
     event.preventDefault();
+    if (actions.panel) {
+      switch (command.type) {
+        case "move":
+          actions.movePanel(command.delta);
+          return;
+        case "primary":
+          actions.runPanel();
+          return;
+        case "dismiss":
+        case "actions":
+          actions.closePanel();
+          return;
+        default:
+          actions.closePanel();
+      }
+    }
     switch (command.type) {
       case "dismiss":
         hideOverlay().catch(reportIpcError("hide_overlay"));
         return;
       case "move":
         setSelection(moveSelection(selection, results.rows, command.delta));
+        actions.clearNotice();
         return;
       case "page":
         setSelection(moveSelection(selection, results.rows, command.direction * MAX_VISIBLE_ROWS));
+        actions.clearNotice();
         return;
       case "focusQuery":
         focusQuery(inputRef.current);
         return;
       case "primary":
+        runOn(selectedRow, selectedRow?.primaryAction, "primary");
+        return;
       case "reveal":
-      case "details":
+        runOn(selectedRow, REVEAL_ACTION, "shortcut");
+        return;
       case "actions":
-        // Claimed now so they never type into the field; executed by T108/T109.
+        if (selectedRow && results.queryId !== null) {
+          actions.openPanel(results.queryId, selectedRow);
+        }
+        return;
+      case "details":
+        // Quick Look is T105.
         return;
     }
   };
@@ -170,13 +214,23 @@ export function App() {
           inputRef={inputRef}
           results={results}
           selectedIndex={selected}
-          onSelect={(index) => {
-            setSelection(selectIndex(results.rows, index));
-          }}
+          onSelect={select}
           onActivate={(index) => {
-            setSelection(selectIndex(results.rows, index)); // primary action: T109
+            select(index);
+            const row = results.rows[index];
+            runOn(row, row?.primaryAction, "primary");
           }}
           onKeyDown={onKeyDown}
+          notice={actions.noticeFor === selectedRow?.id ? actions.notice : null}
+          panel={
+            actions.panel && {
+              subject: actions.panel.row.title,
+              actions: actions.panel.actions,
+              selectedIndex: actions.panel.index,
+              onSelect: actions.selectPanel,
+              onRun: actions.runPanel,
+            }
+          }
         />
       </div>
     </main>

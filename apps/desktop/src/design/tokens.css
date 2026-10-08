@@ -39,6 +39,9 @@
   --list-padding: 6px;
   --icon-size: 32px;
   --message-height: 56px;
+  --action-height: 36px;
+  --panel-chrome: 40px;
+  --panel-width: 300px;
 
   /* §11 motion. */
   --motion-state: 110ms;
@@ -53,6 +56,10 @@
   --accent-default: #005fb8;
   --icon-tile: rgb(0 0 0 / 4.5%);
   --icon-glyph: var(--lumen-text-secondary);
+  /* Action Panel: an elevated, opaque continuation of the surface (no second blur). */
+  --panel-surface: #fbfbfb;
+  --panel-shadow: 0 8px 24px rgb(0 0 0 / 16%), 0 0 0 1px var(--stroke-subtle);
+  --status-error: #c42b1c;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -63,6 +70,9 @@
     --stroke-subtle: rgb(255 255 255 / 8%);
     --accent-default: #60cdff;
     --icon-tile: rgb(255 255 255 / 6%);
+    --panel-surface: rgb(44 44 44);
+    --panel-shadow: 0 8px 24px rgb(0 0 0 / 40%), 0 0 0 1px var(--stroke-subtle);
+    --status-error: #ff99a4;
   }
 }
 
@@ -75,6 +85,9 @@
     --accent-default: Highlight;
     --icon-tile: transparent;
     --icon-glyph: CanvasText;
+    --panel-surface: Canvas;
+    --panel-shadow: 0 0 0 1px CanvasText;
+    --status-error: CanvasText;
   }
 }
 

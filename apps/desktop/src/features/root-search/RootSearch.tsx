@@ -1,7 +1,9 @@
 import type { KeyboardEvent, Ref } from "react";
 
+import type { ActionView } from "../../ipc";
+import { ActionPanel } from "./ActionPanel";
 import { listState } from "./layout";
-import { RESULT_LIST_ID, rowDomId } from "./model";
+import { ACTION_LIST_ID, actionDomId, RESULT_LIST_ID, rowDomId } from "./model";
 import { ResultList } from "./ResultList";
 import { SearchField } from "./SearchField";
 import type { ResultsState } from "./useResults";
@@ -10,11 +12,20 @@ interface RootSearchProps {
   query: string;
   onQueryChange: (query: string) => void;
   inputRef: Ref<HTMLInputElement>;
-  results: ResultsState;
+  results: Pick<ResultsState, "rows" | "status">;
   selectedIndex: number;
   onSelect: (index: number) => void;
   onActivate: (index: number) => void;
   onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
+  notice?: string | null;
+  /** Open Action Panel for the selected result, if any. */
+  panel?: {
+    subject: string;
+    actions: readonly ActionView[];
+    selectedIndex: number;
+    onSelect: (index: number) => void;
+    onRun: (index: number) => void;
+  } | null;
 }
 
 /**
@@ -30,6 +41,8 @@ export function RootSearch({
   onSelect,
   onActivate,
   onKeyDown,
+  notice = null,
+  panel = null,
 }: RootSearchProps) {
   const state = listState(query, results);
   const hasRows = state.kind === "rows";
@@ -40,8 +53,10 @@ export function RootSearch({
         value={query}
         onChange={onQueryChange}
         inputRef={inputRef}
-        listId={hasRows ? RESULT_LIST_ID : null}
-        activeId={selected ? rowDomId(selectedIndex) : null}
+        listId={panel ? ACTION_LIST_ID : hasRows ? RESULT_LIST_ID : null}
+        activeId={
+          panel ? actionDomId(panel.selectedIndex) : selected ? rowDomId(selectedIndex) : null
+        }
         onClear={() => {
           onQueryChange("");
         }}
@@ -52,10 +67,12 @@ export function RootSearch({
         <ResultList
           rows={results.rows}
           selectedIndex={selectedIndex}
+          notice={notice}
           onSelect={onSelect}
           onActivate={onActivate}
         />
       )}
+      {panel && <ActionPanel {...panel} />}
       {state.kind === "message" && (
         <p className="overlay__message" role="status">
           <span className="overlay__message-title">No matches for “{query.trim()}”</span>

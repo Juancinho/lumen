@@ -10,6 +10,7 @@
 // Unsafe only in `lifecycle` (WebView2 COM), under an explicit allow with SAFETY notes.
 #![deny(unsafe_code)]
 
+mod actions;
 mod catalog;
 mod commands;
 mod diag;
@@ -84,6 +85,8 @@ fn main() {
             commands::overlay::overlay_appearance,
             commands::overlay::resize_overlay,
             commands::search::search,
+            commands::actions::list_actions,
+            commands::actions::run_action,
             commands::overlay::overlay_painted
         ])
         .run(tauri::generate_context!());

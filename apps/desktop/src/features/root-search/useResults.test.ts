@@ -40,6 +40,7 @@ const row = (id: string) => ({
   title: id,
   detail: null,
   extension: null,
+  primaryAction: "lumen.open",
 });
 
 async function settle() {
@@ -71,7 +72,7 @@ describe("useResults", () => {
     act(() => {
       push?.({ queryId: 1, done: true, results: [row("item:1")] });
     });
-    expect(result.current).toEqual({ rows: [row("item:1")], status: "done" });
+    expect(result.current).toEqual({ rows: [row("item:1")], queryId: 1, status: "done" });
 
     rerender({ q: "vs" }); // id 2
     expect(result.current.rows).toEqual([row("item:1")]);
@@ -82,11 +83,11 @@ describe("useResults", () => {
     act(() => {
       push?.({ queryId: 2, done: false, results: [row("item:2")] });
     });
-    expect(result.current).toEqual({ rows: [row("item:2")], status: "searching" });
+    expect(result.current).toEqual({ rows: [row("item:2")], queryId: 2, status: "searching" });
     act(() => {
       push?.({ queryId: 2, done: true, results: [] });
     });
-    expect(result.current).toEqual({ rows: [], status: "done" });
+    expect(result.current).toEqual({ rows: [], queryId: 2, status: "done" });
   });
 
   it("re-runs the query when the overlay is shown or the catalog changed", async () => {
