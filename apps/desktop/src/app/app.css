@@ -1,10 +1,10 @@
 /*
- * Placeholder overlay styles (T002). The design-token system and premium surface
- * (material, radius, shadow, typography scale) are T004/T103 per
- * docs/DESIGN_SYSTEM.md; do not grow this file into a token system.
+ * Placeholder overlay styles (T002). The window material and surface colours are
+ * `src/design/material.css` (T004); the design-token system and premium layout
+ * (radius, shadow, typography scale) are T103 per docs/DESIGN_SYSTEM.md. Do not grow this
+ * file into a token system.
  */
 :root {
-  color-scheme: light dark;
   font-family: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
@@ -16,8 +16,6 @@ body,
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: Canvas;
-  color: CanvasText;
 }
 
 .overlay {
@@ -45,7 +43,7 @@ body,
 }
 
 .search-field__input::placeholder {
-  color: GrayText;
+  color: var(--lumen-text-secondary);
 }
 
 /* Native clear button is replaced by the T103 design. */

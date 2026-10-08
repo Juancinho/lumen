@@ -7,3 +7,11 @@ export interface CoreInfo {
   productName: string;
   version: string;
 }
+
+/** Mirrors `AppearanceDto`: the window surface the UI paints over (T004). */
+export interface Appearance {
+  /** `acrylic`/`mica`: a system backdrop shows through a tint; `solid`: paint opaque. */
+  material: "acrylic" | "mica" | "solid";
+  /** `round`: Windows rounds and shadows the window; `square`: Windows 10 style. */
+  corners: "round" | "square";
+}

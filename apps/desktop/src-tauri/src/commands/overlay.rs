@@ -1,6 +1,8 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tauri::{Manager, State, WebviewWindow};
+use tauri::{AppHandle, Manager, State, WebviewWindow};
+
+use crate::dto::AppearanceDto;
 
 /// Whether the overlay should appear once the UI has loaded (normal launch), as
 /// opposed to staying resident in the tray (`--background`).
@@ -31,4 +33,11 @@ pub(crate) async fn overlay_ready(
 #[tauri::command]
 pub(crate) async fn overlay_painted(seq: u64) {
     crate::diag::painted(seq);
+}
+
+/// The surface the UI should paint (material + corners). Called before `overlay_ready`;
+/// later changes arrive as `lumen:appearance` events.
+#[tauri::command]
+pub(crate) async fn overlay_appearance(app: AppHandle) -> AppearanceDto {
+    crate::material::current(&app)
 }

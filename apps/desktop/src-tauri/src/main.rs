@@ -15,6 +15,7 @@ mod diag;
 mod dto;
 mod instance;
 mod lifecycle;
+mod material;
 mod overlay;
 mod settings;
 mod shortcut;
@@ -46,6 +47,7 @@ fn main() {
         ))
         .setup(move |app| {
             app.manage(settings::open(app));
+            material::install(app);
             shortcut::install(app)?;
             tray::install(app)?;
             // First show happens when the UI reports ready (`overlay_ready`).
@@ -75,6 +77,7 @@ fn main() {
             commands::app_info::core_info,
             commands::overlay::hide_overlay,
             commands::overlay::overlay_ready,
+            commands::overlay::overlay_appearance,
             commands::overlay::overlay_painted
         ])
         .run(tauri::generate_context!());

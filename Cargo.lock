@@ -2384,6 +2384,7 @@ version = "0.1.0"
 dependencies = [
  "lumen-core",
  "lumen-storage",
+ "lumen-windows",
  "serde",
  "serde_json",
  "tauri",
@@ -2440,6 +2441,7 @@ version = "0.1.0"
 dependencies = [
  "windows",
  "windows-core",
+ "windows-version",
 ]
 
 [[package]]

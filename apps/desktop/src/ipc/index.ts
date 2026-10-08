@@ -1,4 +1,12 @@
 // The only module UI code may import to reach the native shell (enforced by ESLint).
-export { getCoreInfo, hideOverlay, overlayPainted, overlayReady } from "./commands";
-export { onOverlayShown, OVERLAY_SHOWN, type OverlayShown, type UnlistenFn } from "./events";
-export type { CoreInfo } from "./types";
+export { getAppearance, getCoreInfo, hideOverlay, overlayPainted, overlayReady } from "./commands";
+export {
+  APPEARANCE_CHANGED,
+  onAppearanceChanged,
+  onOverlayShown,
+  OVERLAY_SHOWN,
+  toAppearance,
+  type OverlayShown,
+  type UnlistenFn,
+} from "./events";
+export type { Appearance, CoreInfo } from "./types";

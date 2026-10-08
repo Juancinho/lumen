@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { describe, expect, it, vi } from "vitest";
 
-import { getCoreInfo, hideOverlay, overlayPainted, overlayReady } from "./commands";
+import { getAppearance, getCoreInfo, hideOverlay, overlayPainted, overlayReady } from "./commands";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
@@ -29,5 +29,14 @@ describe("ipc commands", () => {
 
     await overlayPainted(3);
     expect(invoke).toHaveBeenCalledExactlyOnceWith("overlay_painted", { seq: 3 });
+  });
+
+  it("getAppearance invokes overlay_appearance and normalizes the payload", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ material: "mica", corners: "round" });
+    await expect(getAppearance()).resolves.toEqual({ material: "mica", corners: "round" });
+    expect(invoke).toHaveBeenCalledExactlyOnceWith("overlay_appearance");
+
+    vi.mocked(invoke).mockResolvedValueOnce({ material: "glass" });
+    await expect(getAppearance()).resolves.toEqual({ material: "solid", corners: "square" });
   });
 });

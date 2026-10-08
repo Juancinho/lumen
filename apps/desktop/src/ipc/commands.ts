@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import type { CoreInfo } from "./types";
+import { toAppearance } from "./events";
+import type { Appearance, CoreInfo } from "./types";
 
 /** Identity of the linked Rust core. Command: `core_info`. */
 export function getCoreInfo(): Promise<CoreInfo> {
@@ -26,4 +27,12 @@ export function overlayReady(): Promise<void> {
  */
 export function overlayPainted(seq: number): Promise<void> {
   return invoke("overlay_painted", { seq });
+}
+
+/**
+ * The surface to paint (window material and corners). Call before `overlayReady` so the
+ * first frame uses it; changes arrive as `lumen:appearance`. Command: `overlay_appearance`.
+ */
+export async function getAppearance(): Promise<Appearance> {
+  return toAppearance(await invoke<unknown>("overlay_appearance"));
 }

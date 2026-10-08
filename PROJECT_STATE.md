@@ -55,7 +55,7 @@ Benchmark/ADR required:
 
 - Windows EmbeddingGemma runtime
 - f16/f32/i8 vector profile
-- Mica/Acrylic implementation
+- Mica/Acrylic implementation (T004 built, ADR-024 proposed; Windows measurement pending)
 - optional FastFrame/egui shell spike after baseline exists; no migration by intuition
 
 ## Implementation status
@@ -110,7 +110,11 @@ Benchmark/ADR required:
   query→item choices, pins, retention/clear; bounded ranking priors; empty-query suggestions.
 - **T003 REVIEW:** configurable shortcut (tray submenu, 4 choices, "(in use)" probing,
   persisted in the app-data SQLite settings, first-free fallback only when nothing is saved).
-- Not yet: provider registry/coordinator (T107), design tokens/material (T004/T103).
+- **T004 REVIEW (ADR-024 proposed):** window material — transparent window + DWM system
+  backdrop: Automatic = Acrylic (Win11 22H2+), Mica, Solid; Solid when high contrast /
+  transparency off / older Windows; native rounded corners + shadow; tinted surface tokens
+  with a contrast floor enforced by tests; tray → Window material. Awaiting the Windows run.
+- Not yet: provider registry/coordinator (T107), design tokens/layout (T103).
 
 ## Immediate objective
 

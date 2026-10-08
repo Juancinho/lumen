@@ -37,11 +37,13 @@ crates/
   lumen-vector/            ANN index (USearch HNSW, ADR-016): f16, cosine, add/search/remove/save/view
   lumen-indexer/           Pass 0 inventory: scan with coverage guarantee, stable FileIdentity (ADR-018)
   lumen-catalog/           app/file catalog: inventory -> items, Start-menu apps, CatalogProvider (ADR-021)
-  lumen-windows/           Windows OS adapters for core crates (AppsFolder apps); no GUI/WebView
+  lumen-windows/           Windows OS adapters (AppsFolder apps, window material/DWM plan);
+                           no GUI framework/WebView types
   lumen-bench/             benchmark harness binary `lumen-bench` (release-mode, JSON reports)
 apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
   src/                     React UI
-    app/                   overlay root (App.tsx) + placeholder styles
+    app/                   overlay root (App.tsx), appearance.ts, placeholder styles
+    design/                material.css: surface/text tokens per material (T004, ADR-024)
     features/root-search/  SearchField (T002 minimal; premium surface is T103)
     ipc/                   ONLY place allowed to import @tauri-apps/* (typed wrappers + wire types)
     test/                  Vitest setup
@@ -51,8 +53,9 @@ apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
     src/shortcut.rs        configurable global shortcut + conflict handling (T003)
     src/settings.rs        app-data SQLite settings (lumen.db, `settings` table)
     src/lifecycle.rs       hidden-WebView modes (ADR-020); src/diag.rs timing diagnostics
+    src/material.rs        window material (ADR-024): apply plan, re-check before show
     src/instance.rs        second-launch commands (--show/--hide/--toggle/--quit)
-    src/tray.rs            tray icon + menu (Show / Quit)
+    src/tray.rs            tray icon + menu (Show, Keyboard shortcut, Window material, Quit)
     src/dto.rs             wire DTOs mapped from core types
     capabilities/          Tauri permission sets (minimal: core:default)
     tauri.conf.json        window, CSP, build hooks
@@ -192,6 +195,13 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
   clamped inside it; logical size 800×64 (`overlay::LOGICAL_SIZE` = `tauri.conf.json`).
 - Dismiss: Escape (ignored during IME composition), focus loss, Alt+F4. Quit: tray → Quit Lumen.
 - On every show the shell emits `lumen:overlay-shown`; the UI focuses and selects the query.
+- Window material (T004, ADR-024): transparent window + DWM system backdrop. Tray → "Window
+  material" = Automatic (Acrylic) / Acrylic / Mica / Solid, saved as `appearance.material`;
+  `LUMEN_MATERIAL=auto|acrylic|mica|solid` overrides for one run. Backdrops need Windows 11
+  22H2+; high contrast or Transparency effects off force Solid (re-checked on every show).
+  The UI asks `overlay_appearance` before `overlay_ready` and follows `lumen:appearance`;
+  CSS keys off `<html data-material data-corners>`. Compare materials with
+  `scripts/t004/run-windows-material.ps1` (screenshots stay in `target/t004/`).
 - Linux dev note: WebKitGTK enforces a ~200px minimum window height and single-instance needs a
   D-Bus session; both are Linux-only artefacts.
 

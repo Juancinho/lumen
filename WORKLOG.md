@@ -118,3 +118,11 @@ Append-only. Keep entries compact.
 
 - Tray submenu with 4 shortcut choices (checks, "(in use by another app)" via register/release probes); apply = register new, release old, rollback on failure; saved choice persisted in the new app-data SQLite settings (`lumen.db`), never silently replaced; first-free fallback only when unset.
 - `lumen_storage` settings get/set/remove. Shell tests for labels/order/tooltips; Linux Xvfb smoke OK. REVIEW: Windows interactive check (conflicts are Windows-specific).
+
+## 2026-10-08 — T004 Windows material/backdrop spike (claude)
+
+- Plan in `lumen-windows::material` (pure, tested): Acrylic (transient system backdrop) by default, Mica optional, Solid for high contrast / transparency off / builds < 22621; documented DWM APIs only; native rounded corners from 22000.
+- Shell applies it via Tauri window effects on a transparent window, re-checks system settings before each show, tray "Window material" submenu (saved setting, fallback reason shown), `LUMEN_MATERIAL` override, diag events.
+- UI surface tokens (`src/design/material.css`) with a WCAG floor over any backdrop enforced by `material.test.ts` (tint 0.76: primary >= 7.4:1, secondary >= 3.4:1 worst case; solid secondary >= 6:1).
+- 20 px radius not reachable with a system backdrop -> native 8 px (ADR-024 proposed). `scripts/t004/run-windows-material.ps1` measures show latency, DWM GPU, on-screen contrast and saves private screenshots. Windows-only code compiles only in Windows CI.
+

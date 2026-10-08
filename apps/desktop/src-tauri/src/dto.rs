@@ -23,6 +23,25 @@ impl From<lumen_core::CoreInfo> for CoreInfoDto {
     }
 }
 
+/// Mirrors `Appearance` in `src/ipc/types.ts`: the surface the UI paints (T004).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AppearanceDto {
+    /// `acrylic` | `mica` | `solid`
+    pub(crate) material: &'static str,
+    /// `round` | `square`
+    pub(crate) corners: &'static str,
+}
+
+impl From<lumen_windows::material::Plan> for AppearanceDto {
+    fn from(plan: lumen_windows::material::Plan) -> Self {
+        Self {
+            material: plan.material.as_str(),
+            corners: plan.corners.as_str(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -45,6 +64,20 @@ mod tests {
         assert_eq!(
             json,
             serde_json::json!({ "productName": "Lumen", "version": "1.2.3" })
+        );
+    }
+
+    #[test]
+    fn appearance_wire_shape() {
+        use lumen_windows::material::{Corners, Material, Plan, Reason};
+        let dto = AppearanceDto::from(Plan {
+            material: Material::Acrylic,
+            corners: Corners::Round,
+            reason: Reason::AsRequested,
+        });
+        assert_eq!(
+            serde_json::to_value(dto).unwrap(),
+            serde_json::json!({ "material": "acrylic", "corners": "round" })
         );
     }
 }

@@ -3,26 +3,40 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  getAppearance,
   hideOverlay,
+  onAppearanceChanged,
   onOverlayShown,
   overlayPainted,
   overlayReady,
+  type Appearance,
   type OverlayShown,
 } from "../ipc";
 import { App } from "./App";
 
 vi.mock("../ipc", () => ({
+  getAppearance: vi.fn(),
   hideOverlay: vi.fn(),
+  onAppearanceChanged: vi.fn(),
   onOverlayShown: vi.fn(),
   overlayPainted: vi.fn(),
   overlayReady: vi.fn(),
 }));
 
 let shownHandler: ((shown: OverlayShown) => void) | undefined;
+let appearanceHandler: ((appearance: Appearance) => void) | undefined;
 const unlisten = vi.fn();
 
 beforeEach(() => {
   shownHandler = undefined;
+  appearanceHandler = undefined;
+  delete document.documentElement.dataset.material;
+  delete document.documentElement.dataset.corners;
+  vi.mocked(getAppearance).mockResolvedValue({ material: "acrylic", corners: "round" });
+  vi.mocked(onAppearanceChanged).mockImplementation((handler) => {
+    appearanceHandler = handler;
+    return Promise.resolve(unlisten);
+  });
   vi.mocked(hideOverlay).mockResolvedValue(undefined);
   vi.mocked(overlayReady).mockResolvedValue(undefined);
   vi.mocked(overlayPainted).mockResolvedValue(undefined);
@@ -33,13 +47,49 @@ beforeEach(() => {
 });
 
 describe("App overlay", () => {
-  it("renders a labelled search field that owns focus on mount", () => {
+  it("renders a labelled search field that owns focus on mount", async () => {
     render(<App />);
 
     const input = screen.getByRole("searchbox", { name: "Search" });
     expect(input).toHaveFocus();
     expect(screen.getByRole("search")).toContainElement(input);
+    await act(async () => {
+      await Promise.resolve();
+    });
     expect(overlayReady).toHaveBeenCalledOnce();
+  });
+
+  it("applies the window material before reporting ready", async () => {
+    let readyMaterial: string | undefined;
+    vi.mocked(overlayReady).mockImplementation(() => {
+      readyMaterial = document.documentElement.dataset.material;
+      return Promise.resolve();
+    });
+    render(<App />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(readyMaterial).toBe("acrylic");
+    expect(document.documentElement.dataset.corners).toBe("round");
+
+    act(() => {
+      appearanceHandler?.({ material: "solid", corners: "round" });
+    });
+    expect(document.documentElement.dataset.material).toBe("solid");
+  });
+
+  it("still reports ready when the appearance query fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.mocked(getAppearance).mockRejectedValueOnce(new Error("no shell"));
+    render(<App />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(overlayReady).toHaveBeenCalledOnce();
+    expect(document.documentElement.dataset.material).toBeUndefined();
   });
 
   it("Escape hides the overlay", async () => {

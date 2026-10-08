@@ -28,7 +28,7 @@ Use native Windows material concepts intelligently. Microsoft recommends Mica as
 - maximum height: approximately 65–72% of the active monitor work area;
 - horizontal position: centered;
 - vertical position: around 18–24% from top of active monitor;
-- outer corner radius: 20 px target, adjusted for Windows API limitations and scaling;
+- outer corner radius: 20 px target, adjusted for Windows API limitations and scaling (T004/ADR-024: with a system backdrop the window uses the native Windows 11 radius, 8 px at 100 %);
 - border: at most 1 physical pixel of low-contrast separation if needed;
 - shadow: broad, soft, low-opacity; stronger in light mode.
 

@@ -72,6 +72,7 @@ fn show_window<R: Runtime>(window: &WebviewWindow<R>) {
     let seq = crate::diag::begin_show();
     let started = std::time::Instant::now();
     place_on_active_monitor(window);
+    crate::material::before_show(window);
     crate::lifecycle::before_show(window);
     if let Err(err) = window.show() {
         eprintln!("lumen: show overlay failed: {err}");

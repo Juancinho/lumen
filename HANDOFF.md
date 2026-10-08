@@ -8,7 +8,30 @@
 
 ## Active task
 
-**T101 + T102 REVIEW** — one Windows run validates both:
+**Pending Windows runs (user):** T004 material, T101+T102 catalog, T003 shortcut check —
+details per task below. Then: T103 (premium overlay, unblocked by T004) and T107.
+
+## T004 — outcome (REVIEW, ADR-024 proposed)
+
+- Run: `powershell -ExecutionPolicy Bypass -File scripts\t004\run-windows-material.ps1`
+  (put a bright, busy window behind the top-centre of the screen first; ideally run once in
+  light and once in dark mode). Prints per material: what was applied and why, show→paint
+  p50/p95, per-show check cost, DWM GPU %, real contrast from screen samples. Screenshots in
+  `target\t004\` (private). JSON in `docs\benchmarks\t004\<date>-<pc>\`.
+- Visual check: tray → Window material → try each; corners rounded, shadow visible, no
+  white flash on show, text legible over a white page and over a dark one; Settings →
+  Accessibility → Visual effects → Transparency effects off → next show is Solid (tray says
+  "using Solid: transparency effects are off").
+- Decide with the user: keep `auto` = Acrylic or switch to Mica. Then ADR-024 Accepted,
+  T004 DONE.
+- Code: `lumen_windows::material::{plan, system_appearance, round_corners}` (pure plan, unit
+  tested; WinRT UISettings/AccessibilitySettings; DWM corner preference — the Windows-only
+  parts are compiled only by Windows CI); shell `material.rs` (install, `before_show`,
+  `choose`, `current`; command `overlay_appearance`, event `lumen:appearance`); UI
+  `src/design/material.css` + `material.test.ts` (contrast floor), `src/app/appearance.ts`.
+- T012 script now builds with `--features tauri/custom-protocol` (it did not).
+
+## T101 + T102 — REVIEW — one Windows run validates both:
 `powershell -ExecutionPolicy Bypass -File scripts\t101\run-windows-catalog.ps1`
 (native tests incl. AppsFolder COM; catalog bench over user folders + apps with the T102
 ranking; prints top results for calc/spotify/visual/config/notas). Then both DONE, ADR-021/022

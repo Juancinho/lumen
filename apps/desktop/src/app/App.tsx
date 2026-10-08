@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 
 import { SearchField } from "../features/root-search/SearchField";
-import { hideOverlay, onOverlayShown, overlayPainted, overlayReady } from "../ipc";
+import {
+  getAppearance,
+  hideOverlay,
+  onAppearanceChanged,
+  onOverlayShown,
+  overlayPainted,
+  overlayReady,
+  type UnlistenFn,
+} from "../ipc";
+import { applyAppearance } from "./appearance";
 
 function reportIpcError(action: string) {
   return (error: unknown) => {
@@ -21,6 +30,23 @@ function reportPainted(seq: number) {
   });
 }
 
+/** Subscribes in an effect; unsubscribes on cleanup even if the listener resolves late. */
+function subscribe(start: () => Promise<UnlistenFn>, what: string) {
+  let disposed = false;
+  let unlisten: UnlistenFn | undefined;
+  start().then(
+    (fn) => {
+      if (disposed) fn();
+      else unlisten = fn;
+    },
+    reportIpcError(`listen ${what}`),
+  );
+  return () => {
+    disposed = true;
+    unlisten?.();
+  };
+}
+
 /** Focus the query and select it, so typing replaces the previous query. */
 function focusQuery(input: HTMLInputElement | null) {
   input?.focus();
@@ -30,7 +56,9 @@ function focusQuery(input: HTMLInputElement | null) {
 /**
  * Overlay root (T002): one search surface, keyboard-first.
  * - focus is placed in the query on mount and every time the shell shows the overlay;
- * - Escape dismisses (ignored while an IME composition is active).
+ * - Escape dismisses (ignored while an IME composition is active);
+ * - the window material (T004) is applied before the UI reports ready, so the first
+ *   frame already paints the right surface.
  * Results (T101+) and the premium surface (T103) build on this.
  */
 export function App() {
@@ -39,24 +67,40 @@ export function App() {
 
   useEffect(() => {
     focusQuery(inputRef.current);
-    overlayReady().catch(reportIpcError("overlay_ready"));
+    // The first show waits for `overlay_ready`, so paint the right surface before it.
+    getAppearance()
+      .then((appearance) => {
+        applyAppearance(appearance);
+      }, reportIpcError("overlay_appearance"))
+      .finally(() => {
+        overlayReady().catch(reportIpcError("overlay_ready"));
+      });
   }, []);
 
-  useEffect(() => {
-    let disposed = false;
-    let unlisten: (() => void) | undefined;
-    onOverlayShown(({ seq }) => {
-      focusQuery(inputRef.current);
-      if (seq !== null) reportPainted(seq);
-    }).then((fn) => {
-      if (disposed) fn();
-      else unlisten = fn;
-    }, reportIpcError("listen overlay-shown"));
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, []);
+  useEffect(
+    () =>
+      subscribe(
+        () =>
+          onOverlayShown(({ seq }) => {
+            focusQuery(inputRef.current);
+            if (seq !== null) reportPainted(seq);
+          }),
+        "overlay-shown",
+      ),
+    [],
+  );
+
+  useEffect(
+    () =>
+      subscribe(
+        () =>
+          onAppearanceChanged((appearance) => {
+            applyAppearance(appearance);
+          }),
+        "appearance",
+      ),
+    [],
+  );
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

@@ -1,0 +1,58 @@
+/*
+ * Window material tokens (T004, ADR-024).
+ *
+ * The overlay window is transparent. The shell picks the material (`<html data-material>`,
+ * set from `overlay_appearance`): with `acrylic`/`mica` a DWM system backdrop shows through
+ * a tint of the surface colour; `solid` (the default until the shell answers, and always in
+ * high contrast or with transparency effects off) paints the surface opaque.
+ *
+ * Contrast (docs/DESIGN_SYSTEM.md §4, checked by material.test.ts): the tint alone keeps
+ * primary text >= 7:1 and secondary text >= 3:1 over ANY backdrop (pure black or white
+ * behind, ignoring the system material's own luminosity layer, which only helps); on the
+ * solid surface secondary text is >= 4.5:1. Legibility problems are fixed by raising
+ * --lumen-tint-alpha, never by adding borders.
+ *
+ * Only material/surface tokens live here; the full token system is T103.
+ */
+:root {
+  color-scheme: light dark;
+  /* Windows 11 light base. Channels only, so the tint can reuse them. */
+  --lumen-surface-rgb: 243 243 243;
+  --lumen-text-primary: #1a1a1a;
+  --lumen-text-secondary: #5c5c5c;
+  --lumen-tint-alpha: 0.76;
+  --lumen-background: rgb(var(--lumen-surface-rgb));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Windows 11 dark base. */
+    --lumen-surface-rgb: 32 32 32;
+    --lumen-text-primary: #ffffff;
+    --lumen-text-secondary: #b0b0b0;
+  }
+}
+
+:root[data-material="acrylic"],
+:root[data-material="mica"] {
+  --lumen-background: rgb(var(--lumen-surface-rgb) / var(--lumen-tint-alpha));
+}
+
+/* High contrast: system colours, no translucency (the shell also forces `solid`). */
+@media (forced-colors: active) {
+  :root {
+    --lumen-background: Canvas;
+    --lumen-text-primary: CanvasText;
+    --lumen-text-secondary: GrayText;
+  }
+}
+
+/* The document stays transparent; only the body paints the surface. */
+html {
+  background: transparent;
+}
+
+body {
+  background: var(--lumen-background);
+  color: var(--lumen-text-primary);
+}

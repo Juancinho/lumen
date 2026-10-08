@@ -9,8 +9,8 @@
     1. starts `lumen.exe --background` with timing diagnostics (LUMEN_DIAG_LOG);
     2. waits until the UI reports ready, then 8 s, and samples memory (never shown);
     3. 20 quick show/hide cycles via `lumen.exe --show` / `--hide` (single instance);
-    4. 3 shows after a long hide (8 s; 35 s for idle-low-memory, which trims after 30 s);
-    5. samples memory while visible and after a long hide; quits with `lumen.exe --quit`.
+    4. 3 shows after 8 s hidden (long enough for `suspend` to suspend the WebView);
+    5. samples memory while visible and after 8 s hidden; quits with `lumen.exe --quit`.
   Memory = private working set (and commit) of lumen.exe plus its WebView2 process tree.
   Show latency = shell receives the request -> UI reports the next frame painted (double
   requestAnimationFrame); it excludes hotkey delivery.
@@ -25,9 +25,8 @@
 param(
     [string]$OutDir = "",
     [switch]$SkipBuild,
-    [string[]]$Modes = @("keep", "invisible", "low-memory", "suspend", "idle-low-memory"),
-    [int]$Cycles = 20,
-    [int]$LongHideSeconds = 8
+    [string[]]$Modes = @("keep", "invisible", "low-memory", "suspend"),
+    [int]$Cycles = 20
 )
 
 $ErrorActionPreference = "Stop"
@@ -110,8 +109,7 @@ try {
         npm run build
         if ($LASTEXITCODE -ne 0) { throw "frontend build failed" }
         Pop-Location
-        # tauri/custom-protocol embeds apps/desktop/dist; without it the exe loads the dev
-        # server URL and the UI never starts (docs/DEVELOPMENT.md, profiles).
+        # custom-protocol: serve the built UI; without it lumen.exe loads the dev server URL.
         Write-Step "cargo build --release -p lumen-desktop --features tauri/custom-protocol"
         cargo build --release -p lumen-desktop --features tauri/custom-protocol
         if ($LASTEXITCODE -ne 0) { throw "build failed" }
@@ -131,10 +129,7 @@ try {
         $deadline = (Get-Date).AddSeconds(30)
         while (-not (Get-Events $log "ready_ms") -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 50 }
         $ready = Get-Events $log "ready_ms" | Select-Object -First 1
-        if (-not $ready) {
-            Write-Warning "  no ready event in 30 s (UI did not start: was lumen.exe built with tauri/custom-protocol?)"
-            $proc | Stop-Process -Force; continue
-        }
+        if (-not $ready) { Write-Warning "  no ready event in 30 s (was lumen.exe built with --features tauri/custom-protocol?)"; $proc | Stop-Process -Force; continue }
         $startupWall = $ready.unix - $launchedAt
         Write-Host ("  ready: {0:N0} ms after launch ({1:N0} ms inside the process)" -f $startupWall, $ready.value)
 
@@ -147,11 +142,9 @@ try {
         }
         $quick = @(Get-Events $log "show_to_paint_ms" | ForEach-Object { $_.value })
 
-        $hideFor = $LongHideSeconds
-        if ($mode -eq "idle-low-memory") { $hideFor = [math]::Max($LongHideSeconds, 35) }
         $long = @()
         for ($i = 0; $i -lt 3; $i++) {
-            Start-Sleep -Seconds $hideFor
+            Start-Sleep -Seconds 8
             $before = (Get-Events $log "show_to_paint_ms").Count
             Send-Lumen "--show"; Start-Sleep -Milliseconds 700
             $after = @(Get-Events $log "show_to_paint_ms")
@@ -159,9 +152,8 @@ try {
             if ($i -eq 2) { $memVisible = Get-TreeMemory $proc.Id }
             Send-Lumen "--hide"
         }
-        Start-Sleep -Seconds $hideFor
+        Start-Sleep -Seconds 8
         $memHidden = Get-TreeMemory $proc.Id
-        $trimmed = (Get-Events $log "webview_trimmed_ms").Count
         $suspended = (Get-Events $log "webview_suspended_ms").Count
         $refused = (Get-Events $log "webview_suspend_refused_ms").Count
 
@@ -173,18 +165,16 @@ try {
             startup_to_ready_wall_ms = $startupWall
             startup_to_ready_in_process_ms = [math]::Round($ready.value, 1)
             show_to_paint_quick = [ordered]@{ n = $quick.Count; p50_ms = (Get-Percentile $quick 50); p95_ms = (Get-Percentile $quick 95); max_ms = (Get-Percentile $quick 100) }
-            show_to_paint_after_long_hide_ms = $long
-            long_hide_seconds = $hideFor
-            suspended = $suspended; suspend_refused = $refused; trimmed = $trimmed
+            show_to_paint_after_8s_hidden_ms = $long
+            suspended = $suspended; suspend_refused = $refused
             memory_hidden_never_shown = $memStart
             memory_visible = $memVisible
             memory_hidden_after_use = $memHidden
         }
         $results += $r
-        Write-Host ("  show->paint p50/p95 {0}/{1} ms (n={2}); after $hideFor s hidden: {3} ms" -f $r.show_to_paint_quick.p50_ms, $r.show_to_paint_quick.p95_ms, $quick.Count, ($long -join ", "))
+        Write-Host ("  show->paint p50/p95 {0}/{1} ms (n={2}); after 8 s hidden: {3} ms" -f $r.show_to_paint_quick.p50_ms, $r.show_to_paint_quick.p95_ms, $quick.Count, ($long -join ", "))
         Write-Host ("  private WS MiB: never shown {0} | visible {1} | hidden after use {2} (webview procs {3})" -f $memStart.total_private_ws_mib, $memVisible.total_private_ws_mib, $memHidden.total_private_ws_mib, $memHidden.webview_processes)
         if ($mode -eq "suspend") { Write-Host "  suspended $suspended times, refused $refused" }
-        if ($trimmed) { Write-Host "  webview trimmed $trimmed times" }
     }
     Remove-Item Env:\LUMEN_DIAG_LOG -ErrorAction SilentlyContinue
     Remove-Item Env:\LUMEN_WEBVIEW_HIDDEN -ErrorAction SilentlyContinue
@@ -201,9 +191,9 @@ try {
 
     Write-Step "summary"
     $fmt = "{0,-11} {1,8} {2,14} {3,12} {4,12} {5,10} {6,12}"
-    Write-Host ($fmt -f "mode", "ready ms", "show p50/p95", "after long", "never shown", "visible", "hidden used")
+    Write-Host ($fmt -f "mode", "ready ms", "show p50/p95", "after 8s ms", "never shown", "visible", "hidden used")
     foreach ($r in $results) {
-        $longMed = Get-Percentile ([double[]]$r.show_to_paint_after_long_hide_ms) 50
+        $longMed = Get-Percentile ([double[]]$r.show_to_paint_after_8s_hidden_ms) 50
         Write-Host ($fmt -f $r.mode, $r.startup_to_ready_wall_ms, "$($r.show_to_paint_quick.p50_ms)/$($r.show_to_paint_quick.p95_ms)", $longMed, $r.memory_hidden_never_shown.total_private_ws_mib, $r.memory_visible.total_private_ws_mib, $r.memory_hidden_after_use.total_private_ws_mib)
     }
     Write-Host "  (memory = private working set MiB, lumen.exe + WebView2 processes)"
