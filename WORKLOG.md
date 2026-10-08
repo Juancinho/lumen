@@ -179,3 +179,10 @@ Append-only. Keep entries compact.
 - Fixed sections contradicted by ADR-014..018/023/025: sync embedding trait, f16 decided, literal schema pointer, keystroke vs settled lanes, initial roots; crate layout only in DEVELOPMENT.md; Refinement appendices merged as numbered sections (code comments re-pointed).
 - One reading order (AGENTS.md), fixed roles table (AGENT_PROTOCOL §1), ordered Next list (TASKS.md), HANDOFF trimmed to live REVIEW items; PERFORMANCE §9 throughput budget (>= 8 chunks/s @ <= 50 % CPU, proposed) and §5 single memory metric.
 
+## 2026-10-08 — T111 indexed locations + exclusions (claude)
+
+- Spec found uncommitted in `docs/specs/` (added outside this session); committed with T015 and implemented.
+- Indexer: default directory names (developer noise, `venv` only with `pyvenv.cfg`) and build folders only next to project markers, reported by rule. Catalog: versioned `index.locations` model (unknown fields kept, newer versions read-only), per-location states, progress callback.
+- Shell: live model with cancel-and-restart passes and progress events; tray submenus with native folder picker; `lumen.exclude-folder` action. ADR-027 (open questions resolved by default).
+- Sandbox whole filesystem with defaults: 309k entries, first sync 38 s, resync 12.5 s, keystroke p95 7.1 ms.
+

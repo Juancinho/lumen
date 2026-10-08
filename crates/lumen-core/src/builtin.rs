@@ -15,12 +15,14 @@ pub const LAUNCH: ActionId = ActionId::from_static("lumen.launch");
 pub const REVEAL: ActionId = ActionId::from_static("lumen.reveal");
 /// Copy the full path to the clipboard.
 pub const COPY_PATH: ActionId = ActionId::from_static("lumen.copy-path");
+/// Leave a folder out of Lumen's locations (T111); undone from the exclusions list.
+pub const EXCLUDE_FOLDER: ActionId = ActionId::from_static("lumen.exclude-folder");
 
 const LOCAL_PATH: CapabilitySet = CapabilitySet::of(&[Capability::LocalPath]);
 const LAUNCHABLE: CapabilitySet = CapabilitySet::of(&[Capability::Launchable]);
 
 /// Descriptors of the built-in actions, in panel order.
-pub const DESCRIPTORS: [ActionDescriptor; 4] = [
+pub const DESCRIPTORS: [ActionDescriptor; 5] = [
     ActionDescriptor::new_static(
         OPEN,
         "Open",
@@ -47,6 +49,13 @@ pub const DESCRIPTORS: [ActionDescriptor; 4] = [
         "Copy path",
         ActionSafety::SafeRead,
         ActionGroup::Navigation,
+        LOCAL_PATH,
+    ),
+    ActionDescriptor::new_static(
+        EXCLUDE_FOLDER,
+        "Exclude folder from Lumen",
+        ActionSafety::SafeReversible,
+        ActionGroup::Advanced,
         LOCAL_PATH,
     ),
 ];

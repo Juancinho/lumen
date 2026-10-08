@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use lumen_core::builtin::{COPY_PATH, LAUNCH, OPEN, REVEAL};
+use lumen_core::builtin::{COPY_PATH, EXCLUDE_FOLDER, LAUNCH, OPEN, REVEAL};
 use lumen_core::{
     CancellationToken, Capability, CapabilitySet, Confidence, IconRef, LatencyClass, MatchKind,
     Payload, Provider, ProviderError, ProviderId, ProviderQuery, ResultId, ResultItem, ResultKind,
@@ -118,7 +118,11 @@ pub fn to_result(item: &CatalogItem, score: Score) -> Option<ResultItem> {
             score,
             capabilities: local,
             primary_action: OPEN,
-            secondary_actions: vec![REVEAL, COPY_PATH],
+            secondary_actions: if item.kind == ItemKind::Folder {
+                vec![REVEAL, COPY_PATH, EXCLUDE_FOLDER]
+            } else {
+                vec![REVEAL, COPY_PATH]
+            },
             payload: Payload::Path(decode(&item.path, item.raw_path.as_deref())),
         },
     };

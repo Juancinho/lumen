@@ -57,7 +57,7 @@ apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
     src/lifecycle.rs       hidden-WebView modes (ADR-020); src/diag.rs timing diagnostics
     src/material.rs        window material (ADR-024): apply plan, re-check before show
     src/search.rs          search thread + catalog provider -> `lumen:results` (ADR-025)
-    src/catalog.rs         background catalog sync (apps + standard folders, every 30 min)
+    src/catalog.rs         catalog sync over the indexed locations (start-up, edits, 30 min)
     src/actions.rs         action executors behind the core policy (ADR-026)
     src/preview.rs         Quick Look data: metadata + bounded text excerpt (T105)
     src/instance.rs        second-launch commands (--show/--hide/--toggle/--quit)
@@ -212,6 +212,8 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
 - Diagnostics mode (T110): `LUMEN_DIAGNOSTICS=1` adds provider · match kind · confidence
   under every result row and logs per-query timing/failed providers to the WebView console
   (`console.debug`). Off by default; never shown in normal UI.
+- Indexed locations (T111, ADR-027): tray → Indexed locations / Exclusions; stored as
+  `index.locations` in `lumen.db` settings; any edit cancels and restarts the catalog pass.
 - Root search (T107, ADR-025): the UI calls `search(queryId, text)` per query change, on
   show and on `lumen:catalog-changed`; results stream as `lumen:results`. The catalog lives
   in the same `lumen.db`; the first sync starts 2 s after launch.

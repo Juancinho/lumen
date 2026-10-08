@@ -160,6 +160,20 @@ pub fn sync_files(
     opts: &ScanOptions,
     cancel: Option<&CancellationToken>,
 ) -> Result<FilesReport, StorageError> {
+    sync_files_with_progress(store, opts, cancel, &mut |_| {})
+}
+
+/// [`sync_files`], calling `progress` with the running totals after every written batch
+/// (so a caller can tell the UI that new entries are searchable during a long pass).
+///
+/// # Errors
+/// Storage failures.
+pub fn sync_files_with_progress(
+    store: &mut Store,
+    opts: &ScanOptions,
+    cancel: Option<&CancellationToken>,
+    progress: &mut dyn FnMut(&UpsertStats),
+) -> Result<FilesReport, StorageError> {
     let scan_id = store.begin_scan(Source::Files)?;
     let mut total = UpsertStats::default();
     let mut batch: Vec<Owned> = Vec::with_capacity(BATCH);
@@ -172,10 +186,11 @@ pub fn sync_files(
                 return;
             }
             batch.push(Owned::from_scan(&e));
-            if batch.len() >= BATCH
-                && let Err(err) = flush(store, scan_id, &mut batch, &mut total)
-            {
-                failure = Some(err);
+            if batch.len() >= BATCH {
+                match flush(store, scan_id, &mut batch, &mut total) {
+                    Ok(()) => progress(&total),
+                    Err(err) => failure = Some(err),
+                }
             }
         },
         cancel,

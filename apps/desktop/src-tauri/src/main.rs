@@ -49,6 +49,8 @@ fn main() {
                 instance::InstanceCommand::Quit => app.exit(0),
             },
         ))
+        // Native folder picker for tray → Indexed locations / Exclusions (Rust API only).
+        .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             app.manage(settings::open(app));
             material::install(app);

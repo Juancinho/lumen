@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use lumen_catalog::apps::{AppSourceUsed, start_menu_dirs};
-use lumen_catalog::{CatalogProvider, sync_apps, sync_files};
+use lumen_catalog::{CatalogProvider, IndexLocations, sync_apps, sync_files};
 use lumen_core::{CancellationToken, Provider, ProviderQuery, QueryId};
 use lumen_indexer::{Exclusions, ScanOptions};
 use lumen_storage::Store;
@@ -26,6 +26,9 @@ pub(crate) struct CatalogOptions {
     pub(crate) work_dir: Option<PathBuf>,
     pub(crate) show: Vec<String>,
     pub(crate) label: Option<String>,
+    /// The app's default exclusions (T111): developer noise + build folders by marker.
+    pub(crate) app_defaults: bool,
+    pub(crate) exclude: Vec<PathBuf>,
 }
 
 #[derive(Debug, Serialize)]
@@ -44,6 +47,9 @@ pub(crate) struct CatalogReport {
     entries: u64,
     complete: bool,
     blocking_issues: u64,
+    app_defaults: bool,
+    /// Entries left out by exclusion rules (subtrees count once), by rule kind.
+    excluded_by_kind: std::collections::BTreeMap<String, u64>,
     first_sync: SyncTiming,
     resync: SyncTiming,
     inserted: u64,
@@ -82,12 +88,24 @@ pub(crate) fn run(opts: &CatalogOptions) -> Result<CatalogReport, String> {
     std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
     let db = work.join("catalog.db");
     let mut writer = Store::open_writer(&db).map_err(|e| e.to_string())?;
-    let scan = ScanOptions {
-        roots: opts.roots.clone(),
-        exclusions: Exclusions::default(),
-        identity: true,
+    let scan = if opts.app_defaults {
+        let mut model = IndexLocations::standard(&opts.roots, 0);
+        for p in &opts.exclude {
+            model.exclude_path(p);
+        }
+        model.scan_options(true)
+    } else {
+        ScanOptions {
+            roots: opts.roots.clone(),
+            exclusions: Exclusions {
+                user_paths: opts.exclude.clone(),
+                ..Exclusions::default()
+            },
+            identity: true,
+        }
     };
 
+    let mut excluded_by_kind = std::collections::BTreeMap::new();
     let (entries, complete, blocking, first, inserted, resync, updated, removed) =
         if opts.roots.is_empty() {
             let zero = || SyncTiming {
@@ -103,6 +121,11 @@ pub(crate) fn run(opts: &CatalogOptions) -> Result<CatalogReport, String> {
             let r2 = sync_files(&mut writer, &scan, None).map_err(|e| e.to_string())?;
             let s2 = secs(t);
             let n = r1.scan.emitted();
+            // Rule kinds only (`default`, `build`, `path`, …): never paths or names of the user.
+            for (rule, count) in r1.scan.excluded_by_rule() {
+                let kind = rule.split(':').next().unwrap_or("other").to_owned();
+                *excluded_by_kind.entry(kind).or_insert(0) += count;
+            }
             #[allow(clippy::cast_precision_loss)]
             let rate = |s: f64| n as f64 / s.max(1e-9);
             (
@@ -221,6 +244,8 @@ pub(crate) fn run(opts: &CatalogOptions) -> Result<CatalogReport, String> {
         label: opts.label.clone(),
         machine: MachineInfo::collect(),
         roots: opts.roots.len(),
+        app_defaults: opts.app_defaults,
+        excluded_by_kind,
         entries,
         complete,
         blocking_issues: blocking,
@@ -248,7 +273,7 @@ pub(crate) fn run(opts: &CatalogOptions) -> Result<CatalogReport, String> {
 
 pub(crate) fn summarize(r: &CatalogReport) -> String {
     format!(
-        "catalog: {} roots, {} entries (complete={}, {} blocking issues){}\n  \
+        "catalog: {} roots, {} entries (complete={}, {} blocking issues; excluded {:?}){}\n  \
          first sync {:.2} s ({:.0} entries/s, {} inserted) | resync {:.2} s ({:.0} entries/s, \
          {} updated, {} removed)\n  \
          apps: {} discovered via {} in {:.2} s\n  \
@@ -259,6 +284,7 @@ pub(crate) fn summarize(r: &CatalogReport) -> String {
         r.entries,
         r.complete,
         r.blocking_issues,
+        r.excluded_by_kind,
         r.label
             .as_deref()
             .map(|l| format!(" [{l}]"))

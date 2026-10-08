@@ -28,6 +28,8 @@ tauri-plugin-single-instance.workspace = true
 # Executors of the built-in actions (T109): ShellExecute open, SHOpenFolderAndSelectItems
 # reveal; called from Rust only (no JS permission is granted).
 tauri-plugin-opener.workspace = true
+# Native folder picker for indexed locations/exclusions (T111); Rust API only.
+tauri-plugin-dialog.workspace = true
 arboard.workspace = true
 
 [target.'cfg(windows)'.dependencies]

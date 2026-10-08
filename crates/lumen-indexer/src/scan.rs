@@ -31,6 +31,30 @@ pub const SYSTEM_EXCLUSIONS: &[&str] = &[
     "Config.Msi",
 ];
 
+/// Developer-noise directory names offered as toggleable defaults (T111). `venv` only counts
+/// when it is a Python virtual environment (contains `pyvenv.cfg`).
+pub const DEV_NOISE_NAMES: &[&str] = &[
+    "node_modules",
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".gradle",
+    ".next",
+    ".nuxt",
+    ".turbo",
+];
+
+/// Build-output directory names, excluded only next to a project marker (T111): users have
+/// real folders called `build` or `bin`.
+pub const BUILD_DIR_NAMES: &[&str] = &["target", "build", "dist", "bin", "obj"];
+
+/// Files that mark a project root for [`BUILD_DIR_NAMES`]; `*.csproj` and `build.gradle*`
+/// are matched by pattern.
+pub const PROJECT_MARKERS: &[&str] = &["Cargo.toml", "package.json", "pom.xml", "CMakeLists.txt"];
+
 /// What to leave out. Every exclusion is reported, never silent.
 #[derive(Debug, Clone)]
 pub struct Exclusions {
@@ -38,8 +62,13 @@ pub struct Exclusions {
     pub system_defaults: bool,
     /// Absolute paths excluded with their subtree (user setting).
     pub user_paths: Vec<PathBuf>,
-    /// Entry names excluded anywhere, e.g. `node_modules` (user setting).
+    /// Entry names excluded anywhere, e.g. `my-archive` (user setting).
     pub user_names: Vec<String>,
+    /// Enabled default directory names (usually a subset of [`DEV_NOISE_NAMES`]); matched
+    /// against directories only, reported as `default:<name>`.
+    pub default_names: Vec<String>,
+    /// Exclude [`BUILD_DIR_NAMES`] directories whose parent holds a project marker.
+    pub build_dirs_next_to_markers: bool,
 }
 
 impl Default for Exclusions {
@@ -48,6 +77,8 @@ impl Default for Exclusions {
             system_defaults: true,
             user_paths: Vec::new(),
             user_names: Vec::new(),
+            default_names: Vec::new(),
+            build_dirs_next_to_markers: false,
         }
     }
 }
@@ -280,11 +311,12 @@ pub fn scan(
                 }
             };
             let path = de.path();
-            if let Some(rule) = rules.matches(&path) {
+            let ft = de.file_type().ok();
+            let is_dir = ft.is_some_and(|t| t.is_dir());
+            if let Some(rule) = rules.matches(&path, is_dir) {
                 report.excluded.push(Excluded { path, rule });
                 continue;
             }
-            let ft = de.file_type().ok();
             // Not following links: DirEntry metadata is lstat-like (on Windows it comes from
             // the directory listing itself, no extra open).
             let meta = de.metadata();
@@ -481,6 +513,24 @@ struct Rules {
     system: Vec<(String, &'static str)>,
     names: Vec<(String, String)>,
     paths: Vec<(PathBuf, PathBuf)>,
+    defaults: Vec<(String, String)>,
+    build: Vec<(String, &'static str)>,
+    /// Parent directory → holds a project marker (checked once per parent).
+    markers: std::cell::RefCell<std::collections::HashMap<PathBuf, bool>>,
+}
+
+/// Whether `dir` directly contains a [`PROJECT_MARKERS`] file, a `*.csproj` or a
+/// `build.gradle*` file.
+fn has_project_marker(dir: &Path) -> bool {
+    if PROJECT_MARKERS.iter().any(|m| dir.join(m).is_file()) {
+        return true;
+    }
+    fs::read_dir(dir).is_ok_and(|entries| {
+        entries.flatten().any(|e| {
+            let name = e.file_name().to_string_lossy().to_lowercase();
+            name.ends_with(".csproj") || name.starts_with("build.gradle")
+        })
+    })
 }
 
 impl Rules {
@@ -505,11 +555,23 @@ impl Rules {
                 .iter()
                 .map(|p| (path_key(p), p.clone()))
                 .collect(),
+            defaults: ex
+                .default_names
+                .iter()
+                .map(|n| (name_key(n), n.clone()))
+                .collect(),
+            build: if ex.build_dirs_next_to_markers {
+                BUILD_DIR_NAMES.iter().map(|n| (name_key(n), *n)).collect()
+            } else {
+                Vec::new()
+            },
+            markers: std::cell::RefCell::default(),
         }
     }
 
-    /// The rule label that excludes `path`, if any.
-    fn matches(&self, path: &Path) -> Option<String> {
+    /// The rule label that excludes `path`, if any. `is_dir`: the entry is a directory
+    /// (default and build rules apply to directories only).
+    fn matches(&self, path: &Path, is_dir: bool) -> Option<String> {
         let name = path.file_name().map(|n| name_key(&n.to_string_lossy()));
         if let Some(name) = &name {
             if let Some((_, label)) = self.system.iter().find(|(k, _)| k == name) {
@@ -517,6 +579,25 @@ impl Rules {
             }
             if let Some((_, label)) = self.names.iter().find(|(k, _)| k == name) {
                 return Some(format!("name:{label}"));
+            }
+            if is_dir {
+                if let Some((_, label)) = self.defaults.iter().find(|(k, _)| k == name)
+                    && (name != "venv" || path.join("pyvenv.cfg").is_file())
+                {
+                    return Some(format!("default:{label}"));
+                }
+                if let Some((_, label)) = self.build.iter().find(|(k, _)| k == name)
+                    && let Some(parent) = path.parent()
+                {
+                    let marked = *self
+                        .markers
+                        .borrow_mut()
+                        .entry(parent.to_path_buf())
+                        .or_insert_with(|| has_project_marker(parent));
+                    if marked {
+                        return Some(format!("build:{label}"));
+                    }
+                }
             }
         }
         if !self.paths.is_empty() {
@@ -657,6 +738,48 @@ mod tests {
         assert!(!emitted.iter().any(|p| p.starts_with(r.join("private"))));
         assert_eq!(report.excluded.len(), 1);
         assert!(report.excluded[0].rule.starts_with("path:"));
+    }
+
+    #[test]
+    fn default_names_and_build_dirs_next_to_markers() {
+        let t = TempDir::new("devnoise");
+        let r = &t.0;
+        write(&r.join("app/node_modules/pkg/index.js"), b"x");
+        write(&r.join("app/package.json"), b"{}");
+        write(&r.join("app/build/out.js"), b"x"); // next to package.json: excluded
+        write(&r.join("photos/build/plan.jpg"), b"x"); // no marker: kept
+        write(&r.join("rs/Cargo.toml"), b"");
+        write(&r.join("rs/target/debug/x"), b"x");
+        write(&r.join("cs/App.csproj"), b"");
+        write(&r.join("cs/obj/x"), b"x");
+        write(&r.join("py/venv/pyvenv.cfg"), b"");
+        write(&r.join("notes/venv/meeting.txt"), b"x"); // a folder named venv, not a virtualenv
+        write(&r.join("docs/node_modules"), b"a file, not a directory");
+
+        let mut o = opts(&[r]);
+        o.exclusions.default_names = ["node_modules", "venv"].map(String::from).to_vec();
+        o.exclusions.build_dirs_next_to_markers = true;
+        let (entries, report) = run(&o);
+        let emitted = paths(&entries);
+        let by_rule = report.excluded_by_rule();
+        assert_eq!(by_rule.get("default:node_modules"), Some(&1));
+        assert_eq!(
+            by_rule.get("default:venv"),
+            Some(&1),
+            "only the real virtualenv"
+        );
+        assert_eq!(by_rule.get("build:build"), Some(&1));
+        assert_eq!(by_rule.get("build:target"), Some(&1));
+        assert_eq!(by_rule.get("build:obj"), Some(&1));
+        assert!(emitted.contains(&r.join("photos/build/plan.jpg")));
+        assert!(emitted.contains(&r.join("notes/venv/meeting.txt")));
+        assert!(
+            emitted.contains(&r.join("docs/node_modules")),
+            "files are never default-excluded"
+        );
+        // Off by default: nothing extra is excluded.
+        let (_, plain) = run(&opts(&[r]));
+        assert!(plain.excluded.is_empty(), "{:?}", plain.excluded);
     }
 
     #[test]

@@ -10,7 +10,7 @@
 
 ## Active task
 
-None claimed. Next per `TASKS.md` → **Next**: T111 (indexed locations: D: drives), then T201.
+None claimed. Next per `TASKS.md` → **Next**: T201 (extractor + chunker) after the Windows checks.
 
 ## Pending human checks (Windows, joao-pc)
 
@@ -25,6 +25,26 @@ None claimed. Next per `TASKS.md` → **Next**: T111 (indexed locations: D: driv
    below (T107 search, T104 keys, T108/T109 actions, T105 Alt+Enter, T103/T004 look, T003
    shortcut). `LUMEN_DIAGNOSTICS=1` shows ranking evidence (T110).
 3. Verdict on the default window material (Acrylic vs Mica, tray → Window material).
+
+## T111 — outcome (REVIEW, ADR-027)
+
+- Code: `lumen_catalog::locations::{IndexLocations, location_states, LocationState}`
+  (setting `index.locations`), `lumen_indexer::Exclusions::{default_names,
+  build_dirs_next_to_markers}` + `DEV_NOISE_NAMES`, `BUILD_DIR_NAMES`, `PROJECT_MARKERS`,
+  `sync_files_with_progress`; shell `catalog.rs` (model, edits, cancel+restart, progress
+  events, states), `tray.rs` (Indexed locations / Exclusions submenus, folder picker via
+  tauri-plugin-dialog), `actions.rs` (`lumen.exclude-folder`), `settings::{get_raw,set_raw}`.
+- Windows acceptance (spec §Acceptance):
+  1. tray → Indexed locations → Add folder or drive… → `D:\Proyectos` → its files appear
+     within seconds (no restart); Remove → they disappear.
+  2. A USB drive as location → unplug → "(not available)", results kept; replug → ok.
+  3. `node_modules` hidden by default; tray → Exclusions → untick → its files appear.
+  4. A `build` folder without a project marker is searchable; next to `Cargo.toml` it is not.
+  5. Folder result → Ctrl+K → "Exclude folder from Lumen" → gone after the pass; tray →
+     Exclusions → the folder → Include again.
+  6. Restart → the list is kept.
+  7. `powershell -ExecutionPolicy Bypass -File scripts\t111\run-windows-locations.ps1 -Drive D:\`
+     (and optionally `-Drive C:\`): first sync time, DB size, keystroke p95.
 
 ## T105 — outcome (REVIEW)
 

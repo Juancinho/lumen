@@ -96,6 +96,9 @@ scan options:
 catalog options:
   --root DIR             folder to inventory (repeatable)
   --apps                 also discover Start-menu applications
+  --app-defaults         apply the app's default exclusions (developer noise, build folders
+                         next to project markers, system folders on a whole system drive)
+  --exclude DIR          extra excluded folder (repeatable)
   --sample N             names sampled for keystroke queries (default: 300)
   --show QUERY           print the top results for QUERY to stderr (repeatable)
   --work-dir DIR         database location (default: temp dir; deleted afterwards)
@@ -385,12 +388,17 @@ fn parse_catalog(args: &[String]) -> Result<(catalog::CatalogOptions, Option<Str
             opts.apps = true;
             continue;
         }
+        if flag == "--app-defaults" {
+            opts.app_defaults = true;
+            continue;
+        }
         let value = it
             .next()
             .cloned()
             .ok_or_else(|| format!("{flag} needs a value"))?;
         match flag.as_str() {
             "--root" => opts.roots.push(value.into()),
+            "--exclude" => opts.exclude.push(value.into()),
             "--sample" => {
                 opts.sample = value
                     .parse()

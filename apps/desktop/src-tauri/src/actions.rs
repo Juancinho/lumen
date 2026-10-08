@@ -3,7 +3,7 @@
 //! authorizes the request, runs the executor and records the use for ranking (ADR-023).
 //! Payloads (paths, launch keys) never come from the UI.
 
-use lumen_core::builtin::{COPY_PATH, DESCRIPTORS, LAUNCH, OPEN, REVEAL};
+use lumen_core::builtin::{COPY_PATH, DESCRIPTORS, EXCLUDE_FOLDER, LAUNCH, OPEN, REVEAL};
 use lumen_core::{
     ActionDescriptor, ActionGroup, ActionId, ActionRequest, Invocation, Payload, QueryId, ResultId,
     ResultItem,
@@ -15,7 +15,7 @@ use crate::dto::ActionDto;
 use crate::{overlay, search, settings};
 
 /// Actions Lumen can execute (one registry for every provider).
-pub(crate) static REGISTRY: [ActionDescriptor; 4] = DESCRIPTORS;
+pub(crate) static REGISTRY: [ActionDescriptor; 5] = DESCRIPTORS;
 
 /// Keyboard hint shown in the Action Panel (must match `features/root-search/keymap.ts`).
 pub(crate) fn shortcut_hint(action: &ActionId, primary: bool) -> Option<&'static str> {
@@ -109,7 +109,7 @@ pub(crate) fn run<R: Runtime>(
     };
     let (ctx, _) = prepare(request, &item, &REGISTRY).map_err(|e| e.to_string())?;
     let action = ctx.request().action.clone();
-    execute(&action, &item.payload)?;
+    execute(app, &action, &item.payload)?;
     crate::diag::record("action_ms", started.elapsed().as_secs_f64() * 1000.0);
     record_use(app, &item, &action, &text);
     overlay::hide(app);
@@ -123,7 +123,11 @@ fn path_of(payload: &Payload) -> Result<&std::path::Path, String> {
     }
 }
 
-fn execute(action: &ActionId, payload: &Payload) -> Result<(), String> {
+fn execute<R: Runtime>(
+    app: &AppHandle<R>,
+    action: &ActionId,
+    payload: &Payload,
+) -> Result<(), String> {
     let err = |e: &dyn std::fmt::Display| e.to_string();
     if *action == OPEN {
         tauri_plugin_opener::open_path(path_of(payload)?, None::<&str>).map_err(|e| err(&e))
@@ -145,6 +149,13 @@ fn execute(action: &ActionId, payload: &Payload) -> Result<(), String> {
         arboard::Clipboard::new()
             .and_then(|mut c| c.set_text(text))
             .map_err(|e| err(&e))
+    } else if *action == EXCLUDE_FOLDER {
+        // T111: saved in the locations setting; the next pass (started now) removes its items.
+        if crate::catalog::exclude_path(app, path_of(payload)?) {
+            Ok(())
+        } else {
+            Err("already excluded, or locations are read-only".into())
+        }
     } else {
         Err("no executor for this action".into())
     }
@@ -180,13 +191,7 @@ mod tests {
 
     #[test]
     fn executors_need_a_path() {
-        assert!(execute(&OPEN, &Payload::Text("x".into())).is_err());
-        assert!(
-            execute(
-                &ActionId::new("test.none").unwrap(),
-                &Payload::Text("x".into())
-            )
-            .is_err()
-        );
+        assert!(path_of(&Payload::Text("x".into())).is_err());
+        assert!(path_of(&Payload::Path("/tmp/x".into())).is_ok());
     }
 }

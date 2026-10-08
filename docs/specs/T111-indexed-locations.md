@@ -133,8 +133,7 @@ journal path forward). Do not tune by intuition.
 Change watching (T207), content indexing per location (M2), glob patterns, per-location
 schedules, a full settings window.
 
-## Open questions (user)
+## Open questions (user) — resolved by default in ADR-027, revisit if you disagree
 
-- Allow `C:\` as a whole location, or only folders on the system drive?
-- Developer-noise defaults on for everyone, or only when a project marker is found under a
-  location?
+- Allow `C:\` as a whole location? **Yes**, with the system folders pre-excluded (removable).
+- Developer-noise defaults on for everyone? **Yes**, each one toggleable in tray → Exclusions.

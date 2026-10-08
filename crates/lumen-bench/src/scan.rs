@@ -78,6 +78,7 @@ pub(crate) fn run(opts: &ScanBenchOptions) -> Result<ScanBenchReport, String> {
             system_defaults: opts.system_exclusions,
             user_paths: Vec::new(),
             user_names: opts.exclude_names.clone(),
+            ..Exclusions::default()
         },
         identity: opts.identity,
     };

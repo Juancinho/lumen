@@ -33,3 +33,4 @@
 | [ADR-024](adr/adr-024-window-material-system-acrylic-by.md) | Window material: system Acrylic by default, Solid fallback, native corners | Accepted on measurements |
 | [ADR-025](adr/adr-025-root-search-one-latest-wins-search.md) | Root search: one latest-wins search thread, merged updates as events | Accepted |
 | [ADR-026](adr/adr-026-actions-ids-from-the-ui-recent-result.md) | Actions: ids from the UI, recent-result lookup, core policy, shell executors | Accepted |
+| [ADR-027](adr/adr-027-indexed-locations-one-versioned-setting.md) | Indexed locations: one versioned setting, visible default exclusions | Accepted |

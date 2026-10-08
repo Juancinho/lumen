@@ -49,3 +49,26 @@ pub(crate) fn set_string(settings: &Settings, key: &str, value: &str) {
         eprintln!("lumen: could not save {key}: {err}");
     }
 }
+
+/// Raw JSON value of `key` (objects, not only strings).
+pub(crate) fn get_raw(settings: &Settings, key: &str) -> Option<String> {
+    let guard = settings.0.lock().ok()?;
+    guard.as_ref()?.setting(key).ok()?
+}
+
+/// Stores a raw JSON value; returns whether it was written.
+pub(crate) fn set_raw(settings: &Settings, key: &str, json: &str) -> bool {
+    let Ok(guard) = settings.0.lock() else {
+        return false;
+    };
+    let Some(store) = guard.as_ref() else {
+        return false;
+    };
+    match store.set_setting(key, json) {
+        Ok(()) => true,
+        Err(err) => {
+            eprintln!("lumen: could not save {key}: {err}");
+            false
+        }
+    }
+}

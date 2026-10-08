@@ -1,21 +1,29 @@
-//! Keeps the app/file catalog current (T107): a low-key background thread syncs the
-//! Start-menu apps, then the user's standard folders, at start-up and every
-//! [`RESYNC_EVERY`]. The UI re-runs its query when a pass changed something
-//! (`lumen:catalog-changed`). Incremental watching is T207; configurable roots come with
-//! the indexing settings.
+//! Keeps the app/file catalog current (T107, T111): a background thread syncs the
+//! Start-menu apps, then the user's indexed locations, at start-up, every [`RESYNC_EVERY`],
+//! and right away when the locations or exclusions change (the running pass is cancelled —
+//! nothing is removed by a cancelled pass). The UI re-runs its query on
+//! `lumen:catalog-changed`, sent during long passes too so a small location is not held back
+//! by a big drive. Incremental watching is T207.
+//!
+//! Locations live in one versioned setting (`index.locations`, `lumen_catalog::locations`).
+//! Until the user edits them they are the standard folders and nothing is saved; a value
+//! written by a newer Lumen is used read-only and never overwritten.
 
-use std::path::PathBuf;
-use std::time::Duration;
+use std::path::{Path, PathBuf};
+use std::sync::{Condvar, Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
 use lumen_catalog::apps::start_menu_dirs;
-use lumen_catalog::{sync_apps, sync_files};
-use lumen_indexer::{Exclusions, ScanOptions};
+use lumen_catalog::locations::{IndexLocations, LocationsError, SETTING_KEY};
+use lumen_catalog::{LocationState, location_states, sync_apps, sync_files_with_progress};
+use lumen_core::CancellationToken;
 use lumen_storage::Store;
 use tauri::{App, AppHandle, Emitter, Manager, Runtime};
 
-use crate::{overlay, settings};
+use crate::{overlay, settings, tray};
 
-/// Event (no payload) after a sync pass wrote changes. Mirrored in `src/ipc/events.ts`.
+/// Event (no payload) when a sync pass made new entries searchable or removed some.
+/// Mirrored in `src/ipc/events.ts`.
 pub(crate) const EVENT_CHANGED: &str = "lumen:catalog-changed";
 
 pub(crate) const RESYNC_EVERY: Duration = Duration::from_secs(30 * 60);
@@ -23,15 +31,17 @@ pub(crate) const RESYNC_EVERY: Duration = Duration::from_secs(30 * 60);
 /// Wait before the first pass so start-up and the first show stay quiet.
 const START_DELAY: Duration = Duration::from_secs(2);
 
-/// Default inventory roots: the user's standard folders that exist, without duplicates
-/// (Documents may already live inside OneDrive).
+/// Minimum spacing of `lumen:catalog-changed` during a pass.
+const PROGRESS_EVERY: Duration = Duration::from_millis(750);
+
+/// Standard folders that exist, without duplicates or nesting (Documents may already
+/// live inside OneDrive).
 pub(crate) fn default_roots(candidates: Vec<Option<PathBuf>>) -> Vec<PathBuf> {
     let mut roots: Vec<PathBuf> = Vec::new();
     for dir in candidates.into_iter().flatten() {
         if !dir.is_dir() {
             continue;
         }
-        // Nested roots would be scanned twice; keep the outermost.
         if roots.iter().any(|r| dir.starts_with(r)) {
             continue;
         }
@@ -41,12 +51,129 @@ pub(crate) fn default_roots(candidates: Vec<Option<PathBuf>>) -> Vec<PathBuf> {
     roots
 }
 
-pub(crate) fn start<R: Runtime>(app: &App<R>) {
-    let Some(db) = settings::db_path(app) else {
-        return;
+/// System folders pre-excluded when the system drive itself becomes a location (shown to
+/// the user, removable). Apps keep coming from the Start menu.
+pub(crate) fn system_drive_prefill(location: &Path) -> Vec<PathBuf> {
+    let Some(drive) = std::env::var_os("SystemDrive") else {
+        return Vec::new();
     };
+    // `%SystemDrive%` is `C:`; its root is `C:\`.
+    let root = PathBuf::from(format!("{}\\", drive.to_string_lossy()));
+    let same = location
+        .to_string_lossy()
+        .trim_end_matches(['\\', '/'])
+        .to_lowercase()
+        == root
+            .to_string_lossy()
+            .trim_end_matches(['\\', '/'])
+            .to_lowercase();
+    if !same {
+        return Vec::new();
+    }
+    let mut out: Vec<PathBuf> = [
+        "Windows",
+        "Program Files",
+        "Program Files (x86)",
+        "ProgramData",
+    ]
+    .iter()
+    .map(|d| root.join(d))
+    .collect();
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        out.push(PathBuf::from(local).join("Temp"));
+    }
+    out
+}
+
+/// What the tray shows for one location.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LocationView {
+    pub(crate) path: String,
+    pub(crate) state: Option<LocationState>,
+}
+
+#[derive(Default)]
+struct Control {
+    /// A pass should start now (an edit or start-up).
+    wanted: bool,
+    running: Option<CancellationToken>,
+}
+
+/// Managed state: the locations model and the sync thread's control.
+pub(crate) struct Catalog {
+    model: Mutex<IndexLocations>,
+    /// The stored value came from a newer Lumen (or the store is unavailable): no saving.
+    read_only: bool,
+    /// `true` once the user edited the list (so it is saved and authoritative).
+    saved: Mutex<bool>,
+    states: Mutex<Vec<(String, LocationState)>>,
+    control: Mutex<Control>,
+    wake: Condvar,
+}
+
+impl Catalog {
+    pub(crate) fn locations(&self) -> IndexLocations {
+        self.model
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    pub(crate) fn read_only(&self) -> bool {
+        self.read_only
+    }
+
+    pub(crate) fn views(&self) -> Vec<LocationView> {
+        let model = self.locations();
+        let states = self.states.lock().unwrap_or_else(PoisonError::into_inner);
+        model
+            .locations
+            .iter()
+            .map(|l| LocationView {
+                path: l.path.clone(),
+                state: states.iter().find(|(p, _)| p == &l.path).map(|(_, s)| *s),
+            })
+            .collect()
+    }
+
+    fn request_pass(&self) {
+        let mut c = self.control.lock().unwrap_or_else(PoisonError::into_inner);
+        c.wanted = true;
+        if let Some(running) = &c.running {
+            running.cancel();
+        }
+        drop(c);
+        self.wake.notify_all();
+    }
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+}
+
+/// Loads the locations model (stored value, else the standard folders).
+fn load<R: Runtime>(app: &App<R>, standard: &[PathBuf]) -> (IndexLocations, bool, bool) {
+    let settings = app.state::<settings::Settings>();
+    let store_ok = settings.0.lock().is_ok_and(|g| g.is_some());
+    match settings::get_raw(&settings, SETTING_KEY).map(|raw| IndexLocations::parse(&raw)) {
+        Some(Ok(model)) => (model, true, !store_ok),
+        Some(Err(LocationsError::NewerVersion(v))) => {
+            eprintln!("lumen: index.locations version {v} is newer; using it read-only");
+            (IndexLocations::standard(standard, 0), false, true)
+        }
+        Some(Err(err)) => {
+            eprintln!("lumen: {err}; using the standard folders until you edit them");
+            (IndexLocations::standard(standard, 0), false, !store_ok)
+        }
+        None => (IndexLocations::standard(standard, 0), false, !store_ok),
+    }
+}
+
+pub(crate) fn start<R: Runtime>(app: &App<R>) {
     let path = app.path();
-    let roots = default_roots(vec![
+    let standard = default_roots(vec![
         path.desktop_dir().ok(),
         path.document_dir().ok(),
         path.download_dir().ok(),
@@ -54,14 +181,36 @@ pub(crate) fn start<R: Runtime>(app: &App<R>) {
         path.audio_dir().ok(),
         path.video_dir().ok(),
     ]);
+    let (model, saved, read_only) = load(app, &standard);
+    app.manage(Catalog {
+        model: Mutex::new(model),
+        read_only,
+        saved: Mutex::new(saved),
+        states: Mutex::new(Vec::new()),
+        control: Mutex::new(Control {
+            wanted: true,
+            running: None,
+        }),
+        wake: Condvar::new(),
+    });
+    let Some(db) = settings::db_path(app) else {
+        return;
+    };
     let handle = app.handle().clone();
     let spawned = std::thread::Builder::new()
         .name("lumen-catalog".into())
         .spawn(move || {
             std::thread::sleep(START_DELAY);
             loop {
-                pass(&handle, &db, &roots);
-                std::thread::sleep(RESYNC_EVERY);
+                let token = wait_for_pass(&handle);
+                pass(&handle, &db, &token);
+                let catalog = handle.state::<Catalog>();
+                catalog
+                    .control
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .running = None;
+                tray::refresh_locations(&handle);
             }
         });
     if let Err(err) = spawned {
@@ -69,8 +218,28 @@ pub(crate) fn start<R: Runtime>(app: &App<R>) {
     }
 }
 
-fn pass<R: Runtime>(app: &AppHandle<R>, db: &std::path::Path, roots: &[PathBuf]) {
-    let started = std::time::Instant::now();
+/// Blocks until a pass is wanted or [`RESYNC_EVERY`] elapsed; returns its token.
+fn wait_for_pass<R: Runtime>(app: &AppHandle<R>) -> CancellationToken {
+    let catalog = app.state::<Catalog>();
+    let mut c = catalog
+        .control
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    if !c.wanted {
+        let (guard, _) = catalog
+            .wake
+            .wait_timeout_while(c, RESYNC_EVERY, |c| !c.wanted)
+            .unwrap_or_else(PoisonError::into_inner);
+        c = guard;
+    }
+    c.wanted = false;
+    let token = CancellationToken::new();
+    c.running = Some(token.clone());
+    token
+}
+
+fn pass<R: Runtime>(app: &AppHandle<R>, db: &Path, token: &CancellationToken) {
+    let started = Instant::now();
     let mut store = match Store::open_writer(db) {
         Ok(store) => store,
         Err(err) => {
@@ -87,19 +256,45 @@ fn pass<R: Runtime>(app: &AppHandle<R>, db: &std::path::Path, roots: &[PathBuf])
         Err(err) => eprintln!("lumen: app catalog sync failed: {err}"),
     }
     crate::diag::record("catalog_apps_ms", started.elapsed().as_secs_f64() * 1000.0);
-    if !roots.is_empty() {
-        let opts = ScanOptions {
-            roots: roots.to_vec(),
-            exclusions: Exclusions::default(),
-            identity: true,
-        };
-        match sync_files(&mut store, &opts, None) {
-            Ok(report) => {
-                let w = report.written;
-                notify(app, w.inserted + w.moved + report.removed > 0);
-            }
-            Err(err) => eprintln!("lumen: file catalog sync failed: {err}"),
+
+    let model = app.state::<Catalog>().locations();
+    let opts = model.scan_options(true);
+    let mut last_emit = Instant::now();
+    let mut last_new = 0;
+    let mut progress = |w: &lumen_storage::UpsertStats| {
+        let new = w.inserted + w.moved;
+        if new > last_new && last_emit.elapsed() >= PROGRESS_EVERY {
+            last_new = new;
+            last_emit = Instant::now();
+            notify(app, true);
         }
+    };
+    match sync_files_with_progress(&mut store, &opts, Some(token), &mut progress) {
+        Ok(report) => {
+            let w = report.written;
+            notify(app, w.inserted + w.moved + report.removed > 0);
+            let states = location_states(&opts.roots, &report.scan);
+            if !report.scan.cancelled {
+                *app.state::<Catalog>()
+                    .states
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner) = model
+                    .locations
+                    .iter()
+                    .map(|l| l.path.clone())
+                    .zip(states)
+                    .collect();
+            }
+            crate::diag::record(
+                "catalog_entries",
+                f64::from(u32::try_from(report.scan.emitted()).unwrap_or(u32::MAX)),
+            );
+            crate::diag::record(
+                "catalog_excluded",
+                f64::from(u32::try_from(report.scan.excluded.len()).unwrap_or(u32::MAX)),
+            );
+        }
+        Err(err) => eprintln!("lumen: file catalog sync failed: {err}"),
     }
     let _ = store.checkpoint();
     crate::diag::record("catalog_pass_ms", started.elapsed().as_secs_f64() * 1000.0);
@@ -109,6 +304,67 @@ fn notify<R: Runtime>(app: &AppHandle<R>, changed: bool) {
     if changed && let Err(err) = app.emit_to(overlay::WINDOW_LABEL, EVENT_CHANGED, ()) {
         eprintln!("lumen: emit {EVENT_CHANGED} failed: {err}");
     }
+}
+
+/// Applies an edit to the locations model; saves it, refreshes the tray and starts a pass.
+/// Returns whether anything changed (`false` also when read-only).
+pub(crate) fn edit<R: Runtime>(
+    app: &AppHandle<R>,
+    change: impl FnOnce(&mut IndexLocations) -> bool,
+) -> bool {
+    let catalog = app.state::<Catalog>();
+    if catalog.read_only {
+        eprintln!("lumen: indexed locations are read-only (newer settings or no store)");
+        return false;
+    }
+    let json = {
+        let mut model = catalog.model.lock().unwrap_or_else(PoisonError::into_inner);
+        if !change(&mut model) {
+            return false;
+        }
+        model.to_json()
+    };
+    if settings::set_raw(&app.state::<settings::Settings>(), SETTING_KEY, &json) {
+        *catalog.saved.lock().unwrap_or_else(PoisonError::into_inner) = true;
+    }
+    catalog.request_pass();
+    tray::refresh_locations(app);
+    true
+}
+
+pub(crate) fn add_location<R: Runtime>(app: &AppHandle<R>, path: &Path) -> bool {
+    let prefill = system_drive_prefill(path);
+    edit(app, |m| m.add_location(path, now_ms(), &prefill))
+}
+
+pub(crate) fn remove_location<R: Runtime>(app: &AppHandle<R>, path: &str) -> bool {
+    edit(app, |m| m.remove_location(path))
+}
+
+pub(crate) fn exclude_path<R: Runtime>(app: &AppHandle<R>, path: &Path) -> bool {
+    edit(app, |m| m.exclude_path(path))
+}
+
+pub(crate) fn unexclude_path<R: Runtime>(app: &AppHandle<R>, path: &str) -> bool {
+    edit(app, |m| m.unexclude_path(path))
+}
+
+pub(crate) fn set_default<R: Runtime>(app: &AppHandle<R>, rule: &str, enabled: bool) -> bool {
+    edit(app, |m| {
+        if m.default_enabled(rule) == enabled {
+            return false;
+        }
+        if enabled {
+            // Re-enabling one rule of a switched-off group turns the group back on.
+            if rule == lumen_catalog::locations::BUILD_DIRS_RULE {
+                m.default_rules.build_next_to_marker = true;
+            } else {
+                m.default_rules.dev_noise = true;
+            }
+        }
+        m.set_default_enabled(rule, enabled);
+        true
+    })
 }
 
 #[cfg(test)]
@@ -131,5 +387,16 @@ mod tests {
         ]);
         assert_eq!(roots, [base.join("Desktop"), base.join("OneDrive")]);
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn only_the_system_drive_gets_prefilled_exclusions() {
+        // Off Windows there is no %SystemDrive%: nothing is prefilled.
+        if std::env::var_os("SystemDrive").is_none() {
+            assert!(system_drive_prefill(Path::new("/")).is_empty());
+        } else {
+            assert!(!system_drive_prefill(Path::new("C:\\")).is_empty());
+            assert!(system_drive_prefill(Path::new("C:\\Users")).is_empty());
+        }
     }
 }

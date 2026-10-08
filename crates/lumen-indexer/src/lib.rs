@@ -14,6 +14,7 @@ pub mod winpath;
 
 pub use identity::{FileIdentity, identity_of};
 pub use scan::{
-    EntryFlags, EntryKind, Excluded, Exclusions, IssueKind, IssueStage, SYSTEM_EXCLUSIONS,
-    ScanEntry, ScanIssue, ScanOptions, ScanReport, scan,
+    BUILD_DIR_NAMES, DEV_NOISE_NAMES, EntryFlags, EntryKind, Excluded, Exclusions, IssueKind,
+    IssueStage, PROJECT_MARKERS, SYSTEM_EXCLUSIONS, ScanEntry, ScanIssue, ScanOptions, ScanReport,
+    scan,
 };

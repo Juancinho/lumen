@@ -11,6 +11,8 @@ lumen-core.workspace = true
 lumen-indexer.workspace = true
 lumen-storage.workspace = true
 lumen-windows.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 unicode-normalization.workspace = true
 
 [lints]

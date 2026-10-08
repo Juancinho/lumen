@@ -128,6 +128,11 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
   the core policy against recently shown results; uses recorded for ranking.
 - **T015/T016 DONE:** docs consolidated (ADR files in `docs/adr/`, §0 status per spec, one
   reading order, fixed file roles, throughput + memory budgets); storage bench with real hits.
+- **T111 REVIEW (ADR-027):** indexed locations + exclusions in one versioned setting; tray
+  → Indexed locations / Exclusions (native folder picker), per-location state, developer
+  noise and marker-based build folders excluded by default (visible, toggleable), Action
+  Panel "Exclude folder from Lumen"; edits restart the pass. Sandbox whole-FS: 309k entries,
+  keystroke p95 7.1 ms.
 - **T110 REVIEW:** `LUMEN_DIAGNOSTICS=1` shows provider/match kind/confidence per row and
   logs per-query timings; absent from the wire otherwise.
 - **T105 REVIEW:** Quick Look (Alt+Enter): window widens right, preview beside the list

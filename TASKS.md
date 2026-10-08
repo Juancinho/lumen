@@ -12,8 +12,8 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 
 1. **Close REVIEW tasks on Windows (human):** T003, T004 (Acrylic vs Mica default), T103,
    T104, T105, T107, T108/T109, T110 — checklists in `HANDOFF.md`.
-2. **T111** user-configurable indexed locations + exclusions (files on other drives such as
-   `D:\Proyectos` are not found today). Open questions for the user are in its spec.
+2. **T111** indexed locations — REVIEW on Windows: add `D:\Proyectos` from the tray, USB
+   unplug/replug, `scripts\t111\run-windows-locations.ps1 -Drive D:\` (checklist in HANDOFF).
 3. **T201** text/code extractor + chunker (~128-token chunks, ADR-015 consequence).
 4. **T014** indexing-throughput runtime spike on Windows — candidates now known:
    llama.cpp with `ggml-org/embeddinggemma-2-GGUF` (Q8_0 310 MB, BF16; CPU/Vulkan/CUDA) and
@@ -58,7 +58,7 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 | T108 | REVIEW | claude | Universal Action Panel (`Ctrl+K`/Tab policy) with contextual action discovery | T104,T011      |
 | T109 | REVIEW | claude | Core actions: open, reveal, copy path/value, pin/favorite, open with          | T108           |
 | T110 | REVIEW | claude | Provider/result diagnostics mode for development only                         | T107           |
-| T111 | CLAIMED | claude | User-configurable indexed locations (folders/whole drives) + exclusions (folder, name, dev-noise defaults); spec `docs/specs/T111-indexed-locations.md` | T107,T108      |
+| T111 | REVIEW | claude | User-configurable indexed locations (folders/whole drives) + exclusions (folder, name, dev-noise defaults); spec `docs/specs/T111-indexed-locations.md` | T107,T108      |
 
 # M2 — text/code semantic search
 

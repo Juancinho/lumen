@@ -78,7 +78,7 @@ mod tests {
     use super::*;
     use crate::coordinator::tests::item;
 
-    static REGISTRY: [ActionDescriptor; 4] = DESCRIPTORS;
+    static REGISTRY: [ActionDescriptor; 5] = DESCRIPTORS;
 
     fn file() -> ResultItem {
         let mut it = item("item:1", &ProviderId::new("test.p").unwrap(), 0.5);
