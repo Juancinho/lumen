@@ -10,9 +10,15 @@
 //! | `invisible`  | `SetIsVisible(false)` (throttles rendering)      | `SetIsVisible(true)` |
 //! | `low-memory` | invisible + `MemoryUsageTargetLevel = Low`       | Normal + visible |
 //! | `suspend`    | low-memory, then `TrySuspend` after [`SUSPEND_AFTER`] hidden | as above (resumes) |
+//! | `idle-low-memory` (default) | nothing; `low-memory` after [`IDLE_TRIM_AFTER`] hidden | Normal + visible |
 //!
 //! The mode comes from `LUMEN_WEBVIEW_HIDDEN` (diagnostics/benchmarks) and defaults to
 //! [`DEFAULT_MODE`]. JS state (query, React tree) survives every mode.
+//!
+//! T012 on joao-pc (private working set of lumen.exe + WebView2, show -> painted frame):
+//! `keep` 72 MiB hidden, 22.6/26.0 ms p50/p95; `low-memory` 7.4 MiB hidden, 27.1/32.0 ms;
+//! `invisible` saves nothing; `suspend` used more memory (93-160 MiB). `idle-low-memory`
+//! keeps `keep`'s latency for quick re-opens and `low-memory`'s footprint when idle.
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -25,8 +31,11 @@ pub(crate) const ENV_MODE: &str = "LUMEN_WEBVIEW_HIDDEN";
 /// How long the overlay must stay hidden before `suspend` mode suspends the WebView.
 pub(crate) const SUSPEND_AFTER: Duration = Duration::from_secs(5);
 
-/// Until T012's measurements decide otherwise, behave like T002 (window hide only).
-pub(crate) const DEFAULT_MODE: HiddenMode = HiddenMode::Keep;
+/// How long the overlay must stay hidden before `idle-low-memory` trims the WebView.
+pub(crate) const IDLE_TRIM_AFTER: Duration = Duration::from_secs(30);
+
+/// ADR-020 (T012).
+pub(crate) const DEFAULT_MODE: HiddenMode = HiddenMode::IdleLowMemory;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum HiddenMode {
@@ -34,6 +43,7 @@ pub(crate) enum HiddenMode {
     Invisible,
     LowMemory,
     Suspend,
+    IdleLowMemory,
 }
 
 impl HiddenMode {
@@ -43,6 +53,7 @@ impl HiddenMode {
             "invisible" => Some(Self::Invisible),
             "low-memory" => Some(Self::LowMemory),
             "suspend" => Some(Self::Suspend),
+            "idle-low-memory" => Some(Self::IdleLowMemory),
             _ => None,
         }
     }
@@ -53,6 +64,7 @@ impl HiddenMode {
             Self::Invisible => "invisible",
             Self::LowMemory => "low-memory",
             Self::Suspend => "suspend",
+            Self::IdleLowMemory => "idle-low-memory",
         }
     }
 
@@ -72,13 +84,18 @@ impl HiddenMode {
 
     #[cfg_attr(not(windows), allow(dead_code))]
     fn lowers_memory(self) -> bool {
-        matches!(self, Self::LowMemory | Self::Suspend)
+        matches!(self, Self::LowMemory | Self::Suspend | Self::IdleLowMemory)
     }
 }
 
 static MODE: OnceLock<HiddenMode> = OnceLock::new();
-/// Bumped on every show and hide; a pending suspend only runs if nothing happened since.
+/// Bumped on every show and hide. Delayed work (trim, suspend) checks it on the UI thread
+/// right before acting, so it can never run after a newer show.
 static GENERATION: AtomicU64 = AtomicU64::new(0);
+
+fn still_hidden(generation: u64) -> bool {
+    GENERATION.load(Ordering::Acquire) == generation
+}
 
 pub(crate) fn mode() -> HiddenMode {
     *MODE.get_or_init(|| HiddenMode::from_value(std::env::var(ENV_MODE).ok().as_deref()))
@@ -89,7 +106,7 @@ pub(crate) fn before_show<R: Runtime>(window: &WebviewWindow<R>) {
     GENERATION.fetch_add(1, Ordering::AcqRel);
     let mode = mode();
     if mode != HiddenMode::Keep {
-        platform::set_visible(window, mode, true);
+        platform::set_visible(window, mode, true, None);
     }
 }
 
@@ -100,15 +117,27 @@ pub(crate) fn after_hide<R: Runtime>(window: &WebviewWindow<R>) {
     if mode == HiddenMode::Keep {
         return;
     }
-    platform::set_visible(window, mode, false);
-    if mode == HiddenMode::Suspend {
+    let delayed = |after: Duration, action: fn(&WebviewWindow<R>, HiddenMode, u64)| {
         let window = window.clone();
         std::thread::spawn(move || {
-            std::thread::sleep(SUSPEND_AFTER);
-            if GENERATION.load(Ordering::Acquire) == generation {
-                platform::try_suspend(&window);
+            std::thread::sleep(after);
+            if still_hidden(generation) {
+                action(&window, mode, generation);
             }
         });
+    };
+    match mode {
+        HiddenMode::Keep => {}
+        HiddenMode::IdleLowMemory => delayed(IDLE_TRIM_AFTER, |w, m, g| {
+            platform::set_visible(w, m, false, Some(g));
+        }),
+        HiddenMode::Suspend => {
+            platform::set_visible(window, mode, false, None);
+            delayed(SUSPEND_AFTER, |w, _, g| platform::try_suspend(w, g));
+        }
+        HiddenMode::Invisible | HiddenMode::LowMemory => {
+            platform::set_visible(window, mode, false, None);
+        }
     }
 }
 
@@ -154,12 +183,20 @@ mod platform {
         Ok(())
     }
 
+    /// `only_if_hidden_since`: a delayed hide skips itself if the overlay was shown since.
     pub(super) fn set_visible<R: Runtime>(
         window: &WebviewWindow<R>,
         mode: HiddenMode,
         visible: bool,
+        only_if_hidden_since: Option<u64>,
     ) {
         let queued = window.with_webview(move |webview| {
+            if only_if_hidden_since.is_some_and(|g| !super::still_hidden(g)) {
+                return;
+            }
+            if !visible {
+                diag::record("webview_trimmed_ms", diag::since_start_ms());
+            }
             if let Err(err) = apply(&webview.controller(), mode, visible) {
                 eprintln!(
                     "lumen: webview visible={visible} ({}) failed: {err}",
@@ -190,8 +227,11 @@ mod platform {
         }
     }
 
-    pub(super) fn try_suspend<R: Runtime>(window: &WebviewWindow<R>) {
-        let queued = window.with_webview(|webview| {
+    pub(super) fn try_suspend<R: Runtime>(window: &WebviewWindow<R>, hidden_since: u64) {
+        let queued = window.with_webview(move |webview| {
+            if !super::still_hidden(hidden_since) {
+                return;
+            }
             if let Err(err) = suspend(&webview.controller()) {
                 eprintln!("lumen: webview suspend failed: {err}");
             }
@@ -209,9 +249,15 @@ mod platform {
 
     use super::HiddenMode;
 
-    pub(super) fn set_visible<R: Runtime>(_: &WebviewWindow<R>, _: HiddenMode, _: bool) {}
+    pub(super) fn set_visible<R: Runtime>(
+        _: &WebviewWindow<R>,
+        _: HiddenMode,
+        _: bool,
+        _: Option<u64>,
+    ) {
+    }
 
-    pub(super) fn try_suspend<R: Runtime>(_: &WebviewWindow<R>) {}
+    pub(super) fn try_suspend<R: Runtime>(_: &WebviewWindow<R>, _: u64) {}
 }
 
 #[cfg(test)]
@@ -225,6 +271,7 @@ mod tests {
             HiddenMode::Invisible,
             HiddenMode::LowMemory,
             HiddenMode::Suspend,
+            HiddenMode::IdleLowMemory,
         ] {
             assert_eq!(HiddenMode::parse(m.as_str()), Some(m));
             assert_eq!(HiddenMode::from_value(Some(m.as_str())), m);
@@ -232,5 +279,10 @@ mod tests {
         assert_eq!(HiddenMode::from_value(None), DEFAULT_MODE);
         assert_eq!(HiddenMode::from_value(Some("turbo")), DEFAULT_MODE);
         assert!(HiddenMode::Suspend.lowers_memory() && !HiddenMode::Invisible.lowers_memory());
+        assert!(
+            DEFAULT_MODE.lowers_memory(),
+            "ADR-020: idle trim by default"
+        );
+        assert!(IDLE_TRIM_AFTER > SUSPEND_AFTER);
     }
 }

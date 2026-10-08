@@ -1,0 +1,169 @@
+{
+    "schema_version":  1,
+    "kind":  "webview-lifecycle",
+    "machine":  {
+                    "cpu":  "AMD Ryzen 5 5600H with Radeon Graphics",
+                    "os":  "Microsoft Windows 11 Pro 10.0.26300",
+                    "ram_gb":  15.3,
+                    "webview2_runtime":  "154.0.4258.62"
+                },
+    "cycles":  20,
+    "results":  [
+                    {
+                        "mode":  "keep",
+                        "startup_to_ready_wall_ms":  523,
+                        "startup_to_ready_in_process_ms":  408.3,
+                        "show_to_paint_quick":  {
+                                                    "n":  20,
+                                                    "p50_ms":  22.56,
+                                                    "p95_ms":  25.97,
+                                                    "max_ms":  40.29
+                                                },
+                        "show_to_paint_after_8s_hidden_ms":  [
+                                                                 12.438,
+                                                                 11.686,
+                                                                 10.33
+                                                             ],
+                        "suspended":  0,
+                        "suspend_refused":  0,
+                        "memory_hidden_never_shown":  {
+                                                          "shell_private_ws_mib":  3.3,
+                                                          "webview_private_ws_mib":  68.3,
+                                                          "total_private_ws_mib":  71.6,
+                                                          "total_commit_mib":  150,
+                                                          "webview_processes":  6
+                                                      },
+                        "memory_visible":  {
+                                               "shell_private_ws_mib":  3.7,
+                                               "webview_private_ws_mib":  68.6,
+                                               "total_private_ws_mib":  72.3,
+                                               "total_commit_mib":  145.6,
+                                               "webview_processes":  6
+                                           },
+                        "memory_hidden_after_use":  {
+                                                        "shell_private_ws_mib":  3.7,
+                                                        "webview_private_ws_mib":  68.6,
+                                                        "total_private_ws_mib":  72.3,
+                                                        "total_commit_mib":  145.5,
+                                                        "webview_processes":  6
+                                                    }
+                    },
+                    {
+                        "mode":  "invisible",
+                        "startup_to_ready_wall_ms":  385,
+                        "startup_to_ready_in_process_ms":  371.3,
+                        "show_to_paint_quick":  {
+                                                    "n":  20,
+                                                    "p50_ms":  17.58,
+                                                    "p95_ms":  21.52,
+                                                    "max_ms":  32.33
+                                                },
+                        "show_to_paint_after_8s_hidden_ms":  [
+                                                                 20.038,
+                                                                 29.241,
+                                                                 26.535
+                                                             ],
+                        "suspended":  0,
+                        "suspend_refused":  0,
+                        "memory_hidden_never_shown":  {
+                                                          "shell_private_ws_mib":  3.3,
+                                                          "webview_private_ws_mib":  69.9,
+                                                          "total_private_ws_mib":  73.2,
+                                                          "total_commit_mib":  150,
+                                                          "webview_processes":  6
+                                                      },
+                        "memory_visible":  {
+                                               "shell_private_ws_mib":  3.5,
+                                               "webview_private_ws_mib":  69.6,
+                                               "total_private_ws_mib":  73.1,
+                                               "total_commit_mib":  151.1,
+                                               "webview_processes":  6
+                                           },
+                        "memory_hidden_after_use":  {
+                                                        "shell_private_ws_mib":  3.5,
+                                                        "webview_private_ws_mib":  69.1,
+                                                        "total_private_ws_mib":  72.6,
+                                                        "total_commit_mib":  146,
+                                                        "webview_processes":  6
+                                                    }
+                    },
+                    {
+                        "mode":  "low-memory",
+                        "startup_to_ready_wall_ms":  380,
+                        "startup_to_ready_in_process_ms":  366.6,
+                        "show_to_paint_quick":  {
+                                                    "n":  20,
+                                                    "p50_ms":  27.12,
+                                                    "p95_ms":  32.01,
+                                                    "max_ms":  37.08
+                                                },
+                        "show_to_paint_after_8s_hidden_ms":  [
+                                                                 26.677,
+                                                                 26.094,
+                                                                 31.271
+                                                             ],
+                        "suspended":  0,
+                        "suspend_refused":  0,
+                        "memory_hidden_never_shown":  {
+                                                          "shell_private_ws_mib":  3.4,
+                                                          "webview_private_ws_mib":  71.8,
+                                                          "total_private_ws_mib":  75.1,
+                                                          "total_commit_mib":  151.6,
+                                                          "webview_processes":  6
+                                                      },
+                        "memory_visible":  {
+                                               "shell_private_ws_mib":  3.8,
+                                               "webview_private_ws_mib":  25.5,
+                                               "total_private_ws_mib":  29.2,
+                                               "total_commit_mib":  153.4,
+                                               "webview_processes":  6
+                                           },
+                        "memory_hidden_after_use":  {
+                                                        "shell_private_ws_mib":  3.8,
+                                                        "webview_private_ws_mib":  3.6,
+                                                        "total_private_ws_mib":  7.4,
+                                                        "total_commit_mib":  148.7,
+                                                        "webview_processes":  6
+                                                    }
+                    },
+                    {
+                        "mode":  "suspend",
+                        "startup_to_ready_wall_ms":  393,
+                        "startup_to_ready_in_process_ms":  379.1,
+                        "show_to_paint_quick":  {
+                                                    "n":  20,
+                                                    "p50_ms":  28.58,
+                                                    "p95_ms":  31.01,
+                                                    "max_ms":  35.62
+                                                },
+                        "show_to_paint_after_8s_hidden_ms":  [
+                                                                 35.331,
+                                                                 30.545,
+                                                                 28.811
+                                                             ],
+                        "suspended":  4,
+                        "suspend_refused":  0,
+                        "memory_hidden_never_shown":  {
+                                                          "shell_private_ws_mib":  3.4,
+                                                          "webview_private_ws_mib":  156.8,
+                                                          "total_private_ws_mib":  160.1,
+                                                          "total_commit_mib":  279.5,
+                                                          "webview_processes":  7
+                                                      },
+                        "memory_visible":  {
+                                               "shell_private_ws_mib":  3.8,
+                                               "webview_private_ws_mib":  113.4,
+                                               "total_private_ws_mib":  117.2,
+                                               "total_commit_mib":  282.5,
+                                               "webview_processes":  7
+                                           },
+                        "memory_hidden_after_use":  {
+                                                        "shell_private_ws_mib":  3.8,
+                                                        "webview_private_ws_mib":  89.7,
+                                                        "total_private_ws_mib":  93.5,
+                                                        "total_commit_mib":  276,
+                                                        "webview_processes":  7
+                                                    }
+                    }
+                ]
+}
