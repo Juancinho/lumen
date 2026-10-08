@@ -10,6 +10,7 @@
 // Unsafe only in `lifecycle` (WebView2 COM), under an explicit allow with SAFETY notes.
 #![deny(unsafe_code)]
 
+mod catalog;
 mod commands;
 mod diag;
 mod dto;
@@ -17,6 +18,7 @@ mod instance;
 mod lifecycle;
 mod material;
 mod overlay;
+mod search;
 mod settings;
 mod shortcut;
 mod tray;
@@ -48,6 +50,8 @@ fn main() {
         .setup(move |app| {
             app.manage(settings::open(app));
             material::install(app);
+            search::install(app);
+            catalog::start(app);
             shortcut::install(app)?;
             tray::install(app)?;
             // First show happens when the UI reports ready (`overlay_ready`).
@@ -79,6 +83,7 @@ fn main() {
             commands::overlay::overlay_ready,
             commands::overlay::overlay_appearance,
             commands::overlay::resize_overlay,
+            commands::search::search,
             commands::overlay::overlay_painted
         ])
         .run(tauri::generate_context!());

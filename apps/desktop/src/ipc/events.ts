@@ -1,6 +1,6 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-import type { Appearance } from "./types";
+import type { Appearance, ResultsUpdate, ResultView } from "./types";
 
 /** Mirrors `overlay::EVENT_SHOWN` in `src-tauri/src/overlay/mod.rs`. */
 export const OVERLAY_SHOWN = "lumen:overlay-shown";
@@ -44,5 +44,52 @@ export function onAppearanceChanged(
 ): Promise<UnlistenFn> {
   return listen(APPEARANCE_CHANGED, (event) => {
     handler(toAppearance(event.payload));
+  });
+}
+
+/** Mirrors `search::EVENT_RESULTS` in `src-tauri/src/search.rs`. */
+export const RESULTS = "lumen:results";
+
+/** Mirrors `catalog::EVENT_CHANGED` in `src-tauri/src/catalog.rs`. */
+export const CATALOG_CHANGED = "lumen:catalog-changed";
+
+const KINDS = new Set(["application", "file", "folder", "command"]);
+
+function toResult(raw: unknown): ResultView | null {
+  const r = raw as Partial<Record<keyof ResultView, unknown>> | null;
+  if (typeof r?.id !== "string" || typeof r.title !== "string") return null;
+  const kind = typeof r.kind === "string" && KINDS.has(r.kind) ? r.kind : "file";
+  return {
+    id: r.id,
+    kind: kind as ResultView["kind"],
+    title: r.title,
+    detail: typeof r.detail === "string" ? r.detail : null,
+    extension: typeof r.extension === "string" ? r.extension : null,
+  };
+}
+
+/** Validates a `lumen:results` payload; `null` when it is not one. */
+export function toResultsUpdate(payload: unknown): ResultsUpdate | null {
+  const p = payload as { queryId?: unknown; done?: unknown; results?: unknown } | null;
+  if (typeof p?.queryId !== "number" || !Array.isArray(p.results)) return null;
+  return {
+    queryId: p.queryId,
+    done: p.done === true,
+    results: p.results.map(toResult).filter((r): r is ResultView => r !== null),
+  };
+}
+
+/** Fires for every result update the shell streams (any query; filter by `queryId`). */
+export function onResults(handler: (update: ResultsUpdate) => void): Promise<UnlistenFn> {
+  return listen(RESULTS, (event) => {
+    const update = toResultsUpdate(event.payload);
+    if (update) handler(update);
+  });
+}
+
+/** Fires when a catalog sync changed what can be found. */
+export function onCatalogChanged(handler: () => void): Promise<UnlistenFn> {
+  return listen(CATALOG_CHANGED, () => {
+    handler();
   });
 }

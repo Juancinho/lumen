@@ -8,8 +8,25 @@
 
 ## Active task
 
-**Pending Windows runs (user):** T004 material, T101+T102 catalog, T003 shortcut check —
-details per task below. Next: T107 (progressive result stream), then T104.
+**Pending on Windows (user):** try the real search (T107: type an app or file name — results
+should appear within ~1 s of start-up once the catalog sync ran), judge the look (T103 rows,
+T004 Acrylic vs Mica), T003 shortcut check. T101/T102 DONE (Windows run accepted).
+Next: T104 (keyboard navigation, stable selection), then T108/T109 (actions).
+
+## T107 — outcome (REVIEW, ADR-025)
+
+- `crates/lumen-search`: `Coordinator::{register, run}` (latency-class order, merged
+  updates, failed providers reported), `merge`, `SearchService::{start, submit}` (one
+  thread, latest wins, stale ids dropped, superseded queries silent).
+- Shell: `search.rs` (service + CatalogProvider reader, `lumen:results`), command
+  `search(queryId, text) -> accepted`, `catalog.rs` (background sync: apps, then Desktop/
+  Documents/Downloads/Pictures/Music/Videos; start-up +2 s and every 30 min;
+  `lumen:catalog-changed`), DTOs `ResultDto`/`ResultsDto`.
+- UI: `useResults` (ids, keeps rows until the next answer, re-runs on show/catalog change),
+  `ipc` `search/onResults/onCatalogChanged`, `lib/subscribe.ts`.
+- Diag (`LUMEN_DIAG_LOG`): `search_done_ms`, `search_partial_ms`, `catalog_apps_ms`,
+  `catalog_pass_ms`.
+- Enter/click do nothing yet (T109); arrows are T104.
 
 ## T103 — outcome (REVIEW)
 
@@ -40,7 +57,7 @@ details per task below. Next: T107 (progressive result stream), then T104.
   `src/design/material.css` + `material.test.ts` (contrast floor), `src/app/appearance.ts`.
 - T012 script now builds with `--features tauri/custom-protocol` (it did not).
 
-## T101 + T102 — REVIEW — one Windows run validates both:
+## T101 + T102 — DONE — one Windows run validates both:
 `powershell -ExecutionPolicy Bypass -File scripts\t101\run-windows-catalog.ps1`
 (native tests incl. AppsFolder COM; catalog bench over user folders + apps with the T102
 ranking; prints top results for calc/spotify/visual/config/notas). Then both DONE, ADR-021/022

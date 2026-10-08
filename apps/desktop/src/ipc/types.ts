@@ -15,3 +15,20 @@ export interface Appearance {
   /** `round`: Windows rounds and shadows the window; `square`: Windows 10 style. */
   corners: "round" | "square";
 }
+
+/** Mirrors `ResultDto`: one result as the UI renders it (T107). */
+export interface ResultView {
+  id: string;
+  kind: "application" | "file" | "folder" | "command";
+  title: string;
+  detail: string | null;
+  extension: string | null;
+}
+
+/** Mirrors `ResultsDto` (event `lumen:results`): merged results of query `queryId` so far. */
+export interface ResultsUpdate {
+  queryId: number;
+  /** No further update follows for this query. */
+  done: boolean;
+  results: ResultView[];
+}

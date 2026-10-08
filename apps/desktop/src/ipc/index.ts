@@ -6,14 +6,20 @@ export {
   overlayPainted,
   overlayReady,
   resizeOverlay,
+  search,
 } from "./commands";
 export {
   APPEARANCE_CHANGED,
+  CATALOG_CHANGED,
   onAppearanceChanged,
+  onCatalogChanged,
   onOverlayShown,
+  onResults,
   OVERLAY_SHOWN,
+  RESULTS,
   toAppearance,
+  toResultsUpdate,
   type OverlayShown,
   type UnlistenFn,
 } from "./events";
-export type { Appearance, CoreInfo } from "./types";
+export type { Appearance, CoreInfo, ResultsUpdate, ResultView } from "./types";

@@ -99,11 +99,11 @@ Benchmark/ADR required:
   passing probe (same space, stable, cos ≥ 0.999 vs CPU, ≥ 90 % offloaded, memory budget,
   no iGPU), lane rules by power/profile/activity, quarantine per runtime key. joao-pc: GTX
   1650 indexes 2.35x faster but needs 2.3 GB VRAM -> rejected; CPU in every scenario.
-- **T101 REVIEW (ADR-021):** `lumen-core::provider` + `builtin` actions; `lumen-catalog`
+- **T101 DONE (ADR-021):** `lumen-core::provider` + `builtin` actions; `lumen-catalog`
   (inventory → items with move detection and safe removal, Start-menu apps via
   `lumen-windows` AppsFolder, `CatalogProvider` exact/prefix, accent-insensitive); 245k
-  entries synced in 6 s, keystroke lookup p50 0.09 ms. Awaiting the Windows run.
-- **T102 REVIEW (ADR-022):** code-aware name/folder tokens in FTS5 + Rust scoring (exact,
+  entries synced in 6 s (sandbox); Windows: 26.5k entries + 330 AppsFolder apps, keystroke p95 5.3 ms.
+- **T102 DONE (ADR-022):** code-aware name/folder tokens in FTS5 + Rust scoring (exact,
   stem, prefix, token-prefix, initials, folder+name, typos, priors); relevance set MRR@10
   1.000 over 40 queries; keystroke p95 7.9 ms at 247k entries (bounded best-effort stages).
 - **T106 DONE (ADR-023):** local usage store (aggregates only): decayed frecency, learned
@@ -113,11 +113,17 @@ Benchmark/ADR required:
 - **T004 REVIEW (ADR-024 proposed):** window material — transparent window + DWM system
   backdrop: Automatic = Acrylic (Win11 22H2+), Mica, Solid; Solid when high contrast /
   transparency off / older Windows; native rounded corners + shadow; tinted surface tokens
-  with a contrast floor enforced by tests; tray → Window material. Awaiting the Windows run.
+  with a contrast floor enforced by tests; tray → Window material. Windows: ~22 ms
+  show→paint for every material, Acrylic +3–4 % DWM GPU while visible, on-screen secondary
+  contrast ≥ 5.3:1. Pending: user's visual verdict (Acrylic vs Mica default).
 - **T103 REVIEW:** design tokens + premium root search (search bar, 52 px result rows with
   middle-truncated paths, no-results state, content-driven window height capped at 72 %,
   entrance fade, high-contrast/reduced-motion paths). No data source yet (T107).
-- Not yet: provider registry/result stream (T107), keyboard navigation (T104).
+- **T107 REVIEW (ADR-025):** `crates/lumen-search` (coordinator by latency class, merged
+  updates, latest-wins search thread); shell `search` command + `lumen:results` events;
+  background catalog sync (apps + standard folders, start-up + 30 min). Search now works in
+  the app; Linux smoke 0.4–2 ms per query in-process.
+- Not yet: keyboard navigation (T104), actions (T108/T109), real icons.
 
 ## Immediate objective
 

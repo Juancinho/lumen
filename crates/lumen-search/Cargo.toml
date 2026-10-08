@@ -1,0 +1,13 @@
+[package]
+name = "lumen-search"
+description = "Root-search coordination (T107): runs providers by latency class, merges their results, and serves a latest-wins search thread. Shell-agnostic."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+lumen-core.workspace = true
+
+[lints]
+workspace = true

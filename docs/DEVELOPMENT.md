@@ -37,6 +37,7 @@ crates/
   lumen-vector/            ANN index (USearch HNSW, ADR-016): f16, cosine, add/search/remove/save/view
   lumen-indexer/           Pass 0 inventory: scan with coverage guarantee, stable FileIdentity (ADR-018)
   lumen-catalog/           app/file catalog: inventory -> items, Start-menu apps, CatalogProvider (ADR-021)
+  lumen-search/            root-search Coordinator + latest-wins SearchService (ADR-025)
   lumen-windows/           Windows OS adapters (AppsFolder apps, window material/DWM plan);
                            no GUI framework/WebView types
   lumen-bench/             benchmark harness binary `lumen-bench` (release-mode, JSON reports)
@@ -55,6 +56,8 @@ apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
     src/settings.rs        app-data SQLite settings (lumen.db, `settings` table)
     src/lifecycle.rs       hidden-WebView modes (ADR-020); src/diag.rs timing diagnostics
     src/material.rs        window material (ADR-024): apply plan, re-check before show
+    src/search.rs          search thread + catalog provider -> `lumen:results` (ADR-025)
+    src/catalog.rs         background catalog sync (apps + standard folders, every 30 min)
     src/instance.rs        second-launch commands (--show/--hide/--toggle/--quit)
     src/tray.rs            tray icon + menu (Show, Keyboard shortcut, Window material, Quit)
     src/dto.rs             wire DTOs mapped from core types
@@ -198,6 +201,9 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
   it at 72% of the work area so the top edge never moves, and re-applies it on every show.
 - Dismiss: Escape (ignored during IME composition), focus loss, Alt+F4. Quit: tray → Quit Lumen.
 - On every show the shell emits `lumen:overlay-shown`; the UI focuses and selects the query.
+- Root search (T107, ADR-025): the UI calls `search(queryId, text)` per query change, on
+  show and on `lumen:catalog-changed`; results stream as `lumen:results`. The catalog lives
+  in the same `lumen.db`; the first sync starts 2 s after launch.
 - Window material (T004, ADR-024): transparent window + DWM system backdrop. Tray → "Window
   material" = Automatic (Acrylic) / Acrylic / Mica / Solid, saved as `appearance.material`;
   `LUMEN_MATERIAL=auto|acrylic|mica|solid` overrides for one run. Backdrops need Windows 11

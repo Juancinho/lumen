@@ -14,7 +14,10 @@ path = "src/main.rs"
 tauri-build.workspace = true
 
 [dependencies]
+lumen-catalog.workspace = true
 lumen-core.workspace = true
+lumen-indexer.workspace = true
+lumen-search.workspace = true
 lumen-storage.workspace = true
 lumen-windows.workspace = true
 serde.workspace = true

@@ -11,8 +11,8 @@ import {
   overlayPainted,
   overlayReady,
   resizeOverlay,
-  type UnlistenFn,
 } from "../ipc";
+import { subscribe } from "../lib/subscribe";
 import { applyAppearance } from "./appearance";
 
 function reportIpcError(action: string) {
@@ -31,23 +31,6 @@ function reportPainted(seq: number) {
       overlayPainted(seq).catch(reportIpcError("overlay_painted"));
     });
   });
-}
-
-/** Subscribes in an effect; unsubscribes on cleanup even if the listener resolves late. */
-function subscribe(start: () => Promise<UnlistenFn>, what: string) {
-  let disposed = false;
-  let unlisten: UnlistenFn | undefined;
-  start().then(
-    (fn) => {
-      if (disposed) fn();
-      else unlisten = fn;
-    },
-    reportIpcError(`listen ${what}`),
-  );
-  return () => {
-    disposed = true;
-    unlisten?.();
-  };
 }
 
 /**
@@ -111,7 +94,7 @@ export function App() {
             playEntrance(contentRef.current);
             if (seq !== null) reportPainted(seq);
           }),
-        "overlay-shown",
+        reportIpcError("listen overlay-shown"),
       ),
     [],
   );
@@ -123,7 +106,7 @@ export function App() {
           onAppearanceChanged((appearance) => {
             applyAppearance(appearance);
           }),
-        "appearance",
+        reportIpcError("listen appearance"),
       ),
     [],
   );

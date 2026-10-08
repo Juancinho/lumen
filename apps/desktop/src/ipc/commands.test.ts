@@ -8,6 +8,7 @@ import {
   overlayPainted,
   overlayReady,
   resizeOverlay,
+  search,
 } from "./commands";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -51,5 +52,11 @@ describe("ipc commands", () => {
     vi.mocked(invoke).mockResolvedValueOnce(400);
     await expect(resizeOverlay(497)).resolves.toBe(400);
     expect(invoke).toHaveBeenCalledExactlyOnceWith("resize_overlay", { height: 497 });
+  });
+
+  it("search sends the query id and text", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(true);
+    await expect(search(7, "notas")).resolves.toBe(true);
+    expect(invoke).toHaveBeenCalledExactlyOnceWith("search", { queryId: 7, text: "notas" });
   });
 });

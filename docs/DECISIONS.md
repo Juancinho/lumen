@@ -413,9 +413,13 @@ Start-up to UI ready: 380–523 ms wall (in-process 367–408 ms). Shell process
 
 ## ADR-021 — Catalog: one `items` table for files and apps, inventory sync, instant name provider
 
-**Status:** Proposed (T101) until `scripts/t101/run-windows-catalog.ps1` runs on Windows
-(AppsFolder COM enumeration is compiled by CI but not yet exercised). Evidence:
-`docs/benchmarks/t101/2026-10-08-cloud-sandbox/catalog-usr-home.json`, `lumen-catalog` tests.
+**Status:** Accepted (T101). Evidence: `docs/benchmarks/t101/2026-10-08-cloud-sandbox/
+catalog-usr-home.json`, `lumen-catalog` tests, and Windows `docs/benchmarks/t101/
+2026-10-08-joao-pc/catalog.json` (5 user folders: 26,469 entries complete, 0 blocking issues;
+first sync 5.2 s, resync 3.2 s; **330 apps via AppsFolder** in 0.56 s; 25.6 MiB DB; keystroke
+lookup p50 1.1 ms, p95 5.3 ms, max 10.5 ms). Full-name query finds the exact item in the top
+10 for 92 % of sampled names — the misses are names shared by more than 10 items (e.g.
+`desktop.ini`, camera file names); folder context in the query disambiguates them.
 
 **Decision**
 
@@ -458,8 +462,8 @@ Start-up to UI ready: 380–523 ms wall (in-process 367–408 ms). Shell process
 
 ## ADR-022 — Name/path matching: tokenized names in FTS5, Rust scoring, bounded stages
 
-**Status:** Proposed (T102) — validated on Linux; the Windows run of
-`scripts/t101/run-windows-catalog.ps1` (apps + user folders) accepts it together with ADR-021.
+**Status:** Accepted (T102) — Linux relevance gate plus the Windows run of
+`scripts/t101/run-windows-catalog.ps1` (keystroke p95 5.3 ms over 26.5k entries + 330 apps).
 Evidence: `crates/lumen-catalog/tests/relevance.rs` over `fixtures/search/catalog-relevance.json`,
 `docs/benchmarks/t102/2026-10-08-cloud-sandbox/catalog-usr-home.json`.
 
@@ -528,8 +532,19 @@ Evidence: `crates/lumen-catalog/tests/relevance.rs` over `fixtures/search/catalo
 
 ## ADR-024 — Window material: system Acrylic by default, Solid fallback, native corners
 
-**Status:** Proposed (T004) — pending the Windows run (`scripts/t004/run-windows-material.ps1`)
-and a visual review. Code: `lumen_windows::material` (pure plan + DWM/WinRT probes),
+**Status:** Accepted on measurements (T004); the default (`auto` = Acrylic vs Mica) stays open
+to the user's visual review. Evidence: `docs/benchmarks/t004/2026-10-08-joao-pc/
+material-dark.json` (Windows 11 build 26300, dark, GTX 1650 + Radeon iGPU):
+
+| material | show → painted p50/p95 | DWM 3D GPU visible / hidden | on-screen contrast primary / secondary |
+|---|---:|---:|---:|
+| auto → acrylic | 21.3 / 49.3 ms | 3.8 % / 0.0 % | 12.8 / 5.9 |
+| acrylic | 22.8 / 39.5 ms | 3.0 % / 1.6 % | 11.6 / 5.3 |
+| mica | 22.1 / 37.3 ms | 0.8 % / 0.3 % | (screenshot missed) |
+| solid | 23.4 / 36.1 ms | 0.2 % / 0.0 % | 16.3 / 7.5 |
+
+No latency cost; Acrylic costs a few % of DWM GPU only while visible; real composited secondary
+text ≥ 5.3:1 (the tint-only floor is 3.4:1). Per-show re-check 0.06 ms p50. Code: `lumen_windows::material` (pure plan + DWM/WinRT probes),
 `apps/desktop/src-tauri/src/material.rs`, `apps/desktop/src/design/material.css`.
 
 **Decision**
@@ -565,3 +580,44 @@ and a visual review. Code: `lumen_windows::material` (pure plan + DWM/WinRT prob
   budget), DWM GPU load while visible, real composited contrast over bright/dark windows, and
   whether `auto` should be Mica instead (calmer, no busy-window bleed). Then Accepted.
 - Battery saver and inactive windows are handled by Windows (the backdrop turns solid).
+
+## ADR-025 — Root search: one latest-wins search thread, merged updates as events
+
+**Status:** Accepted (T107). Code: `crates/lumen-search` (`Coordinator`, `SearchService`),
+shell `search.rs`, `catalog.rs`, UI `features/root-search/useResults.ts`.
+
+**Decision**
+
+- **Coordinator (core, no Tauri):** providers registered once; per query they run in
+  latency-class order (instant → fast; semantic/deferred only when the query is settled,
+  `typing == false`). After each provider that changed the merged list an update is emitted;
+  a final `done` update always closes a completed run. A failing provider is skipped and
+  reported, never failing the query. Initial global order: provider-normalized confidence,
+  then registration order, then the provider's own order; first occurrence of a result id
+  wins; limit 30. Fusion/intent rules arrive with T205/T401.
+- **One search thread, newest query wins:** `submit` cancels the running query and replaces
+  any pending one (nothing queues per keystroke); ids older than the newest are dropped
+  (async IPC can deliver out of order); superseded queries deliver nothing.
+- **Wire:** UI numbers its queries (`search(queryId, text)` returns at once); results
+  stream as app events `lumen:results {queryId, done, results}` and the UI keeps only its
+  latest id. A Tauri `Channel` per call was not used: the latest-wins thread outlives calls,
+  and payloads are ≤ 30 small rows. Payloads (paths, launch keys) never leave Rust.
+- **UI:** keeps the previous rows until the new query's first update (no blank flash), asks
+  only after its listener is registered, re-runs the query on show and on
+  `lumen:catalog-changed`.
+- **Catalog kept current by the shell:** a background thread syncs Start-menu apps, then
+  the user's standard folders (Desktop, Documents, Downloads, Pictures, Music, Videos;
+  nested/duplicate roots collapsed), 2 s after start-up and every 30 min, on its own writer
+  connection (busy timeout). Incremental watching is T207; configurable roots come with the
+  indexing settings.
+
+**Consequences**
+
+- Linux Xvfb smoke (real app, temp home): typing → `search_done` 0.4–2.2 ms in-process;
+  results render. Windows keystroke→paint is measured once T104 lands (diag
+  `search_done_ms` + UI paint).
+- The second SQLite writer (catalog) and the settings writer contend only on rare settings
+  writes; if T202's embedding queue adds a third, move writes to one storage thread.
+- A full resync rewrites every item's metadata each 30 min (~3 s for 26k entries on
+  joao-pc); T207 replaces it with change notifications.
+

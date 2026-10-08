@@ -7,3 +7,4 @@
 
 pub(crate) mod app_info;
 pub(crate) mod overlay;
+pub(crate) mod search;

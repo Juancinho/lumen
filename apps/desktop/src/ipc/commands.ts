@@ -44,3 +44,11 @@ export async function getAppearance(): Promise<Appearance> {
 export function resizeOverlay(height: number): Promise<number> {
   return invoke<number>("resize_overlay", { height });
 }
+
+/**
+ * Starts root search `queryId` (increasing per query) for `text`. Results arrive as
+ * `lumen:results`; resolves to whether the shell accepted it. Command: `search`.
+ */
+export function search(queryId: number, text: string): Promise<boolean> {
+  return invoke<boolean>("search", { queryId, text });
+}

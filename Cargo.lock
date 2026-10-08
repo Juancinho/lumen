@@ -2382,7 +2382,10 @@ version = "0.1.0"
 name = "lumen-desktop"
 version = "0.1.0"
 dependencies = [
+ "lumen-catalog",
  "lumen-core",
+ "lumen-indexer",
+ "lumen-search",
  "lumen-storage",
  "lumen-windows",
  "serde",
@@ -2417,6 +2420,13 @@ name = "lumen-indexer"
 version = "0.1.0"
 dependencies = [
  "file-id",
+ "lumen-core",
+]
+
+[[package]]
+name = "lumen-search"
+version = "0.1.0"
+dependencies = [
  "lumen-core",
 ]
 

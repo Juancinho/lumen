@@ -137,3 +137,9 @@ Append-only. Keep entries compact.
 - Deterministic window height from content (max 8 rows), shell `resize_overlay` capped at 72 % of the work area so the bar never moves; entrance = 150 ms content fade.
 - Visual pass in headless Chromium (light/dark/acrylic/narrow): fixed text alignment (18 px optical gap), path tail priority and separator placement. 39 frontend tests.
 
+## 2026-10-08 — Windows results + T107 progressive result stream (claude)
+
+- User's Windows runs: T101 catalog (26.5k entries complete, 330 AppsFolder apps after the SIGDN fix, keystroke p95 5.3 ms; 92 % full-name top-10 because of widely duplicated names) -> T101/T102 DONE, ADR-021/022 Accepted. T004 dark run: ~22 ms show->paint for every material, Acrylic +3-4 % DWM GPU while visible, on-screen secondary contrast >= 5.3:1 -> ADR-024 accepted on measurements, default open to visual review.
+- New `lumen-search` crate: coordinator (latency-class order, merged updates, provider failures reported) and latest-wins search thread (cancel running, drop stale ids, silent superseded queries). 9 tests.
+- Shell: `search` command + `lumen:results` events, background catalog sync (apps + standard folders at start-up and every 30 min). UI `useResults` with stale-id filtering and no blank flash. Linux Xvfb smoke with the real app: results render, 0.4-2.2 ms per query in-process. ADR-025.
+

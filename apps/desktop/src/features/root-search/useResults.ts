@@ -1,3 +1,7 @@
+import { useEffect, useRef, useState } from "react";
+
+import { onCatalogChanged, onOverlayShown, onResults, search, type ResultView } from "../../ipc";
+import { subscribe } from "../../lib/subscribe";
 import type { ResultRowModel } from "./model";
 
 export type ResultsStatus = "idle" | "searching" | "done";
@@ -8,13 +12,80 @@ export interface ResultsState {
   status: ResultsStatus;
 }
 
-const IDLE: ResultsState = { rows: [], status: "idle" };
+function toRow(view: ResultView): ResultRowModel {
+  return {
+    id: view.id,
+    kind: view.kind,
+    title: view.title,
+    detail: view.detail,
+    extension: view.extension,
+  };
+}
+
+function reportError(what: string) {
+  return (error: unknown) => {
+    console.error(`lumen: ${what} failed`, error);
+  };
+}
 
 /**
- * Results for `query`. T103 ships the surface only: no source is connected yet, so this is
- * always idle. T107 replaces it with the progressive provider stream.
+ * Root-search results for `query`, streamed from the shell (T107).
+ *
+ * - Every query (and every re-run: overlay shown again, catalog changed) gets a new,
+ *   increasing id; updates for any other id are ignored, so a slow old query never
+ *   overwrites a newer one.
+ * - The previous rows stay until the new query's first update arrives: no blank flash
+ *   between keystrokes.
+ * - Nothing is asked before the result listener is registered, so no update is missed.
  */
 export function useResults(query: string): ResultsState {
-  // Placeholder until T107: the query is not sent anywhere yet.
-  return query.length >= 0 ? IDLE : IDLE;
+  const [rerun, setRerun] = useState(0);
+  const [listening, setListening] = useState(false);
+  // Rows of the latest answered request, tagged with that request's key.
+  const [answer, setAnswer] = useState<{ key: string; rows: ResultRowModel[]; done: boolean }>({
+    key: "",
+    rows: [],
+    done: false,
+  });
+  const latest = useRef({ id: 0, key: "" });
+  const key = `${String(rerun)}:${query}`;
+
+  useEffect(() => {
+    const stopResults = subscribe(
+      () =>
+        onResults((update) => {
+          if (update.queryId !== latest.current.id) return;
+          setAnswer({
+            key: latest.current.key,
+            rows: update.results.map(toRow),
+            done: update.done,
+          });
+        }).then((unlisten) => {
+          setListening(true);
+          return unlisten;
+        }),
+      reportError("listen results"),
+    );
+    const again = () => {
+      setRerun((n) => n + 1);
+    };
+    const stopShown = subscribe(() => onOverlayShown(again), reportError("listen shown"));
+    const stopCatalog = subscribe(() => onCatalogChanged(again), reportError("listen catalog"));
+    return () => {
+      stopResults();
+      stopShown();
+      stopCatalog();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!listening) return;
+    const id = latest.current.id + 1;
+    latest.current = { id, key };
+    search(id, query).catch(reportError("search"));
+  }, [query, key, listening]);
+
+  if (!listening) return { rows: answer.rows, status: "idle" };
+  const current = answer.key === key;
+  return { rows: answer.rows, status: current && answer.done ? "done" : "searching" };
 }

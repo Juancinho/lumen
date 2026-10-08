@@ -7,6 +7,7 @@ import {
   onOverlayShown,
   OVERLAY_SHOWN,
   toAppearance,
+  toResultsUpdate,
 } from "./events";
 
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
@@ -58,5 +59,36 @@ describe("appearance", () => {
     const callback = vi.mocked(listen).mock.calls[0]?.[1] as (event: unknown) => void;
     callback({ event: APPEARANCE_CHANGED, id: 1, payload: { material: "mica", corners: "round" } });
     expect(handler).toHaveBeenLastCalledWith({ material: "mica", corners: "round" });
+  });
+});
+
+describe("results", () => {
+  it("validates updates and drops malformed rows", () => {
+    expect(toResultsUpdate(null)).toBeNull();
+    expect(toResultsUpdate({ queryId: "1", results: [] })).toBeNull();
+    expect(
+      toResultsUpdate({
+        queryId: 4,
+        done: true,
+        results: [
+          { id: "item:1", kind: "application", title: "Calculator", detail: "Application" },
+          { id: 2, title: "bad" },
+          { id: "item:3", kind: "weird", title: "x.txt", detail: null, extension: "txt" },
+        ],
+      }),
+    ).toEqual({
+      queryId: 4,
+      done: true,
+      results: [
+        {
+          id: "item:1",
+          kind: "application",
+          title: "Calculator",
+          detail: "Application",
+          extension: null,
+        },
+        { id: "item:3", kind: "file", title: "x.txt", detail: null, extension: "txt" },
+      ],
+    });
   });
 });

@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "kind": "catalog",
+  "label": "user folders + apps",
+  "machine": {
+    "os": "windows",
+    "arch": "x86_64",
+    "logical_cpus": 12,
+    "cpu": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791444985
+  },
+  "roots": 5,
+  "entries": 26469,
+  "complete": true,
+  "blocking_issues": 0,
+  "first_sync": {
+    "seconds": 5.1823793,
+    "entries_per_s": 5107.499561060688
+  },
+  "resync": {
+    "seconds": 3.1618116,
+    "entries_per_s": 8371.466535197733
+  },
+  "inserted": 26469,
+  "resync_updated": 26469,
+  "resync_removed": 0,
+  "apps_discovered": 330,
+  "apps_source": "apps-folder",
+  "apps_folder_error": false,
+  "apps_seconds": 0.5561584,
+  "db_mib": 25.6328125,
+  "queries": 2344,
+  "keystroke": {
+    "n": 2344,
+    "min_ms": 0.0994,
+    "mean_ms": 1.6319677047781598,
+    "p50_ms": 1.1078,
+    "p95_ms": 5.3022,
+    "p99_ms": 6.848,
+    "max_ms": 10.5465
+  },
+  "keystroke_p95_by_chars": [
+    1.5031999999999999,
+    1.377,
+    6.1543,
+    5.5186,
+    5.6477,
+    5.5506,
+    5.3022,
+    5.659199999999999
+  ],
+  "mean_results": 8.678327645051194,
+  "full_name_found_in_top10": 0.9233333333333333,
+  "memory_after": {
+    "resident_mib": 28.08984375,
+    "virtual_mib": 9.29296875
+  }
+}

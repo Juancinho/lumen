@@ -1,0 +1,193 @@
+{
+    "schema_version":  1,
+    "kind":  "window-material",
+    "machine":  {
+                    "os":  "Microsoft Windows 11 Pro 10.0.26300",
+                    "build":  26300,
+                    "gpu":  "NVIDIA GeForce GTX 1650; AMD Radeon(TM) Graphics"
+                },
+    "theme":  "dark",
+    "transparency_effects":  true,
+    "cycles":  15,
+    "results":  [
+                    {
+                        "requested":  "auto",
+                        "applied":  "acrylic_as-requested",
+                        "show_to_paint":  {
+                                              "n":  15,
+                                              "p50_ms":  21.298,
+                                              "p95_ms":  49.339,
+                                              "max_ms":  49.339
+                                          },
+                        "material_check":  {
+                                               "n":  15,
+                                               "p50_ms":  0.058,
+                                               "p95_ms":  0.101
+                                           },
+                        "dwm_gpu_3d_percent_visible":  3.76,
+                        "dwm_gpu_3d_percent_hidden":  0.01,
+                        "window_px":  [
+                                          802,
+                                          66
+                                      ],
+                        "background_samples":  [
+                                                   {
+                                                       "rgb":  [
+                                                                   34,
+                                                                   43,
+                                                                   46
+                                                               ],
+                                                       "primary_contrast":  14.45,
+                                                       "secondary_contrast":  6.66
+                                                   },
+                                                   {
+                                                       "rgb":  [
+                                                                   34,
+                                                                   44,
+                                                                   46
+                                                               ],
+                                                       "primary_contrast":  14.31,
+                                                       "secondary_contrast":  6.6
+                                                   },
+                                                   {
+                                                       "rgb":  [
+                                                                   46,
+                                                                   51,
+                                                                   52
+                                                               ],
+                                                       "primary_contrast":  12.81,
+                                                       "secondary_contrast":  5.91
+                                                   }
+                                               ],
+                        "min_primary_contrast":  12.81,
+                        "min_secondary_contrast":  5.91
+                    },
+                    {
+                        "requested":  "acrylic",
+                        "applied":  "acrylic_as-requested",
+                        "show_to_paint":  {
+                                              "n":  15,
+                                              "p50_ms":  22.788,
+                                              "p95_ms":  39.484,
+                                              "max_ms":  39.484
+                                          },
+                        "material_check":  {
+                                               "n":  15,
+                                               "p50_ms":  0.057,
+                                               "p95_ms":  0.092
+                                           },
+                        "dwm_gpu_3d_percent_visible":  2.95,
+                        "dwm_gpu_3d_percent_hidden":  1.55,
+                        "window_px":  [
+                                          802,
+                                          66
+                                      ],
+                        "background_samples":  [
+                                                   {
+                                                       "rgb":  [
+                                                                   56,
+                                                                   56,
+                                                                   56
+                                                               ],
+                                                       "primary_contrast":  11.73,
+                                                       "secondary_contrast":  5.41
+                                                   },
+                                                   {
+                                                       "rgb":  [
+                                                                   57,
+                                                                   57,
+                                                                   57
+                                                               ],
+                                                       "primary_contrast":  11.55,
+                                                       "secondary_contrast":  5.33
+                                                   },
+                                                   {
+                                                       "rgb":  [
+                                                                   57,
+                                                                   57,
+                                                                   57
+                                                               ],
+                                                       "primary_contrast":  11.55,
+                                                       "secondary_contrast":  5.33
+                                                   }
+                                               ],
+                        "min_primary_contrast":  11.55,
+                        "min_secondary_contrast":  5.33
+                    },
+                    {
+                        "requested":  "mica",
+                        "applied":  "mica_as-requested",
+                        "show_to_paint":  {
+                                              "n":  15,
+                                              "p50_ms":  22.146,
+                                              "p95_ms":  37.264,
+                                              "max_ms":  37.264
+                                          },
+                        "material_check":  {
+                                               "n":  15,
+                                               "p50_ms":  0.058,
+                                               "p95_ms":  0.109
+                                           },
+                        "dwm_gpu_3d_percent_visible":  0.75,
+                        "dwm_gpu_3d_percent_hidden":  0.26,
+                        "window_px":  null,
+                        "background_samples":  [
+
+                                               ],
+                        "min_primary_contrast":  null,
+                        "min_secondary_contrast":  null
+                    },
+                    {
+                        "requested":  "solid",
+                        "applied":  "solid_as-requested",
+                        "show_to_paint":  {
+                                              "n":  15,
+                                              "p50_ms":  23.368,
+                                              "p95_ms":  36.053,
+                                              "max_ms":  36.053
+                                          },
+                        "material_check":  {
+                                               "n":  15,
+                                               "p50_ms":  0.058,
+                                               "p95_ms":  0.063
+                                           },
+                        "dwm_gpu_3d_percent_visible":  0.21,
+                        "dwm_gpu_3d_percent_hidden":  0.01,
+                        "window_px":  [
+                                          802,
+                                          66
+                                      ],
+                        "background_samples":  [
+                                                   {
+                                                       "rgb":  [
+                                                                   32,
+                                                                   32,
+                                                                   32
+                                                               ],
+                                                       "primary_contrast":  16.29,
+                                                       "secondary_contrast":  7.51
+                                                   },
+                                                   {
+                                                       "rgb":  [
+                                                                   32,
+                                                                   32,
+                                                                   32
+                                                               ],
+                                                       "primary_contrast":  16.29,
+                                                       "secondary_contrast":  7.51
+                                                   },
+                                                   {
+                                                       "rgb":  [
+                                                                   32,
+                                                                   32,
+                                                                   32
+                                                               ],
+                                                       "primary_contrast":  16.29,
+                                                       "secondary_contrast":  7.51
+                                                   }
+                                               ],
+                        "min_primary_contrast":  16.29,
+                        "min_secondary_contrast":  7.51
+                    }
+                ]
+}
