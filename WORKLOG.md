@@ -191,3 +191,8 @@ Append-only. Keep entries compact.
 - New `lumen-extract` crate: document kinds, bounded decoding with skip reasons, chunkers for prose (paragraph/sentence/word), Markdown (heading paths, intact fences, no heading-only chunks), code (top-level regions, class members, overlapping line windows, symbol names across 15+ languages) and data.
 - `lumen-bench chunk` with an optional real-tokenizer check: estimator recalibrated (4 -> 5 chars per token unit) to estimate/real p50 ~1.13; 63 % of code chunks named. ADR-028.
 
+## 2026-10-08 — T014 throughput spike instrumentation (claude)
+
+- `lumen-bench embed` gains `--backend llama-server` (llama.cpp `llama-server --embedding` over localhost HTTP; GGUF variants are distinct spaces) and per-batch CPU accounting (`--cpu-pid` for the server), report schema v2. `lumen_windows::process::cpu_time` (GetProcessTimes); Linux reads `/proc/<pid>/stat`.
+- `scripts/t014/run-windows-throughput.ps1`: ORT q4 thread sweep + q8 + DirectML fp16, llama.cpp latest release (cpu/vulkan/cuda 12) on Q8_0 and UD-Q4_K_XL GGUF, fidelity each run, summary with chunks/s per core and the §9 budget check.
+- Sandbox ORT q4: 3.4 chunks/s per busy core, linear 1→2 threads, batch size irrelevant on CPU. Verdict waits for the joao-pc run.

@@ -132,6 +132,9 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
   (BOM/UTF-8/UTF-16/Windows-1252, binary and size skips with reasons), 128-token chunks with
   offsets for prose/Markdown/code/data, symbol names for code; estimator calibrated against
   the EmbeddingGemma 2 tokenizer; `lumen-bench chunk`.
+- **T014 REVIEW (Windows run pending):** throughput harness for ORT thread sweeps and
+  llama.cpp builds (CPU/Vulkan/CUDA, GGUF) with CPU share per run; sandbox ORT q4 3.4
+  chunks/s per busy core. The runtime/thread verdict becomes an ADR after the joao-pc run.
 - **T111 REVIEW (ADR-027):** indexed locations + exclusions in one versioned setting; tray
   → Indexed locations / Exclusions (native folder picker), per-location state, developer
   noise and marker-based build folders excluded by default (visible, toggleable), Action

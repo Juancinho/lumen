@@ -9,7 +9,7 @@
 | Keystroke → content FTS | 16 / 40 ms | **13 / 68 ms at 100k chunks (sandbox)** → runs on the settled query | ADR-017 note (T016) |
 | Warm text query embedding | 60 / 120 ms | 30.0 / 36.9 ms (CPU, q4) | ADR-015 |
 | Idle memory (§5 metric) | < 400 MB | ~7 MiB WebView + 3–4 MiB shell hidden; 168 MiB with the model warm | ADR-020, ADR-015 |
-| Indexing throughput (§9) | ≥ 8 chunks/s @ ≤ 50 % CPU | **~7 chunks/s @ 100 % CPU** (128-token estimate) | ADR-015 — top risk, T014 |
+| Indexing throughput (§9) | ≥ 8 chunks/s @ ≤ 50 % CPU | **~7 chunks/s @ 100 % CPU** (128-token estimate); sandbox q4: 3.4 chunks/s per busy core | ADR-015 — top risk, T014 run pending |
 
 Not measured yet: keystroke → painted results end to end, arrow-key response, Quick Look
 cached preview, semantic results after settle.
@@ -174,6 +174,16 @@ reference machine (Ryzen 5 5600H, 6C/12T) in the Balanced profile:
 Measured today: ~3–4 chunks/s of ~260 tokens at ~100 % CPU (ADR-015) ≈ 7 chunks/s of 128
 tokens at 100 % — **the budget is not met**; T014 (runtimes) and T202 (chunk size,
 thread caps, value-priority) must close the gap or revise it with evidence.
+
+T014 instrumentation (2026-10-08): `lumen-bench embed` reports the CPU time of the process
+doing the work per batch size (`throughput[].cpu`: busy cores and share of the machine;
+`--cpu-pid` for an external `llama-server`). Cloud sandbox, ORT q4, 100-word (~128-token)
+chunks: **3.3–3.4 chunks/s per busy core, linear from 1 to 2 threads, and batching does not
+help on CPU** (b1 ≈ b8 ≈ b16). Throughput is compute-bound (~125 M non-embedding
+parameters per token), so the budget is a question of how many cores scale on a given CPU
+— joao-pc's earlier ~7 chunks/s on 12 threads suggests poor scaling past the physical
+cores. `scripts/t014/run-windows-throughput.ps1` sweeps 1/2/4/cores/threads and llama.cpp
+builds to draw the chunks/s-at-CPU-% curve; evidence in `docs/benchmarks/t014/`.
 
 Track:
 

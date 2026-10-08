@@ -1,0 +1,133 @@
+{
+  "schema_version": 2,
+  "kind": "embed",
+  "label": "cloud sandbox 2 vCPU | ort-q4-t1",
+  "machine": {
+    "os": "linux",
+    "arch": "x86_64",
+    "logical_cpus": 2,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791466024
+  },
+  "backend": {
+    "name": "onnxruntime-cpu",
+    "runtime_version": "ORT Build Info: git-branch=HEAD, git-commit-id=f2c39fe, fp8-kv-cache=1, build type=Release",
+    "target": "cpu",
+    "device": null,
+    "max_batch": 16,
+    "concurrent_calls": false,
+    "model_id": "embeddinggemma-2",
+    "model_revision": "onnx-community-q4",
+    "native_dim": 768
+  },
+  "space": "embeddinggemma-2@onnx-community-q4/pre1/embeddinggemma-retrieval@1/d256/l2",
+  "cold_load_ms": 1283.791209,
+  "query": {
+    "first_query_ms": 77.355599,
+    "warm": {
+      "n": 30,
+      "min_ms": 72.72109999999999,
+      "mean_ms": 148.87798046666668,
+      "p50_ms": 91.71441,
+      "p95_ms": 442.234259,
+      "p99_ms": 492.952926,
+      "max_ms": 492.952926
+    },
+    "long_input": null,
+    "long_words": 0,
+    "budget_p50_ms": 60.0,
+    "budget_p95_ms": 120.0,
+    "within_budget": false
+  },
+  "throughput": [
+    {
+      "batch_size": 1,
+      "items": 48,
+      "items_per_s": 3.2695864644245995,
+      "per_batch": {
+        "n": 48,
+        "min_ms": 290.817067,
+        "mean_ms": 305.8484162291666,
+        "p50_ms": 304.72085799999996,
+        "p95_ms": 319.072421,
+        "p99_ms": 337.779449,
+        "max_ms": 337.779449
+      },
+      "cpu": {
+        "cpu_s": 14.66,
+        "cores": 0.9985861993430132,
+        "machine_percent": 49.92930996715066
+      }
+    },
+    {
+      "batch_size": 8,
+      "items": 48,
+      "items_per_s": 3.4446352710987203,
+      "per_batch": {
+        "n": 6,
+        "min_ms": 2261.436612,
+        "mean_ms": 2322.451134333334,
+        "p50_ms": 2301.722711,
+        "p95_ms": 2425.080589,
+        "p99_ms": 2425.080589,
+        "max_ms": 2425.080589
+      },
+      "cpu": {
+        "cpu_s": 13.94,
+        "cores": 1.00037949331492,
+        "machine_percent": 50.01897466574599
+      }
+    },
+    {
+      "batch_size": 16,
+      "items": 48,
+      "items_per_s": 3.408447659489462,
+      "per_batch": {
+        "n": 3,
+        "min_ms": 4643.910268,
+        "mean_ms": 4694.2184413333325,
+        "p50_ms": 4666.695416,
+        "p95_ms": 4772.049639999999,
+        "p99_ms": 4772.049639999999,
+        "max_ms": 4772.049639999999
+      },
+      "cpu": {
+        "cpu_s": 14.08,
+        "cores": 0.9998113134502421,
+        "machine_percent": 49.990565672512105
+      }
+    }
+  ],
+  "memory": {
+    "before_load": {
+      "resident_mib": 7.0703125,
+      "virtual_mib": 18.18359375
+    },
+    "after_warm": {
+      "resident_mib": 314.58203125,
+      "virtual_mib": 443.08984375
+    },
+    "after_throughput": {
+      "resident_mib": 637.69140625,
+      "virtual_mib": 1027.10546875
+    }
+  },
+  "doc_words": 100,
+  "fidelity": {
+    "reference": "fixtures/embedding/reference-eg2-onnx-fp32-d256.json",
+    "texts": 60,
+    "min_cosine": 0.97972804,
+    "mean_cosine": 0.98757243,
+    "recall_at_1": 1.0,
+    "reference_recall_at_1": 1.0
+  },
+  "config": {
+    "device": "cpu",
+    "ort_dylib": "/home/claude/venv/lib/python3.13/site-packages/onnxruntime/capi/libonnxruntime.so.1.30.0",
+    "threads": 1,
+    "variant": "q4"
+  },
+  "diagnostics": null
+}

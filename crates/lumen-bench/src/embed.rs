@@ -39,6 +39,10 @@ pub(crate) struct EmbedOptions {
     pub(crate) reference: Option<PathBuf>,
     pub(crate) corpus: PathBuf,
     pub(crate) ort: OrtOptions,
+    pub(crate) llama: crate::llama::LlamaOptions,
+    /// Process whose CPU time the throughput phase reports (`--cpu-pid`; default this
+    /// process). Set it to the `llama-server` PID when that process does the work.
+    pub(crate) cpu_pid: Option<u32>,
 }
 
 /// `--backend ort` settings (ignored by other backends).
@@ -72,6 +76,8 @@ impl Default for EmbedOptions {
             reference: None,
             corpus: PathBuf::from("fixtures/embedding/corpus.json"),
             ort: OrtOptions::default(),
+            llama: crate::llama::LlamaOptions::default(),
+            cpu_pid: None,
         }
     }
 }
@@ -107,6 +113,8 @@ pub(crate) struct Throughput {
     pub(crate) items: usize,
     pub(crate) items_per_s: f64,
     pub(crate) per_batch: Summary,
+    /// CPU spent by the measured process during this batch size (T014).
+    pub(crate) cpu: Option<crate::cpu::CpuUse>,
 }
 
 #[derive(Debug, Serialize)]
@@ -152,8 +160,12 @@ pub(crate) fn make_backend(
         )),
         #[cfg(feature = "ort")]
         "ort" => make_ort(&opts.ort),
+        "llama-server" => Ok((
+            Arc::new(crate::llama::LlamaServerBackend::new(&opts.llama)),
+            serde_json::Value::Null,
+        )),
         other => Err(format!(
-            "unknown backend `{other}` (available: mock{})",
+            "unknown backend `{other}` (available: mock, llama-server{})",
             if cfg!(feature = "ort") {
                 ", ort"
             } else {
@@ -200,6 +212,13 @@ fn make_ort(o: &OrtOptions) -> Result<(Arc<dyn EmbeddingBackend>, serde_json::Va
 }
 
 fn backend_config(opts: &EmbedOptions) -> serde_json::Value {
+    if opts.backend == "llama-server" {
+        return serde_json::json!({
+            "addr": opts.llama.addr.as_deref().unwrap_or("127.0.0.1:8080"),
+            "variant": opts.llama.variant.as_deref().unwrap_or("gguf-q8_0"),
+            "target": opts.llama.target.as_deref().unwrap_or("cpu"),
+        });
+    }
     if opts.backend == "ort" {
         serde_json::json!({
             "variant": opts.ort.variant.as_deref().unwrap_or("q4"),
@@ -300,6 +319,7 @@ pub(crate) fn run(opts: &EmbedOptions) -> Result<EmbedReport, String> {
             continue;
         }
         let mut per_batch = Vec::new();
+        let cpu_start = crate::cpu::cpu_time(opts.cpu_pid);
         let started = Instant::now();
         for chunk in inputs.chunks(batch_size) {
             let t = Instant::now();
@@ -310,6 +330,7 @@ pub(crate) fn run(opts: &EmbedOptions) -> Result<EmbedReport, String> {
             std::hint::black_box(out);
         }
         let total = started.elapsed().as_secs_f64();
+        let cpu = crate::cpu::CpuUse::between(cpu_start, crate::cpu::cpu_time(opts.cpu_pid), total);
         #[allow(clippy::cast_precision_loss)]
         let items_per_s = if total > 0.0 {
             inputs.len() as f64 / total
@@ -321,6 +342,7 @@ pub(crate) fn run(opts: &EmbedOptions) -> Result<EmbedReport, String> {
             items: inputs.len(),
             items_per_s,
             per_batch: Summary::of(&per_batch).ok_or("no batches")?,
+            cpu,
         });
     }
 
@@ -331,7 +353,7 @@ pub(crate) fn run(opts: &EmbedOptions) -> Result<EmbedReport, String> {
 
     let caps = embedder.backend().capabilities();
     Ok(EmbedReport {
-        schema_version: 1,
+        schema_version: 2,
         kind: "embed",
         label: opts.label.clone(),
         machine: MachineInfo::collect(),
@@ -420,8 +442,16 @@ pub(crate) fn summarize(r: &EmbedReport) -> String {
     for t in &r.throughput {
         let _ = writeln!(
             s,
-            "  docs batch {:>3}: {:>9.1} items/s · p50 {:.2} ms/batch ({} items × ~{} words)",
-            t.batch_size, t.items_per_s, t.per_batch.p50_ms, t.items, r.doc_words
+            "  docs batch {:>3}: {:>9.1} items/s · p50 {:.2} ms/batch ({} items × ~{} words){}",
+            t.batch_size,
+            t.items_per_s,
+            t.per_batch.p50_ms,
+            t.items,
+            r.doc_words,
+            t.cpu.map_or(String::new(), |c| format!(
+                " · {:.2} cores ({:.0}% of machine)",
+                c.cores, c.machine_percent
+            ))
         );
     }
     if let (Some(a), Some(b)) = (r.memory.before_load, r.memory.after_warm) {
@@ -476,7 +506,7 @@ mod tests {
         assert_eq!(report.throughput.len(), 2);
         assert_eq!(report.throughput[1].per_batch.n, 2);
         let json = serde_json::to_value(&report).unwrap();
-        assert_eq!(json["schema_version"], 1);
+        assert_eq!(json["schema_version"], 2);
         assert!(json["query"]["warm"]["p95_ms"].is_number());
         assert!(json["machine"]["build_profile"].is_string());
         assert!(json["query"]["long_input"]["p50_ms"].is_number());

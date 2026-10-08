@@ -34,5 +34,9 @@ memory-stats.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+# Process CPU time for throughput runs (T014).
+lumen-windows.workspace = true
+
 [lints]
 workspace = true

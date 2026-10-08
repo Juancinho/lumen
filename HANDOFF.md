@@ -5,12 +5,13 @@
 
 ## Branch
 
-`main` on github.com/Juancinho/lumen (push pending from joao-pc). Last commits: T104 → T108+T109
-→ T110 → T105 → T016 → T015.
+`main` on github.com/Juancinho/lumen (push pending from joao-pc). Last commits: T015 → T111 → T201
+→ T014 (instrumentation).
 
 ## Active task
 
-None claimed. Next per `TASKS.md` → **Next**: T014 (runtime spike, Windows) / T202 (embedding queue).
+None claimed. T014 is in REVIEW waiting for the Windows run below; next per `TASKS.md` →
+**Next**: T202 (embedding queue).
 
 ## Pending human checks (Windows, joao-pc)
 
@@ -25,6 +26,24 @@ None claimed. Next per `TASKS.md` → **Next**: T014 (runtime spike, Windows) / 
    below (T107 search, T104 keys, T108/T109 actions, T105 Alt+Enter, T103/T004 look, T003
    shortcut). `LUMEN_DIAGNOSTICS=1` shows ranking evidence (T110).
 3. Verdict on the default window material (Acrylic vs Mica, tray → Window material).
+4. T014 throughput run (~3 GB first download, 20–40 min, plugged in, PC idle):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\t014\run-windows-throughput.ps1 -Download
+   ```
+   Then commit `docs\benchmarks\t014\<date>-joao-pc\` (counts and timings only). Failed
+   rows (e.g. CUDA without a recent driver) are fine — they are recorded.
+
+## T014 — outcome so far (REVIEW, Windows run pending)
+
+- `lumen-bench embed --backend llama-server --server HOST:PORT --server-target cpu|gpu
+  --variant gguf-q8_0` measures llama.cpp builds over localhost HTTP (`/v1/embeddings`) with
+  the same latency / throughput / fidelity harness; `--cpu-pid PID` reports that server's
+  CPU. Every throughput row now carries `cpu {cpu_s, cores, machine_percent}` (report
+  schema v2); Windows CPU time via `lumen_windows::process::cpu_time` (GetProcessTimes).
+- Sandbox (2 vCPU, ORT q4, ~128-token chunks): 3.4 chunks/s per busy core, linear 1→2
+  threads, batching irrelevant on CPU; fidelity min cos 0.980, recall@1 1.0.
+- After the Windows run: pick runtime + thread cap for the Balanced profile (or revise the
+  §9 budget with evidence) in a new ADR, amend ADR-015, then T202 uses it.
 
 ## T201 — outcome (REVIEW, ADR-028)
 

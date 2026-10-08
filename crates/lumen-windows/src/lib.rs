@@ -9,5 +9,6 @@
 
 pub mod apps;
 pub mod material;
+pub mod process;
 
 pub use apps::{StartApp, start_apps};

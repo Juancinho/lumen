@@ -11,9 +11,11 @@ mod ann;
 mod catalog;
 mod chunk;
 mod corpus;
+mod cpu;
 mod device;
 mod embed;
 mod fidelity;
+mod llama;
 mod machine;
 mod scan;
 mod stats;
@@ -58,7 +60,12 @@ embed options:
 ort backend (build with --features ort, or directml on Windows):
   --ort-dylib PATH       onnxruntime.dll / libonnxruntime.so to load
   --model-dir DIR        copy of onnx-community/embeddinggemma-2-ONNX
-  --variant NAME         fp32 | fp16 | q8 | q4 | q4f16 (default: q4)
+  --variant NAME         ort: fp32 | fp16 | q8 | q4 | q4f16 (default: q4);
+                         llama-server: weights label for the space (default: gguf-q8_0)
+  --server HOST:PORT     llama-server address for --backend llama-server (default 127.0.0.1:8080)
+  --server-target T      cpu | gpu: what that llama-server build runs on (reports only)
+  --cpu-pid PID          report the throughput CPU share of PID (e.g. llama-server)
+                         instead of this process
   --device NAME          cpu | dml:<adapter> | dml:high | dml:low (default: cpu)
   --threads N            intra-op threads (default: runtime default)
   --placement            report which execution provider runs each graph node
@@ -564,7 +571,20 @@ fn parse_embed(args: &[String]) -> Result<(embed::EmbedOptions, Option<String>),
             "--corpus" => opts.corpus = value()?.into(),
             "--ort-dylib" => opts.ort.dylib = Some(value()?.into()),
             "--model-dir" => opts.ort.model_dir = Some(value()?.into()),
-            "--variant" => opts.ort.variant = Some(value()?),
+            "--variant" => {
+                let v = value()?;
+                opts.llama.variant = Some(v.clone());
+                opts.ort.variant = Some(v);
+            }
+            "--server" => opts.llama.addr = Some(value()?),
+            "--server-target" => opts.llama.target = Some(value()?),
+            "--cpu-pid" => {
+                opts.cpu_pid = Some(
+                    value()?
+                        .parse()
+                        .map_err(|_| "--cpu-pid: expected a process id")?,
+                )
+            }
             "--device" => opts.ort.device = Some(value()?),
             "--threads" => opts.ort.threads = Some(num(value()?)?),
             "--placement" => opts.ort.placement = true,

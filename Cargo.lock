@@ -2429,6 +2429,7 @@ dependencies = [
  "lumen-indexer",
  "lumen-storage",
  "lumen-vector",
+ "lumen-windows",
  "memory-stats",
  "serde",
  "serde_json",

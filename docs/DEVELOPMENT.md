@@ -39,7 +39,8 @@ crates/
   lumen-catalog/           app/file catalog: inventory -> items, Start-menu apps, CatalogProvider (ADR-021)
   lumen-search/            root-search Coordinator + latest-wins SearchService (ADR-025)
   lumen-extract/           text/code extraction + retrieval chunking (ADR-028)
-  lumen-windows/           Windows OS adapters (AppsFolder apps, window material/DWM plan);
+  lumen-windows/           Windows OS adapters (AppsFolder apps, window material/DWM plan,
+                           process CPU time);
                            no GUI framework/WebView types
   lumen-bench/             benchmark harness binary `lumen-bench` (release-mode, JSON reports)
 apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
