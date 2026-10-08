@@ -9,7 +9,16 @@
 ## Active task
 
 **Pending Windows runs (user):** T004 material, T101+T102 catalog, T003 shortcut check —
-details per task below. Then: T103 (premium overlay, unblocked by T004) and T107.
+details per task below. Next: T107 (progressive result stream), then T104.
+
+## T103 — outcome (REVIEW)
+
+- `src/design/tokens.css`; `src/features/root-search/{RootSearch, SearchField, ResultList,
+  ResultRow, icons, model, layout, useResults}`; command `resize_overlay(height) -> applied`
+  (`overlay::resize`, `placement::clamp_height`, 72 % cap, re-applied on show).
+- `useResults` is a placeholder (always idle) until T107 connects the provider stream.
+- Review on Windows once T107 shows results: 100/125/150 % scaling, light/dark, Acrylic and
+  Solid, long names/paths, high contrast. Previewed in Chromium (light/dark/acrylic/narrow).
 
 ## T004 — outcome (REVIEW, ADR-024 proposed)
 

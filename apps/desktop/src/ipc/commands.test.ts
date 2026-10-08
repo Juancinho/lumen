@@ -1,7 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { describe, expect, it, vi } from "vitest";
 
-import { getAppearance, getCoreInfo, hideOverlay, overlayPainted, overlayReady } from "./commands";
+import {
+  getAppearance,
+  getCoreInfo,
+  hideOverlay,
+  overlayPainted,
+  overlayReady,
+  resizeOverlay,
+} from "./commands";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
@@ -38,5 +45,11 @@ describe("ipc commands", () => {
 
     vi.mocked(invoke).mockResolvedValueOnce({ material: "glass" });
     await expect(getAppearance()).resolves.toEqual({ material: "solid", corners: "square" });
+  });
+
+  it("resizeOverlay sends the logical height and returns the applied one", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(400);
+    await expect(resizeOverlay(497)).resolves.toBe(400);
+    expect(invoke).toHaveBeenCalledExactlyOnceWith("resize_overlay", { height: 497 });
   });
 });

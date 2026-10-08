@@ -26,7 +26,7 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     restoreMocks: true,
     // CSS is not processed in tests, except the material tokens that
-    // src/design/material.test.ts reads (`?raw`) to check contrast.
-    css: { include: [/src\/design\/material\.css/] },
+    // design tests read (`?raw`) to check contrast and the layout mirror.
+    css: { include: [/src\/design\/(material|tokens)\.css/] },
   },
 });

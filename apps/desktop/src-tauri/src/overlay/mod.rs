@@ -7,6 +7,8 @@
 mod placement;
 mod policy;
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Runtime, WebviewWindow};
 
@@ -16,9 +18,17 @@ use policy::ShortcutDecision;
 /// Label of the overlay window in `tauri.conf.json`.
 pub(crate) const WINDOW_LABEL: &str = "main";
 
-/// Logical size of the compact overlay (search field only until T103).
+/// Logical width of the overlay and its compact height (search bar only).
 /// Must match `width`/`height` in `tauri.conf.json`.
-pub(crate) const LOGICAL_SIZE: (f64, f64) = (800.0, 64.0);
+pub(crate) const LOGICAL_WIDTH: f64 = 800.0;
+pub(crate) const COMPACT_HEIGHT: f64 = 64.0;
+
+/// Content height last requested by the UI (`resize_overlay`), as `f64` bits.
+static REQUESTED_HEIGHT: AtomicU64 = AtomicU64::new(COMPACT_HEIGHT.to_bits());
+
+fn requested_height() -> f64 {
+    f64::from_bits(REQUESTED_HEIGHT.load(Ordering::Relaxed))
+}
 
 /// Event emitted to the UI after the overlay was shown and focus requested.
 /// Mirrored in `src/ipc/events.ts`.
@@ -125,14 +135,52 @@ fn place_on_active_monitor<R: Runtime>(window: &WebviewWindow<R>) {
         width: area.size.width,
         height: area.size.height,
     };
-    let size = placement::to_physical(LOGICAL_SIZE, monitor.scale_factor());
+    let scale = monitor.scale_factor();
+    let height =
+        placement::clamp_height(requested_height(), COMPACT_HEIGHT, area.size.height, scale);
+    let size = placement::to_physical((LOGICAL_WIDTH, height), scale);
     let (x, y) = placement::overlay_position(work_area, size);
 
     // Keep the logical size stable when moving between monitors with different DPI.
-    if let Err(err) = window.set_size(LogicalSize::new(LOGICAL_SIZE.0, LOGICAL_SIZE.1)) {
+    if let Err(err) = window.set_size(LogicalSize::new(LOGICAL_WIDTH, height)) {
         eprintln!("lumen: resize overlay failed: {err}");
     }
     if let Err(err) = window.set_position(PhysicalPosition::new(x, y)) {
         eprintln!("lumen: position overlay failed: {err}");
     }
+}
+
+/// Sizes the overlay for `requested` logical px of content (T103), keeping the top edge
+/// where it is; returns the height applied after clamping to the window's monitor.
+pub(crate) fn resize<R: Runtime>(window: &WebviewWindow<R>, requested: f64) -> f64 {
+    let requested = if requested.is_finite() {
+        requested
+    } else {
+        COMPACT_HEIGHT
+    };
+    REQUESTED_HEIGHT.store(requested.to_bits(), Ordering::Relaxed);
+    let monitor = window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| window.primary_monitor().ok().flatten());
+    let height = monitor.map_or(requested.max(COMPACT_HEIGHT), |m| {
+        placement::clamp_height(
+            requested,
+            COMPACT_HEIGHT,
+            m.work_area().size.height,
+            m.scale_factor(),
+        )
+    });
+    let current = window
+        .inner_size()
+        .ok()
+        .zip(window.scale_factor().ok())
+        .map(|(size, scale)| f64::from(size.height) / scale);
+    if current.is_none_or(|h| (h - height).abs() >= 0.5)
+        && let Err(err) = window.set_size(LogicalSize::new(LOGICAL_WIDTH, height))
+    {
+        eprintln!("lumen: resize overlay failed: {err}");
+    }
+    height
 }

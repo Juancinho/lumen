@@ -32,7 +32,7 @@ Do not renumber task IDs. New tasks get new IDs.
 | ---- | ------ | ----- | ----------------------------------------------------------------------------- | -------------- |
 | T101 | REVIEW | claude | App/file catalog provider                                                     | T007,T009,T011 |
 | T102 | REVIEW | claude | Filename/path exact/prefix/fuzzy retrieval                                    | T101           |
-| T103 | TODO   | —     | Premium root-search overlay from design system                                | T002,T004      |
+| T103 | REVIEW | claude | Premium root-search overlay from design system                                | T002,T004      |
 | T104 | TODO   | —     | Keyboard navigation, stable selection, root/action-panel shortcuts            | T103,T011      |
 | T105 | TODO   | —     | Quick Look preview shell                                                      | T103           |
 | T106 | DONE   | claude | Recent/frequency/pin signals + local usage store                              | T101           |

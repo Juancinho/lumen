@@ -1,13 +1,14 @@
 /*
- * Placeholder overlay styles (T002). The window material and surface colours are
- * `src/design/material.css` (T004); the design-token system and premium layout
- * (radius, shadow, typography scale) are T103 per docs/DESIGN_SYSTEM.md. Do not grow this
- * file into a token system.
+ * Root overlay styles (T103). Values come from `src/design/tokens.css` (layout, type,
+ * motion, interaction colours) and `src/design/material.css` (surface/text per window
+ * material, ADR-024). No raw colours or one-off sizes here.
  */
 :root {
-  font-family: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
-  font-size: 14px;
+  font-family: var(--font-ui);
+  font-size: var(--type-title);
   -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
 }
 
 html,
@@ -18,44 +19,231 @@ body,
   overflow: hidden;
 }
 
-.overlay {
+.overlay,
+.overlay__content {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   height: 100%;
-  padding: 0 20px;
-  box-sizing: border-box;
+  min-height: 0;
 }
 
+/* --- search bar (DESIGN_SYSTEM §9) --- */
+
 .search-field {
-  flex: 1;
+  display: flex;
+  flex: 0 0 var(--search-height);
+  align-items: center;
+  /* Optical alignment (documented exception to the 4 px grid): puts the query text on the
+   * same x as result titles (list padding + row padding + icon + gap = 58 px), with the
+   * glyph centred over the icon tiles. */
+  gap: 18px;
+  padding: 0 var(--space-4) 0 var(--space-5);
+}
+
+.search-field__glyph {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--lumen-text-secondary);
 }
 
 .search-field__input {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   border: 0;
   padding: 0;
   background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: 21px;
-  line-height: 28px;
+  color: var(--lumen-text-primary);
+  font-family: var(--font-display);
+  font-size: var(--type-input);
+  line-height: var(--type-input-line);
   outline: none;
+  user-select: text;
+  cursor: text;
 }
 
 .search-field__input::placeholder {
   color: var(--lumen-text-secondary);
 }
 
-/* Native clear button is replaced by the T103 design. */
-.search-field__input::-webkit-search-cancel-button,
-.search-field__input::-webkit-search-decoration {
-  -webkit-appearance: none;
-  appearance: none;
+.search-field__clear {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  padding: 0;
+  background: transparent;
+  color: var(--lumen-text-secondary);
+  transition: background-color var(--motion-state) var(--ease-standard);
+}
+
+.search-field__clear:hover {
+  background: var(--surface-hover);
+}
+
+/* --- list area --- */
+
+.overlay__divider {
+  flex: none;
+  height: 1px;
+  background: var(--stroke-subtle);
+}
+
+.result-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: var(--list-padding);
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+/* --- result row (DESIGN_SYSTEM §10) --- */
+
+.result-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--row-height);
+  box-sizing: border-box;
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-3) 0 var(--space-2);
+  transition: background-color var(--motion-state) var(--ease-standard);
+}
+
+.result-row:hover {
+  background: var(--surface-hover);
+}
+
+.result-row[aria-selected="true"] {
+  background: var(--surface-selection);
+  box-shadow: inset 0 1px 0 var(--surface-selection-highlight);
+}
+
+.result-row__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  border-radius: var(--radius-xs);
+  background: var(--icon-tile);
+  color: var(--icon-glyph);
+}
+
+.result-row__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.result-row__title {
+  overflow: hidden;
+  color: var(--lumen-text-primary);
+  font-size: var(--type-title);
+  font-weight: 600;
+  line-height: var(--type-title-line);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Middle truncation: the head shrinks with an ellipsis, the last folder stays. */
+.result-row__detail {
+  display: flex;
+  min-width: 0;
+  color: var(--lumen-text-secondary);
+  font-size: var(--type-meta);
+  line-height: var(--type-meta-line);
+  white-space: nowrap;
+}
+
+.result-row__detail-head {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.result-row__detail-tail {
+  flex: 0 0 auto;
+  /* The tail only truncates when it alone would take most of the line. */
+  max-width: 65%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.result-row__meta {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--lumen-text-secondary);
+  font-size: var(--type-meta);
+  line-height: var(--type-meta-line);
+  font-variant-numeric: tabular-nums;
+}
+
+.result-row__key {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: var(--radius-xs);
+  background: var(--icon-tile);
+  color: var(--lumen-text-primary);
+  font-family: inherit;
+  font-size: var(--type-label);
+}
+
+/* --- no results (DESIGN_SYSTEM §13) --- */
+
+.overlay__message {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  justify-content: center;
+  height: var(--message-height);
+  margin: 0;
+  /* Aligned with result titles (see .search-field). */
+  padding: 0 var(--space-5) 0
+    calc(var(--list-padding) + var(--space-2) + var(--icon-size) + var(--space-3));
+  box-sizing: border-box;
+}
+
+.overlay__message-title {
+  overflow: hidden;
+  color: var(--lumen-text-primary);
+  font-size: var(--type-title);
+  line-height: var(--type-title-line);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.overlay__message-hint {
+  color: var(--lumen-text-secondary);
+  font-size: var(--type-meta);
+  line-height: var(--type-meta-line);
 }
 
 @media (forced-colors: active) {
   .search-field__input:focus {
     outline: 2px solid Highlight;
     outline-offset: 4px;
+  }
+
+  .result-row[aria-selected="true"] {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .result-row[aria-selected="true"]
+    :is(.result-row__title, .result-row__detail, .result-row__meta) {
+    color: HighlightText;
   }
 }

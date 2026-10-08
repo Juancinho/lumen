@@ -78,6 +78,7 @@ fn main() {
             commands::overlay::hide_overlay,
             commands::overlay::overlay_ready,
             commands::overlay::overlay_appearance,
+            commands::overlay::resize_overlay,
             commands::overlay::overlay_painted
         ])
         .run(tauri::generate_context!());

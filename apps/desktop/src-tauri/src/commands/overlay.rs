@@ -41,3 +41,10 @@ pub(crate) async fn overlay_painted(seq: u64) {
 pub(crate) async fn overlay_appearance(app: AppHandle) -> AppearanceDto {
     crate::material::current(&app)
 }
+
+/// Sizes the window to the UI's content height (logical px); returns the applied height
+/// (clamped to the monitor, so the UI can scroll the rest).
+#[tauri::command]
+pub(crate) async fn resize_overlay(window: WebviewWindow, height: f64) -> f64 {
+    crate::overlay::resize(&window, height)
+}

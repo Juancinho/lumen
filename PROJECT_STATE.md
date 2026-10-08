@@ -114,7 +114,10 @@ Benchmark/ADR required:
   backdrop: Automatic = Acrylic (Win11 22H2+), Mica, Solid; Solid when high contrast /
   transparency off / older Windows; native rounded corners + shadow; tinted surface tokens
   with a contrast floor enforced by tests; tray → Window material. Awaiting the Windows run.
-- Not yet: provider registry/coordinator (T107), design tokens/layout (T103).
+- **T103 REVIEW:** design tokens + premium root search (search bar, 52 px result rows with
+  middle-truncated paths, no-results state, content-driven window height capped at 72 %,
+  entrance fade, high-contrast/reduced-motion paths). No data source yet (T107).
+- Not yet: provider registry/result stream (T107), keyboard navigation (T104).
 
 ## Immediate objective
 

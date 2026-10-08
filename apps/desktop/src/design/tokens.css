@@ -1,0 +1,86 @@
+/*
+ * Design tokens (T103, docs/DESIGN_SYSTEM.md §5–§11). Components use these, never raw
+ * values. Surface/text colours per window material live in `material.css` (T004).
+ * Geometry used to size the window is mirrored in `src/features/root-search/layout.ts`
+ * (checked by layout.test.ts) — change both together.
+ */
+:root {
+  /* §6 spacing: 4 px base, 8 px rhythm. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* §7 radius. The window itself uses the native Windows radius (ADR-024); nested
+   * radii stay below it. */
+  --radius-xs: 6px;
+  --radius-sm: 9px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  /* §5 typography. */
+  --font-ui: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-display:
+    "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --type-input: 21px;
+  --type-input-line: 28px;
+  --type-title: 14px;
+  --type-title-line: 20px;
+  --type-meta: 12px;
+  --type-meta-line: 16px;
+  --type-label: 11.5px;
+
+  /* Root-search geometry (mirrored in layout.ts). */
+  --search-height: 64px;
+  --row-height: 52px;
+  --list-padding: 6px;
+  --icon-size: 32px;
+  --message-height: 56px;
+
+  /* §11 motion. */
+  --motion-state: 110ms;
+  --motion-enter: 150ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* §8 interaction colours (light). Low-alpha neutrals work over every material. */
+  --surface-hover: rgb(0 0 0 / 3.5%);
+  --surface-selection: rgb(0 0 0 / 6.5%);
+  --surface-selection-highlight: rgb(255 255 255 / 55%);
+  --stroke-subtle: rgb(0 0 0 / 8%);
+  --accent-default: #005fb8;
+  --icon-tile: rgb(0 0 0 / 4.5%);
+  --icon-glyph: var(--lumen-text-secondary);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface-hover: rgb(255 255 255 / 4%);
+    --surface-selection: rgb(255 255 255 / 8.5%);
+    --surface-selection-highlight: rgb(255 255 255 / 6%);
+    --stroke-subtle: rgb(255 255 255 / 8%);
+    --accent-default: #60cdff;
+    --icon-tile: rgb(255 255 255 / 6%);
+  }
+}
+
+@media (forced-colors: active) {
+  :root {
+    --surface-hover: transparent;
+    --surface-selection: Highlight;
+    --surface-selection-highlight: transparent;
+    --stroke-subtle: CanvasText;
+    --accent-default: Highlight;
+    --icon-tile: transparent;
+    --icon-glyph: CanvasText;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-enter: 0ms;
+    --motion-state: 0ms;
+  }
+}

@@ -1,5 +1,19 @@
 # DESIGN_SYSTEM.md — premium Windows visual and interaction system
 
+## 0. Implementation status (T004/T103)
+
+- Tokens: `apps/desktop/src/design/tokens.css` (spacing, radius, type, geometry, motion,
+  interaction colours) and `material.css` (surface/text per window material, ADR-024).
+- Root search: search bar (glyph, clear button, combobox semantics), result rows 52 px
+  (icon tile, title, middle-truncated location keeping the last folder, quiet kind label,
+  "Open ↵" on the selection), no-results message. Window height follows the content
+  (`layout.ts`, max 8 visible rows, shell caps at 72 % of the work area; top edge fixed).
+- Documented exceptions: search-bar gap 18 px so query text and result titles share one x;
+  the window radius is the native Windows 11 radius (ADR-024); the entrance is a 150 ms
+  content fade, no scale (the native window and backdrop cannot scale), none under reduced
+  motion.
+- Not yet: real app/file icons (IconRef::Native), scope chips, status area, sections.
+
 ## 1. Design intent
 
 The aesthetic target is “Apple-level care”, not “make Windows look like macOS”. The design should communicate calm, precision, hierarchy, responsiveness and material quality while respecting Windows conventions.

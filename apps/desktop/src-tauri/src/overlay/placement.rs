@@ -5,6 +5,11 @@
 /// Fraction of the work-area height above the overlay's top edge.
 pub(crate) const TOP_FRACTION: f64 = 0.20;
 
+/// Maximum share of the work-area height the overlay may take (DESIGN_SYSTEM §3: 65–72 %).
+/// With the top edge at [`TOP_FRACTION`] the window always fits below it, so growing never
+/// moves the search bar.
+pub(crate) const MAX_HEIGHT_FRACTION: f64 = 0.72;
+
 /// Rectangle in physical pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PhysicalRect {
@@ -46,6 +51,22 @@ pub(crate) fn to_physical(logical: (f64, f64), scale: f64) -> (u32, u32) {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let px = |v: f64| (v * scale).round().max(0.0) as u32;
     (px(logical.0), px(logical.1))
+}
+
+/// Height (logical px) to apply for a `requested` content height on a monitor whose work
+/// area is `area_height` physical px at `scale`: at least `min`, at most
+/// [`MAX_HEIGHT_FRACTION`] of the work area. Non-finite requests give `min`.
+pub(crate) fn clamp_height(requested: f64, min: f64, area_height: u32, scale: f64) -> f64 {
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    let max = (f64::from(area_height) / scale * MAX_HEIGHT_FRACTION).floor();
+    if !requested.is_finite() {
+        return min;
+    }
+    requested.min(max).max(min).round()
 }
 
 #[cfg(test)]
@@ -100,5 +121,20 @@ mod tests {
         assert_eq!(to_physical((800.0, 64.0), 1.5), (1200, 96));
         assert_eq!(to_physical((800.0, 64.0), 2.0), (1600, 128));
         assert_eq!(to_physical((800.0, 64.0), f64::NAN), (800, 64));
+    }
+
+    #[test]
+    fn height_is_clamped_to_the_work_area_share() {
+        // 1040 px work area at 100 %: max 748 logical.
+        assert_eq!(clamp_height(497.0, 64.0, 1040, 1.0), 497.0);
+        assert_eq!(clamp_height(2000.0, 64.0, 1040, 1.0), 748.0);
+        // 728 px work area at 125 %: 582 logical -> max 419.
+        assert_eq!(clamp_height(497.0, 64.0, 728, 1.25), 419.0);
+        assert_eq!(clamp_height(10.0, 64.0, 1040, 1.0), 64.0);
+        assert_eq!(clamp_height(f64::NAN, 64.0, 1040, 1.0), 64.0);
+        // A clamped window still sits at the 20 % line, fully inside.
+        let h = clamp_height(5000.0, 64.0, 1040, 1.0);
+        let (_, y) = overlay_position(FHD, to_physical((800.0, h), 1.0));
+        assert_eq!(y, 208);
     }
 }

@@ -36,3 +36,11 @@ export function overlayPainted(seq: number): Promise<void> {
 export async function getAppearance(): Promise<Appearance> {
   return toAppearance(await invoke<unknown>("overlay_appearance"));
 }
+
+/**
+ * Asks the shell to size the overlay to `height` logical px (top edge fixed). Returns the
+ * height applied after clamping to the monitor. Command: `resize_overlay`.
+ */
+export function resizeOverlay(height: number): Promise<number> {
+  return invoke<number>("resize_overlay", { height });
+}

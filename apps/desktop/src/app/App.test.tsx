@@ -9,10 +9,14 @@ import {
   onOverlayShown,
   overlayPainted,
   overlayReady,
+  resizeOverlay,
   type Appearance,
   type OverlayShown,
 } from "../ipc";
+import { useResults, type ResultsState } from "../features/root-search/useResults";
 import { App } from "./App";
+
+vi.mock("../features/root-search/useResults", () => ({ useResults: vi.fn() }));
 
 vi.mock("../ipc", () => ({
   getAppearance: vi.fn(),
@@ -21,13 +25,25 @@ vi.mock("../ipc", () => ({
   onOverlayShown: vi.fn(),
   overlayPainted: vi.fn(),
   overlayReady: vi.fn(),
+  resizeOverlay: vi.fn(),
 }));
 
 let shownHandler: ((shown: OverlayShown) => void) | undefined;
 let appearanceHandler: ((appearance: Appearance) => void) | undefined;
 const unlisten = vi.fn();
 
+function nthOption(index: number): HTMLElement {
+  const option = screen.getAllByRole("option")[index];
+  if (!option) throw new Error(`no option ${String(index)}`);
+  return option;
+}
+
+let results: ResultsState = { rows: [], status: "idle" };
+
 beforeEach(() => {
+  results = { rows: [], status: "idle" };
+  vi.mocked(useResults).mockImplementation(() => results);
+  vi.mocked(resizeOverlay).mockImplementation((h) => Promise.resolve(h));
   shownHandler = undefined;
   appearanceHandler = undefined;
   delete document.documentElement.dataset.material;
@@ -50,7 +66,7 @@ describe("App overlay", () => {
   it("renders a labelled search field that owns focus on mount", async () => {
     render(<App />);
 
-    const input = screen.getByRole("searchbox", { name: "Search" });
+    const input = screen.getByRole("combobox", { name: "Search" });
     expect(input).toHaveFocus();
     expect(screen.getByRole("search")).toContainElement(input);
     await act(async () => {
@@ -112,12 +128,12 @@ describe("App overlay", () => {
 
     await userEvent.keyboard("spotify{Enter}");
     expect(hideOverlay).not.toHaveBeenCalled();
-    expect(screen.getByRole("searchbox")).toHaveValue("spotify");
+    expect(screen.getByRole("combobox")).toHaveValue("spotify");
   });
 
   it("re-focuses and selects the previous query when the shell shows the overlay", async () => {
     render(<App />);
-    const input = screen.getByRole<HTMLInputElement>("searchbox");
+    const input = screen.getByRole<HTMLInputElement>("combobox");
     await userEvent.type(input, "notes");
     input.blur();
     await act(async () => {
@@ -170,5 +186,25 @@ describe("App overlay", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("sizes the window to the content and resets the selection on a new query", async () => {
+    const { rerender } = render(<App />);
+    expect(resizeOverlay).toHaveBeenLastCalledWith(64);
+
+    results = {
+      rows: [
+        { id: "item:1", kind: "application", title: "Calculator", detail: null, extension: null },
+        { id: "item:2", kind: "file", title: "calc.xlsx", detail: null, extension: "xlsx" },
+      ],
+      status: "done",
+    };
+    rerender(<App />);
+    expect(resizeOverlay).toHaveBeenLastCalledWith(64 + 1 + 12 + 2 * 52);
+
+    await userEvent.hover(nthOption(1));
+    expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
+    await userEvent.type(screen.getByRole("combobox"), "c");
+    expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
   });
 });

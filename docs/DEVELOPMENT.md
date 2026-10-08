@@ -43,8 +43,9 @@ crates/
 apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
   src/                     React UI
     app/                   overlay root (App.tsx), appearance.ts, placeholder styles
-    design/                material.css: surface/text tokens per material (T004, ADR-024)
-    features/root-search/  SearchField (T002 minimal; premium surface is T103)
+    design/                tokens.css (T103) + material.css (T004, ADR-024); CSS-reading tests
+    features/root-search/  RootSearch, SearchField, ResultList/ResultRow, icons, model (view
+                           model, path split), layout (window height), useResults (T107)
     ipc/                   ONLY place allowed to import @tauri-apps/* (typed wrappers + wire types)
     test/                  Vitest setup
   src-tauri/               Rust shell crate `lumen-desktop` (binary `lumen`)
@@ -192,7 +193,9 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
   silently replaced; with nothing saved and the default taken, the first free choice is used
   for the session only. With none free Lumen keeps running and the tooltip says so (T003).
 - Placement: monitor under the cursor, horizontally centered, top edge at 20% of the work area,
-  clamped inside it; logical size 800×64 (`overlay::LOGICAL_SIZE` = `tauri.conf.json`).
+  clamped inside it; logical width 800, compact height 64 (`tauri.conf.json`). The UI asks for
+  its content height (`resize_overlay`, from `features/root-search/layout.ts`); the shell caps
+  it at 72% of the work area so the top edge never moves, and re-applies it on every show.
 - Dismiss: Escape (ignored during IME composition), focus loss, Alt+F4. Quit: tray → Quit Lumen.
 - On every show the shell emits `lumen:overlay-shown`; the UI focuses and selects the query.
 - Window material (T004, ADR-024): transparent window + DWM system backdrop. Tray → "Window

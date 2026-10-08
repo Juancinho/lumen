@@ -126,3 +126,14 @@ Append-only. Keep entries compact.
 - UI surface tokens (`src/design/material.css`) with a WCAG floor over any backdrop enforced by `material.test.ts` (tint 0.76: primary >= 7.4:1, secondary >= 3.4:1 worst case; solid secondary >= 6:1).
 - 20 px radius not reachable with a system backdrop -> native 8 px (ADR-024 proposed). `scripts/t004/run-windows-material.ps1` measures show latency, DWM GPU, on-screen contrast and saves private screenshots. Windows-only code compiles only in Windows CI.
 
+## 2026-10-08 — T101 Windows build fix (claude)
+
+- First Windows build of the T101 AppsFolder code failed: `SIGDN_PARSINGNAME` does not exist (-> `SIGDN_PARENTRELATIVEPARSING`); `IEnumShellItems::Next` takes `Option<*mut u32>`. Windows-only code is unverifiable in the Linux sandbox: push before the Windows scripts so CI catches it first.
+
+## 2026-10-08 — T103 premium root-search overlay (claude)
+
+- Design tokens (spacing, radius, type, geometry, motion, interaction colours incl. forced-colors and reduced-motion) next to the T004 material tokens.
+- Root search components: search bar with glyph/clear/combobox ARIA, result rows (icon tile, title, middle-truncated location keeping the last folder, kind label, "Open ↵" on selection), quiet no-results message that never flashes while searching.
+- Deterministic window height from content (max 8 rows), shell `resize_overlay` capped at 72 % of the work area so the bar never moves; entrance = 150 ms content fade.
+- Visual pass in headless Chromium (light/dark/acrylic/narrow): fixed text alignment (18 px optical gap), path tail priority and separator placement. 39 frontend tests.
+
