@@ -58,7 +58,7 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 | T108 | REVIEW | claude | Universal Action Panel (`Ctrl+K`/Tab policy) with contextual action discovery | T104,T011      |
 | T109 | REVIEW | claude | Core actions: open, reveal, copy path/value, pin/favorite, open with          | T108           |
 | T110 | REVIEW | claude | Provider/result diagnostics mode for development only                         | T107           |
-| T111 | TODO   | —     | User-configurable indexed locations (folders/whole drives) + exclusions (folder, name, dev-noise defaults); spec `docs/specs/T111-indexed-locations.md` | T107,T108      |
+| T111 | CLAIMED | claude | User-configurable indexed locations (folders/whole drives) + exclusions (folder, name, dev-noise defaults); spec `docs/specs/T111-indexed-locations.md` | T107,T108      |
 
 # M2 — text/code semantic search
 
