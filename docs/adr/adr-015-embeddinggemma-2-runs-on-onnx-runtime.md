@@ -45,3 +45,11 @@
 **Revisit when** T014 finds a backend/device that beats CPU q4 on latency or indexing at
 acceptable memory; or T205 relevance evaluation shows q4 losing meaningfully against fp32
 (switch weights with a new index generation).
+
+## 2026-10-09 — T212 optional acceleration
+
+ADR-038 adds a user-selected DirectML 1.24.4 runtime for dedicated-GPU indexing.
+It hosts CPU query sessions as well; CPU q4 and the original provisioned CPU runtime
+remain the default. Same weights, prompts, normalized 256d space and generations.
+The bounded GTX 1650 recheck is recorded under docs/benchmarks/t014/2026-10-09-joao-pc-gpu-recheck/;
+T014's broader runtime/thread verdict remains pending.

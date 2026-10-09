@@ -1,0 +1,45 @@
+{
+  "adapter": 0,
+  "compatibility_probe": {
+    "adapter": 0,
+    "cpu": {
+      "device_memory_mib": null,
+      "device_memory_total_mib": null,
+      "index_chunks_per_s": 3.8391538504913516,
+      "min_cosine_vs_cpu": 1.0,
+      "offloaded_fraction": null,
+      "query_p50_ms": 47.0195,
+      "query_p95_ms": 49.126799999999996,
+      "stable": true
+    },
+    "gpu": {
+      "device_memory_mib": 905.91796875,
+      "device_memory_total_mib": 3935.0,
+      "index_chunks_per_s": 9.1098700431489,
+      "min_cosine_vs_cpu": 0.9999998211860657,
+      "offloaded_fraction": 0.9443016281062554,
+      "query_p50_ms": 506.5412,
+      "query_p95_ms": 625.223,
+      "stable": true
+    },
+    "key": "t212-native-smoke",
+    "name": "NVIDIA GeForce GTX 1650",
+    "space": "embeddinggemma-2@onnx-community-q4/pre1/embeddinggemma-retrieval@1/d256/l2",
+    "version": 1
+  },
+  "cpu_prefix_embedded": 2,
+  "cpu_query_p50_ms": 53.6778,
+  "cpu_query_p95_ms": 64.7045,
+  "cpu_vectors_preserved": true,
+  "device_switch_reembedded": 0,
+  "generation": 1,
+  "gpu_bulk_chunks_per_s": 6.802920663914035,
+  "gpu_bulk_embedded": 16,
+  "gpu_name": "NVIDIA GeForce GTX 1650",
+  "gpu_tail_embedded": 8,
+  "pending_after": 0,
+  "release": true,
+  "resident_indexing_concurrently": true,
+  "space": "embeddinggemma-2@onnx-community-q4/pre1/embeddinggemma-retrieval@1/d256/l2",
+  "synthetic_chunks": 26
+}

@@ -51,3 +51,13 @@ in the app"; this is the first, deliberate exception.
 - Only Windows x64 gets a runtime download; elsewhere `LUMEN_ORT_DYLIB` is required.
 - License notices are installed with each component (`README.md`, `LICENSE`,
   `ThirdPartyNotices.txt`); an About screen that shows them is UI work (T503-class).
+
+## 2026-10-09 — T212 optional DirectML runtime
+
+ADR-038 adds the separate pinned GPU_RUNTIME manifest (1.24.4 Windows x64, 26 MB,
+files.pythonhosted.org, MIT). It reuses consent, cancellation/resume, wheel/member
+SHA-256 and atomic install; the CPU default/model manifest is unchanged. ORT cannot
+switch loaded DLLs: runtime selection is pinned for each process and an optional GPU
+installation requires restart. On restart an enabled preference selects its installed
+DirectML library before a CPU library beside the exe. Development overrides still win.
+Both CPU query and GPU indexing sessions use that one runtime, preserving index identity.

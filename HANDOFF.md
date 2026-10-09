@@ -1,220 +1,196 @@
 # HANDOFF.md
 
 > Live continuation only. Read AGENTS.md in order; TASKS.md owns status and Next.
-> Rewrite each session. Outcomes and historical evidence belong in state/ADRs/worklog.
+> Rewrite each session; history belongs in WORKLOG and evidence/ADRs.
 
-## Branch
+## Branch and exact continuation
 
-main on github.com/Juancinho/lumen. This session continues a68d4d5 (T209) with T207.
-Local commit/push state: inspect git status and git log; no push was requested here.
+main on github.com/Juancinho/lumen. This session continues 69d741f (T207) with T212,
+explicitly requested by the user: dedicated-GPU indexing, CPU queries, available VRAM.
+Inspect git status/log for the final coherent T212 commit. No push was requested/performed.
+T212 is REVIEW; no implementation task remains claimed. Its native tray review below
+remains; next implementation is T208 query syntax.
+Claim T208 after the canonical reading order and its relevant specs/ADRs. Do not begin
+photo/PDF/multimodal work, change weights/ranking or redo completed providers.
 
-## Active task / exact continuation
+The original T207 process PID 11356/start 15:59:27 stayed running through the performance
+checks. No agent restart or live app-data DB writes were used for validation; all test
+writes were synthetic/temporary. At the user's later continuation, the original process
+had been replaced independently by PID 8884/start 17:29:01, already running
+target/t212-release/lumen.exe. Do not stop it or modify its DB for validation.
+Read-only checks at session end: indexing.gpu.enabled=true, no cached probe/quarantine,
+Pause=false; the process still loads .cache/t006/ort-cpu/onnxruntime.dll (development
+override), so GPU is not active yet. AC/battery 100%. The user needs one chosen Quit and
+relaunch with the DirectML override below. A second ordinary launch only addresses the
+current resident instance. Inspect current PIDs/state again before acting.
 
-No task is currently CLAIMED. T207 is implemented and REVIEW (native overlay/reconnect
-checks below); the next implementation is T208 query syntax, ordered in TASKS.md.
-Read the canonical files and its relevant specs/ADRs before claiming it. Do not begin
-multimodal/photo/PDF work, change the runtime, or redo providers while continuing T208.
+## T212 — implementation and launch
 
-The user's target/release/lumen.exe instance was left running/indexing throughout T207.
-Validation used temporary synthetic databases/files only. Do not stop the instance or
-write its app-data database for validation. The new optimized build is separate:
-target/t207-build/release/lumen.exe (same settings/queue on a
-user-chosen restart). No model downloads or push were requested/performed.
+Read docs/specs/T212-gpu-indexing.md and ADR-038. Files: lumen-windows::gpu (DXGI/D3D12
+non-UMA discovery), lumen-embedding::policy::accelerated_indexing_plan, pinned GPU_RUNTIME
+in lumen-provision, desktop gpu.rs/gpu_probe.rs, tray/provisioning/indexing integration.
+Native checkbox: Content indexing → Use dedicated GPU for faster indexing, off by default,
+saved as indexing.gpu.enabled. Queries always build CPU sessions; indexing uses the
+explicit dedicated adapter after its synthetic compatibility check. Same q4/prompts/256d
+space/generation; completed vectors remain. Device failures quarantine that identity and
+retry pending work on CPU. Mode changes take effect at queue/batch boundaries (30 s slices).
+Ordinary Balanced defaults, battery/memory pauses, interactive holds and single writer remain.
+No frontend/schema/model/ranking changes, Python runtime or production inference-worker IPC.
 
-## T207 — outcome and native checks remaining
+A pinned 26 MB DirectML 1.24.4 wheel can be installed through the same option, with native
+size/host/license consent and SHA-256 for archive/members. ORT's library cannot switch in
+process: installation asks for restart. On restart enabled GPU preference selects the
+installed DirectML runtime ahead of a beside-exe CPU library; environment overrides win.
+A GPU runtime already beside the exe supports toggling without another restart.
+Development downloaded this fixed runtime wheel for hash/extraction validation; cached
+models were reused. No indexed content/files/queries went into probes or left the device.
 
-Read docs/specs/T207-incremental-indexing.md and ADR-037. Implementation:
-lumen-indexer watch/scan_changed; lumen-catalog scoped reconciliation; lumen-storage
-invalidation/content comparison; desktop catalog/indexing/overlay notification wiring.
-No schema/model/extractor/ranking/UI-contract change. Known hints remain bounded through
-overflow and run before recovery; files update incrementally, apps retain periodic sync.
-Unchanged file/folder moves preserve embeddings; ambiguous Windows rename+modify events
-compare bounded indexed chunks within content consent. Changes retire stale vectors;
-existing ANN sequence validation prevents old hits returning.
+Usable optimized output, with verified DLLs and notices: target/t212-release/lumen.exe.
+The user must first choose Quit Lumen in the current tray, then run from repository root:
 
-After the user chooses to quit the resident instance, run the new version from the same
-PowerShell session/model configuration. Building this output does not replace the old exe:
+```powershell
+$env:LUMEN_EMBED_MODEL_DIR = "$PWD\.cache\t006\embeddinggemma-2-ONNX"
+$env:LUMEN_ORT_DYLIB = "$PWD\target\t212-release\onnxruntime.dll"
+.\target\t212-release\lumen.exe
+```
 
-    npm --prefix apps/desktop run build
-    cargo build --release --target-dir target/t207-build -p lumen-desktop --features tauri/custom-protocol --locked -j 2
-    $env:LUMEN_EMBED_MODEL_DIR = "$PWD\.cache\t006\embeddinggemma-2-ONNX"
-    $env:LUMEN_ORT_DYLIB = "$PWD\.cache\t006\ort-cpu\onnxruntime.dll"
-    .\target\t207-build\release\lumen.exe
+Installed model/runtime assets need no development overrides. A stale CPU override masks
+GPU support; remove it or point it to DirectML. Progress resumes from the existing queue.
 
-Environment overrides are only needed for the development cache; installed assets still
-resolve normally. A second launch addresses the old resident process until it quits.
+Native checks still needing the user (automated synthetic checks are not visible QA):
 
-1. Add a scratch folder from the tray, enable Index file contents, create a small text/code
-   file, and confirm name + new words appear from root search without a restart/rescan.
-   Lexical freshness is measured; semantic readiness follows the persistent queue/policy.
-2. Edit the text, including an editor save-by-replacement; old passages/semantic hits must
-   disappear, new passages appear, and new vectors become pending. Rename the file/folder:
-   selected file identity, Open/Reveal/Copy path and code repository context must follow.
-3. Keep the overlay open on a stable query; new results refresh while a surviving selected
-   row stays selected. Check Alt+Enter preview and Ctrl+K actions after rename/delete.
-   While hidden, catalog/vector commits must not start query inference or WebView search;
-   Alt+Space refreshes once on show. These native lifecycle checks are not simulated QA.
-4. Edit root/exclusion settings while indexing; verify cancellation, watch replacement,
-   marker exclusions and contents-disabled locations. Disconnect/reconnect a selected
-   removable volume: unverified items remain, recovery/watch registration resumes. Network
-   or unsupported watching relies on startup/settings/30-minute inventory, with no poller.
+1. Tray checkbox off/on, Checking → named GTX 1650 ready, progress showing GPU; CPU queries
+   remain responsive from root search. First activation runs a bounded synthetic check.
+2. Disable acceleration while work is pending: CPU resumes, counts continue and completed
+   vectors stay. Restart after setting on/off: preference persists. Already drained queue
+   remains drained; switching devices must not re-embed it.
+3. Native keyboard access via notification area, menu focus, Pause/resume while probing,
+   cancellation, failed/no-device/missing-runtime/restart states. Download consent/cancel/
+   resume on an otherwise unconfigured machine still needs native review.
+4. Battery/unknown power uses CPU, low battery/memory pauses. Probe defers under those
+   conditions and user Pause, with existing queue retries and no new hidden timer.
+5. Longer GPU driver/VRAM-pressure soak and other-GPU hardware remain unmeasured; do not
+   intentionally reset the user's GPU or modify the live DB to test fallback.
 
-Windows release probe: docs/benchmarks/t207/windows-watch.json. 10,001 synthetic items,
-20 native operations: lexical freshness 361/381 ms p50/p95 (300 ms debounce included),
-29 entries emitted, zero full inventories; all rename vectors preserved. Two seconds
-parked: zero notifications / measured process CPU. This is not model throughput, visible
-paint timing or a long idle/network/large-storm soak.
+Windows release evidence/reproduction: docs/benchmarks/t212/2026-10-09-joao-pc/README.md.
+Native example uses a temporary DB and the actual CPU/GPU backends/query lane; child mode
+exits before Tauri/SQLite. Small synthetic loaded-machine runs are not whole-library ETAs.
+T014 q4 recheck: CPU 2.71 vs GTX 6.07 chunks/s, stable cosine 0.99999946, 94.43% offload,
+2296 MiB sampled peak; query p95 67 vs 729 ms supports keeping queries on CPU.
+Evidence: docs/benchmarks/t014/2026-10-09-joao-pc-gpu-recheck/.
+Full T014 thread/llama.cpp matrix and ADR-030 Windows budget verdict remain pending.
 
-## T209 — native Windows review remaining
+## T207 — native review remaining
 
-Build from the repository root after quitting any running Lumen instance:
+Read docs/specs/T207-incremental-indexing.md and ADR-037. Native watch/scan_changed,
+scoped catalog reconciliation, storage invalidation/content comparison and visible-query
+refresh are implemented. Schema/model/extractor/ranking/UI contracts stay unchanged.
+Unchanged moves preserve embeddings; ambiguous Windows rename+modify hints compare bounded
+indexed chunks within content consent. ANN sequence checks reject stale hits.
 
-    npm --prefix apps/desktop run build
-    cargo build --release -p lumen-desktop --features tauri/custom-protocol --locked
-    target\release\lumen.exe
+With the new T212 executable above (includes T207):
 
-A second launch only addresses the resident instance. Use the tray's Quit Lumen first.
-Enable content indexing for a repository under an indexed location; wait for the content
-pass. No installed embedding model is required for lexical code context.
+1. Add a scratch folder, enable Index file contents, create/edit text/code including an
+   editor replacement save. Names/words refresh without rescan; new vectors become pending.
+   Old passages disappear. Rename file/folder: Open/Reveal/Copy path/code context follow.
+2. Keep overlay/query open through changes: surviving selection stays at its position;
+   Alt+Enter and Ctrl+K refresh appropriately. Hidden commits start no JS query/inference;
+   next Alt+Space refreshes once.
+3. Change roots/exclusions during indexing, including marker rules and contents-disabled
+   locations. Disconnect/reconnect a removable root: unverified items remain, recovery
+   and watching resume. Unsupported/network watching retains periodic inventory fallback.
 
-1. Search a symbol such as get_with_retry, or exponential backoff python against the
-   fixture/code repository. Contents arrive on settle. Rows keep the file identity,
-   display symbol + filename when extracted, and show the matched passage. Unnamed code
-   chunks keep a file-level row; exact filename navigation keeps its filename presentation.
-2. Enter opens the file through its registered handler; Ctrl+Enter selects the file in
-   Explorer. Precise editor/line launching is deliberately not implemented (ADR-036).
-3. Ctrl+K → Copy symbol → paste into a scratch document: exact extracted symbol.
-   Ctrl+K → Reveal repository in Explorer selects the nearest Git root (worktree .git
-   marker files are supported). Code outside a known repository offers no repository
-   action; an unnamed chunk offers no Copy symbol.
-4. Alt+Enter shows the indexed matching passage, including a hit beyond the file's first
-   16 KB. Open it before contents settle: it must refresh to the matching code passage on
-   the same file ID. Escape closes Action Panel, then preview, then overlay. Selection stays at its
-   index through a refinement after arrows/PageDown.
-5. Restart: context survives. A path move must clear stale repository/language immediately;
-   the next catalog/content pass rediscovers the new root. T207 will remove the periodic
-   sync delay. A newly created/deleted repository marker alone is not watched yet.
+Evidence: docs/benchmarks/t207/windows-watch.json, 10,001 synthetic items, 20 operations,
+lexical freshness 361/381 ms p50/p95 including 300 ms debounce, 29 entries emitted, zero
+full inventories, rename vectors preserved. Two seconds parked: zero notifications/
+measured CPU; not a long idle/network/storm soak or visible paint measurement.
 
-Migration 0004 preserves chunk IDs/text/vector sequences/generations; no re-embedding.
-Existing databases backfill metadata on the next background content pass. Initial schema
-upgrade runs on a named startup worker, with first show waiting for schema readiness.
-100k synthetic chunks/vectors: 1.10 s upgrade; 1.60 s background metadata/FTS backfill.
-Results at 162 documents: content code top-1 0.50→1.00 (six queries); q4 fused NDCG 0.964.
-Evidence: docs/benchmarks/t209/2026-10-09-joao-pc/ and README. Synthetic UI screenshot
-is in target/t209/code-results-dark.png; temporary browser fixture/server were removed.
+## T209 — native review remaining
 
-Implementation pointers: lumen_core::CodeTarget / Payload::Code / ResultKind::Code;
-lumen_catalog::code::enrich (both content and semantic lanes), lumen_storage::code_candidates /
-set_code_context / chunk_refs, lumen_content::code::refresh; fusion preserves contextual
-actions on ties. Shell DTOs expose display labels only; actions use trusted result payloads.
+Read ADR-036. Content indexing must be enabled for the scratch repository.
 
-## Older native REVIEW checks (still pending)
+1. Search a symbol/get_with_retry or a code description: settled rows gain symbol/file,
+   language/repository context and matching passage. Exact filenames retain navigation.
+2. Enter uses registered handler; Ctrl+Enter reveals. Ctrl+K → Copy symbol pastes exactly;
+   Reveal repository selects nearest Git root (.git marker files supported). Unknown
+   symbol/repository means no corresponding action. Precise editor launching is not built.
+3. Alt+Enter shows matching indexed passage, including beyond first 16 KB; early previews
+   refine on same file identity. Escape closes actions, preview, overlay. Arrow/PageDown
+   selection survives refinements.
+4. Restart retains context; moves clear stale repository/language and T207 rediscovers it.
+   Newly created/deleted repository markers are watched by T207's scoped reconciliation.
 
-- T003: tray → Keyboard shortcut → Ctrl+Space toggles and persists after restart.
-  A shortcut in use is marked and choosing it preserves the previous shortcut.
-- T004/T103: Acrylic vs Mica default verdict; compare tray → Window material, light/dark,
-  100/125/150% DPI, long paths, native corners/shadow, no flash and text over busy backgrounds.
-  Transparency effects off/high contrast must use Solid on next show. Existing dark
-  measurements are accepted; optional light-mode script:
+Migration 0004 preserves chunks/vectors/sequences/generations. Backfill is on the content
+worker; startup schema migration is on a named worker before first show. Evidence:
+docs/benchmarks/t209/2026-10-09-joao-pc/ (100k upgrade 1.10 s, backfill 1.60 s; six code
+queries top-1 0.50→1.00; q4 fused NDCG 0.964). Synthetic UI screenshot is ignored under
+target/t209/. Native clipboard/Explorer/default-handler checks remain.
 
-      powershell -ExecutionPolicy Bypass -File scripts\t004\run-windows-material.ps1
+## Older native REVIEW checks
 
-- T107/T104/T108/T109/T105/T110: first catalog appears within seconds; per-keystroke name/app
-  results; arrows/PageUp/PageDown/Ctrl+L/IME; Enter launches/opens, Ctrl+Enter reveals, Ctrl+K
-  copies a path, repeated choices rise; Alt+Enter metadata/text preview, search bar fixed,
-  Escape order. LUMEN_DIAGNOSTICS=1 adds provider/match/confidence and local timing logs.
-- T111: tray → Indexed locations → Add D:\Proyectos, results appear without restart;
-  Remove clears them. USB unplug keeps results and reports unavailable; replug recovers.
-  Toggle node_modules exclusion; build is excluded beside Cargo.toml but otherwise kept.
-  Folder → Ctrl+K → Exclude folder, then tray → Include again; restart retains configuration.
+- T003: Keyboard shortcut → Ctrl+Space persists; conflicts preserve old shortcut.
+- T004/T103: Acrylic vs Mica verdict, light/dark, 100/125/150% DPI, long paths, corners,
+  shadow/text over busy backgrounds. Transparency off/high contrast uses Solid on show.
+  Optional: powershell -ExecutionPolicy Bypass -File scripts\t004\run-windows-material.ps1
+- T107/T104/T108/T109/T105/T110: first catalog, keystroke results, arrows/PageUp/PageDown/
+  Ctrl+L/IME, Enter/Ctrl+Enter/Ctrl+K, usage ranking, Alt+Enter, fixed search bar/Escape order.
+  LUMEN_DIAGNOSTICS=1 exposes provider/match/confidence and local timing only.
+- T111: Indexed locations → Add D:\Proyectos, remove, USB recovery, noise/marker exclusions,
+  Action Panel Exclude folder / Include again and restart persistence.
+  powershell -ExecutionPolicy Bypass -File scripts\t111\run-windows-locations.ps1 -Drive D:\
+- T202: content progress, remembered Pause, per-location content off, CPU share/idle/battery.
+  scripts\t202\run-windows-indexing.ps1 -Root D:\Proyectos\lumen; -Launch -SkipBench starts
+  an app, so wait for the user's chosen quit first and select the intended runtime.
+- T205/T206: descriptive queries refine into contents/meaning, move ↓ twice before settle,
+  same selected position/snippet/Quick Look. Installed model required; lexical works offline.
+- T210: unset development overrides, Semantic search → Download… consent/progress/cancel/
+  resume/atomic status; original model+CPU runtime 222 MB, fixed hosts/licenses; available
+  without restart. Remove deletes the model. GPU runtime has its own restart rule above.
+  No installer/signing/About screen or WinHTTP transport; system curl honors HTTPS_PROXY.
 
-      powershell -ExecutionPolicy Bypass -File scripts\t111\run-windows-locations.ps1 -Drive D:\
+## Other pending Windows evidence
 
-- T202: tray content progress, remembered Pause, per-location content off, CPU share/idle/
-  battery policy. With the T006 cache, quit the resident app before the launch check:
+These may download sizeable models or take minutes; do not start them casually alongside
+resident indexing. Record counts/timings under each task's docs/benchmarks/ directory.
 
-      powershell -ExecutionPolicy Bypass -File scripts\t202\run-windows-indexing.ps1 -Root D:\Proyectos\lumen
-      powershell -ExecutionPolicy Bypass -File scripts\t202\run-windows-indexing.ps1 -Launch -SkipBench
+```powershell
+# Full T014 matrix (~3 GB first download, 20–40 min, plugged in/idle):
+powershell -ExecutionPolicy Bypass -File scripts\t014\run-windows-throughput.ps1 -Download
+# T204 Windows verdict (T006 cache, ~10 min; preempted b1 p95 ≤80 ms):
+powershell -ExecutionPolicy Bypass -File scripts\t204\run-windows-query-lane.ps1
+# Optional large ANN timing:
+powershell -ExecutionPolicy Bypass -File scripts\t203\run-windows-ann-gen.ps1 -Large
+# Original T205 evaluation (T209 hard-set evidence is separate):
+powershell -ExecutionPolicy Bypass -File scripts\t205\run-windows-eval.ps1
+```
 
-- T205/T206: installed model + descriptive search yields contents/meaning after settle;
-  move selection immediately with ↓ twice: selected row must retain its position, snippet
-  replaces location, hover/Quick Look retain context. Diagnostics show lumen.content /
-  lumen.semantic. Ordinary queries still work offline before installing a model.
-- T210: unset development model/runtime overrides. Tray → Semantic search → Download…
-  shows consent (222 MB, huggingface.co/files.pythonhosted.org, Apache-2.0/MIT), progress,
-  cancel/resume, atomic installed status and indexing/query availability without restart.
-  Installed files are under app data models/ and runtime/; Remove… deletes the model.
-  No About/licenses screen, WinHTTP transport or installer packaging is built. For proxy
-  checks system curl uses HTTPS_PROXY; do not initiate downloads without the tray consent.
+## Automated validation and reproduction
 
-## Other pending Windows evidence (not run by this T209 session)
+```powershell
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --locked -j 2 -- -D warnings
+cargo clippy -p lumen-bench --features directml --all-targets --locked -j 2 -- -D warnings
+cargo xtask test --locked -j 2
+cargo xtask arch
+npm --prefix apps/desktop run format:check
+npm --prefix apps/desktop run lint
+npm --prefix apps/desktop run typecheck
+npm --prefix apps/desktop run test -- --maxWorkers 1
+npm --prefix apps/desktop run build
+cargo build --release -p lumen-desktop --bin lumen --example gpu_indexing --features tauri/custom-protocol --locked -j 2
+```
 
-T014 (plugged in/idle, first download ~3 GB, 20–40 min):
+T212 ran the full Rust gate, DirectML lint, architecture guard and 71 frontend tests/build.
+Later source changes were rechecked with workspace lint and content/desktop/provision tests.
+The optional local-wheel test was run with LUMEN_TEST_GPU_WHEEL_DIR=.cache/t212; normal
+tests skip it without a supplied wheel. Real network/model download tests remain ignored.
+See T212 README for native release probe/example commands and limitations.
 
-    powershell -ExecutionPolicy Bypass -File scripts\t014\run-windows-throughput.ps1 -Download
+## Remaining decisions / environment
 
-Commit counts/timings under docs/benchmarks/t014/<date>-joao-pc/. Choose runtime/thread
-cap in a new ADR with the evidence, then amend ADR-015 and apply it to T202. Failed rows
-are recorded; do not add LiteRT-LM until a Windows runtime exists.
-
-T204 (T006 cache, ~10 min; accept ADR-030 if with_indexing_preempted -b1 p95 ≤80 ms):
-
-    powershell -ExecutionPolicy Bypass -File scripts\t204\run-windows-query-lane.ps1
-
-T203 (optional large ANN timing, no model):
-
-    powershell -ExecutionPolicy Bypass -File scripts\t203\run-windows-ann-gen.ps1 -Large
-
-T205 (original fixture model evaluation; T209 now has separate Windows hard-set evidence):
-
-    powershell -ExecutionPolicy Bypass -File scripts\t205\run-windows-eval.ps1
-
-Reports belong in each task's docs/benchmarks/<task>/<date>-joao-pc/ folder. Current
-T006 cache: .cache/t006/{ort-cpu,ort-dml,embeddinggemma-2-ONNX}. Environment overrides
-LUMEN_EMBED_MODEL_DIR / LUMEN_ORT_DYLIB still take precedence over provisioned assets.
-After queue slices, ANN files live under app-data vectors/ (first build around 2,000 chunks).
-
-## Validation and reproduction
-
-Run from repository root unless a frontend prefix is shown:
-
-    cargo fmt --all -- --check
-    cargo clippy --workspace --all-targets --locked -j 2 -- -D warnings
-    cargo clippy -p lumen-bench --features directml --all-targets --locked -j 2 -- -D warnings
-    cargo xtask test --locked -j 2
-    cargo xtask arch
-    npm --prefix apps/desktop run check
-    npm --prefix apps/desktop run build
-    cargo build --release -p lumen-desktop --features tauri/custom-protocol --locked
-
-T207 completed the full Rust gate and architecture check. Frontend format/lint/types and
-production build passed; 71 tests passed with `npm --prefix apps/desktop run test --
---maxWorkers=1` after the default simultaneous worker startup timed out under concurrent
-compilation/indexing load. Use one worker during loaded-machine validation; no frontend
-configuration was changed. Late native notification changes were rechecked with shell
-tests/lint. The optimized desktop output for T207 uses the separate target-dir above.
-
-T207 native synthetic probe (no model or live database):
-
-    cargo run --release -p lumen-bench --locked -j 2 -- watch --json target/bench/t207-watch.json
-
-T209 release evidence, cached model only (no downloads):
-
-    cargo run --release -p lumen-bench --features ort -- eval --fixture fixtures/eval-hard --json target/bench/t209-mock.json
-    target\release\lumen-bench.exe eval --backend ort --model-dir .cache/t006/embeddinggemma-2-ONNX --ort-dylib .cache/t006/ort-cpu/onnxruntime.dll --variant q4 --threads 6 --fixture fixtures/eval-hard --json target/bench/t209-q4.json
-    cargo run --release -p lumen-storage --example code_upgrade -- 100000 target/bench/t209-upgrade.json
-
-The T209 Windows gate fixes also isolate usage-test temp directories, close a mapped
-index before a missing-file test deletes it, and remove two Windows-only unused
-qualifications. They are validation prerequisites, not changes to ranking/runtime policy.
-Final automated gates passed on Windows, including 71 frontend tests and the release
-desktop build; same-ID preview refinements and late replies have a regression test.
-
-## Remaining decisions / environment notes
-
-Default material Acrylic vs Mica is the user's visual verdict; T014 runtime/device
-verdict and ADR-030 Windows timing remain open. Precise editor transport, log/data
-two_of tuning (ADR-033), q4/fp32 at scale and TX01 remain outside T209.
-Linux WebKitGTK minimum height and D-Bus needs are development artifacts.
-Old .git/stale-locks/ came from previous sandbox sync; inspect any current lock before
-changing it. CI should be pushed/run when authorized; this session does not push.
+Default material Acrylic vs Mica is the user's verdict. T014 broader runtime/thread verdict,
+ADR-030 Windows query-lane verdict, precise editor transport, log/data two_of tuning and
+TX01 remain open. Cached model/runtime: .cache/t006/{embeddinggemma-2-ONNX,ort-cpu,ort-dml}.
+ANN files live under app-data vectors/; first build around 2,000 chunks. No cloud inference.
+Inspect current Git locks before changing them; .git/stale-locks/ is older sandbox residue.
+CI should be pushed/run only when authorized; this session does not push.

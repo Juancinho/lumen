@@ -23,6 +23,9 @@
 - **Change tracking (built, T207):** bounded native watch hints and scoped reconciliation
   on the existing writer (ADR-037), safe file/folder moves and atomic content invalidation;
   periodic recovery remains. Native overlay/reconnect review is pending.
+- **Optional GPU indexing (built, T212):** persisted native tray option, dedicated adapter
+  only, synthetic compatibility probe, same-generation queue and CPU fallback (ADR-038).
+  Queries stay on CPU. Native tray/keyboard and long driver soak review remains.
 
 ## 1. Retrieval philosophy
 
@@ -391,6 +394,14 @@ Default Balanced policy:
 - expose pause/resume.
 
 Never consume all CPU/GPU merely because indexing can be parallelized.
+
+T212/ADR-038 adds an explicit, off-by-default dedicated-GPU option in the native tray.
+The user-requested mode allows available dedicated VRAM on AC while preserving battery,
+memory-pressure and interactive-preemption rules. Queries retain a CPU session. A bounded
+synthetic child probe requires same-space cosine ≥0.999, stable finite vectors, ≥90%
+offload and ≥1.5× indexing speedup. Probe/cache/quarantine use model/runtime/adapter/driver
+identity; a device failure retries pending chunks on CPU. Device switching never creates
+a new generation or re-embeds completed chunks. Ordinary Balanced defaults stay in place.
 
 ## 19. Relevance evaluation
 

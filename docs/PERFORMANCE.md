@@ -212,6 +212,14 @@ holds a CPU share exactly (2 threads at duty 0.5 → 50 %) but yields ~20 % fewe
 CPU than lowering the thread count (1 thread → 50 %, 2.8 vs 2.3 chunks/s): cap threads
 first, use the duty cycle for the remainder.
 
+T212/ADR-038 (Windows release, 2026-10-09): optional GTX 1650 indexing with CPU queries.
+Warmed same-runtime synthetic probe: CPU 3.84 / GPU 9.11 chunks/s (2.37×), stable cosine
+0.99999982, 94.43% offload. Real persistent queue bulk: 6.80 chunks/s; CPU query-lane
+p50/p95 53.68/64.70 ms with indexing preemption. The resident CPU indexer was also active;
+this small loaded-machine run does not settle the ≥8 chunks/s / ≤50% CPU budget or T014's
+broader runtime/thread verdict. Per-process GPU usage 906 MiB sampled after inference is
+not a whole-run peak. Evidence/reproduction: `docs/benchmarks/t212/2026-10-09-joao-pc/`.
+
 Track:
 
 - files/s discovered;

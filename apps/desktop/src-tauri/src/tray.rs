@@ -28,6 +28,7 @@ const EX_NAME_REMOVE: &str = "ex-name-remove:";
 const EX_DEFAULT: &str = "ex-default:";
 const LOC_CONTENT: &str = "loc-content:";
 const INDEX_PAUSE: &str = "index-pause";
+const INDEX_GPU: &str = "index-gpu";
 const SEM_DOWNLOAD: &str = "semantic-download";
 const SEM_CANCEL: &str = "semantic-cancel";
 const SEM_REMOVE: &str = "semantic-remove";
@@ -44,6 +45,8 @@ struct SemanticItems<R: Runtime> {
 struct IndexingItems<R: Runtime> {
     status: MenuItem<R>,
     pause: CheckMenuItem<R>,
+    gpu: CheckMenuItem<R>,
+    gpu_status: MenuItem<R>,
 }
 
 /// The two submenus rebuilt whenever locations, exclusions or their states change.
@@ -175,11 +178,20 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
         false,
         None::<&str>,
     )?;
+    let index_gpu = CheckMenuItem::with_id(
+        app,
+        INDEX_GPU,
+        "Use dedicated GPU for faster indexing",
+        false,
+        false,
+        None::<&str>,
+    )?;
+    let gpu_status = MenuItem::new(app, "Checking for a dedicated GPU…", false, None::<&str>)?;
     let indexing_menu = Submenu::with_items(
         app,
         "Content indexing",
         true,
-        &[&index_status, &index_pause],
+        &[&index_status, &index_pause, &index_gpu, &gpu_status],
     )?;
     let sem_status = MenuItem::new(app, "Semantic search", false, None::<&str>)?;
     let sem_download = MenuItem::with_id(app, SEM_DOWNLOAD, "Download…", true, None::<&str>)?;
@@ -219,6 +231,8 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
     app.manage(IndexingItems {
         status: index_status,
         pause: index_pause,
+        gpu: index_gpu,
+        gpu_status,
     });
     app.manage(SemanticItems {
         status: sem_status,
@@ -245,6 +259,9 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
             } else if id == INDEX_PAUSE {
                 let paused = app.state::<indexing::Indexing>().paused();
                 indexing::set_paused(app, !paused);
+            } else if id == INDEX_GPU {
+                let enabled = app.state::<crate::gpu::Gpu>().enabled();
+                crate::gpu::choose(app, !enabled);
             } else if let Some(label) = id.strip_prefix(SHORTCUT_PREFIX) {
                 shortcut::choose(app, label);
             } else if let Some(choice) = id
@@ -317,6 +334,18 @@ pub(crate) fn refresh_indexing<R: Runtime>(app: &AppHandle<R>) {
         .status
         .set_text(indexing::status_text(&state.status()));
     let _ = items.pause.set_checked(state.paused());
+    if let Some(gpu) = app.try_state::<crate::gpu::Gpu>() {
+        let status = gpu.status();
+        let _ = items.gpu.set_checked(gpu.enabled());
+        let _ = items.gpu.set_enabled(
+            gpu.enabled()
+                || !matches!(
+                    status,
+                    crate::gpu::Status::Discovering | crate::gpu::Status::NoDevice
+                ),
+        );
+        let _ = items.gpu_status.set_text(crate::gpu::text(&status));
+    }
 }
 
 fn pick_folder<R: Runtime>(

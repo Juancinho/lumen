@@ -1,0 +1,88 @@
+{
+  "schema_version": 2,
+  "kind": "embed",
+  "label": "T212 CPU queries in DirectML runtime; resident Lumen indexing concurrently",
+  "machine": {
+    "os": "windows",
+    "arch": "x86_64",
+    "logical_cpus": 12,
+    "cpu": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791556425
+  },
+  "backend": {
+    "name": "onnxruntime-cpu",
+    "runtime_version": "ORT Build Info: git-branch=HEAD, git-commit-id=2d924974ef, build type=Release",
+    "target": "cpu",
+    "device": null,
+    "max_batch": 16,
+    "concurrent_calls": false,
+    "model_id": "embeddinggemma-2",
+    "model_revision": "onnx-community-q4",
+    "native_dim": 768
+  },
+  "space": "embeddinggemma-2@onnx-community-q4/pre1/embeddinggemma-retrieval@1/d256/l2",
+  "cold_load_ms": 2519.0422,
+  "query": {
+    "first_query_ms": 67.6037,
+    "warm": {
+      "n": 40,
+      "min_ms": 44.0817,
+      "mean_ms": 53.54510749999999,
+      "p50_ms": 52.034,
+      "p95_ms": 63.6805,
+      "p99_ms": 81.9726,
+      "max_ms": 81.9726
+    },
+    "long_input": null,
+    "long_words": 0,
+    "budget_p50_ms": 60.0,
+    "budget_p95_ms": 120.0,
+    "within_budget": true
+  },
+  "throughput": [
+    {
+      "batch_size": 8,
+      "items": 32,
+      "items_per_s": 3.789058024545234,
+      "per_batch": {
+        "n": 4,
+        "min_ms": 2088.4581,
+        "mean_ms": 2111.34065,
+        "p50_ms": 2104.1668,
+        "p95_ms": 2141.3687999999997,
+        "p99_ms": 2141.3687999999997,
+        "max_ms": 2141.3687999999997
+      },
+      "cpu": {
+        "cpu_s": 33.0,
+        "cores": 3.9074660878122724,
+        "machine_percent": 32.5622173984356
+      }
+    }
+  ],
+  "memory": {
+    "before_load": {
+      "resident_mib": 6.96484375,
+      "virtual_mib": 1.2578125
+    },
+    "after_warm": {
+      "resident_mib": 168.5234375,
+      "virtual_mib": 158.23046875
+    },
+    "after_throughput": {
+      "resident_mib": 362.80859375,
+      "virtual_mib": 423.31640625
+    }
+  },
+  "doc_words": 100,
+  "fidelity": null,
+  "config": {
+    "device": "cpu",
+    "ort_dylib": "D:\\Proyectos\\lumen\\.cache\\t006\\run-t013\\dml\\onnxruntime.dll",
+    "threads": 4,
+    "variant": "q4"
+  },
+  "diagnostics": null
+}

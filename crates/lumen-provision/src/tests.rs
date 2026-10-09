@@ -6,6 +6,45 @@ use lumen_core::CancellationToken;
 
 use crate::*;
 
+#[test]
+fn pinned_gpu_runtime_installs_from_an_optional_local_wheel() {
+    let Some(mirror) = std::env::var_os("LUMEN_TEST_GPU_WHEEL_DIR") else {
+        return;
+    };
+    if !GPU_RUNTIME.platform_ok {
+        return;
+    }
+    let temp = Tmp::new("gpu-pinned");
+    install(
+        &temp.root(),
+        &GPU_RUNTIME,
+        &DirFetch {
+            dir: PathBuf::from(mirror),
+        },
+        &CancellationToken::new(),
+        &mut |_| {},
+    )
+    .expect("pinned wheel must install without network");
+    let dir = match state(&temp.root(), &GPU_RUNTIME) {
+        State::Installed { dir } => dir,
+        other => panic!("GPU runtime not installed: {other:?}"),
+    };
+    assert!(
+        verify(&temp.root(), &GPU_RUNTIME)
+            .expect("verify pinned runtime")
+            .is_empty()
+    );
+    for file in [
+        "onnxruntime.dll",
+        "onnxruntime_providers_shared.dll",
+        "DirectML.dll",
+        "LICENSE",
+        "ThirdPartyNotices.txt",
+    ] {
+        assert!(dir.join(file).is_file(), "missing {file}");
+    }
+}
+
 fn leak(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
 }

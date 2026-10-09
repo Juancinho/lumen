@@ -782,4 +782,29 @@ fn bad_inputs_are_isolated_and_device_failures_abort() {
     .unwrap_err();
     assert!(matches!(err, QueueError::Device(_)), "{err}");
     assert_eq!(store.queue_counts(g2).unwrap().embedded, 0);
+    assert_eq!(store.queue_counts(g2).unwrap().pending(), 3);
+    let old_vectors = store.vectors(g, 0, 100).unwrap();
+    let fallback = Embedder::new(
+        Arc::new(MockBackend::new()),
+        EmbeddingProfile {
+            dim: 128,
+            prompts: PromptFormat::RAW,
+        },
+    )
+    .unwrap();
+    assert_eq!(generation(&store, &fallback), g2);
+    let recovered = queue(
+        &mut store,
+        &fallback,
+        g2,
+        &Control::new(),
+        &QueueConfig::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        (recovered.embedded, recovered.failed, recovered.stop),
+        (3, 0, Stop::Drained)
+    );
+    assert_eq!(store.queue_counts(g2).unwrap().pending(), 0);
+    assert_eq!(store.vectors(g, 0, 100).unwrap(), old_vectors);
 }

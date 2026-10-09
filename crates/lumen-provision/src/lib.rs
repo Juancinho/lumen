@@ -21,7 +21,9 @@ pub use fetch::{CurlFetch, DirFetch, Fetch, FetchError};
 pub use install::{
     InstallError, Progress, State, component_dir, install, remove, sha256_file, state, verify,
 };
-pub use manifest::{Component, EMBEDDING_MODEL, INFERENCE_RUNTIME, Install, Member, RemoteFile};
+pub use manifest::{
+    Component, EMBEDDING_MODEL, GPU_RUNTIME, INFERENCE_RUNTIME, Install, Member, RemoteFile,
+};
 
 #[cfg(test)]
 mod tests;

@@ -44,3 +44,4 @@
 | [ADR-035](adr/adr-035-progressive-refinement-pinned-selection-snippets.md) | Progressive refinement: one settled update, selected row stays put, passages for content/meaning matches | Accepted |
 | [ADR-036](adr/adr-036-code-context-file-identity-and-local-actions.md) | Code context on the file row, lexical metadata without re-embedding, capability-based local actions | Accepted |
 | [ADR-037](adr/adr-037-native-watch-hints-scoped-reconciliation.md) | Bounded native watch hints, scoped reconciliation and safe content invalidation on the existing writer | Accepted |
+| [ADR-038](adr/adr-038-optional-dedicated-gpu-indexing.md) | Opt-in dedicated-GPU indexing with CPU queries, isolated compatibility probes and CPU fallback | Accepted |

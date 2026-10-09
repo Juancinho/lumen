@@ -50,3 +50,13 @@ With the Turbo cap (60 % = 2,458 MiB) the same probes give `turbo → indexing o
 - The probe compares against CPU at the runtime's default threads (all cores): conservative.
 - `lumen-windows` (M1+) must supply power source, battery %, available memory, user activity
   and per-process GPU memory; the shell persists probes and the quarantine in settings.
+
+## 2026-10-09 — T212 explicit dedicated-GPU mode
+
+ADR-038 preserves ordinary policy defaults and adds an off-by-default tray preference
+for faster indexing. The user explicitly waived the default VRAM cap: this mode allows
+available dedicated memory on known AC while retaining fidelity/offload/stability/speed
+gates, CPU-only queries, Balanced CPU fallback, battery/memory pauses and preemption.
+The shell persists probe/quarantine identities. Its bounded synthetic child uses an
+explicit DXGI/D3D12 non-UMA adapter and per-process DXGI memory usage; it never opens
+the catalog DB. Probes defer on battery/unknown power, memory pressure or a user pause.

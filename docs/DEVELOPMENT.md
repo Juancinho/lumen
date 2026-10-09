@@ -48,7 +48,7 @@ crates/
   lumen-provision/         model + runtime provisioning: pinned manifests, curl/folder
                            fetch, verified resumable atomic install, removal (ADR-034)
   lumen-windows/           Windows OS adapters (AppsFolder apps, window material/DWM plan,
-                           process CPU time);
+                           process CPU time, dedicated GPU discovery/DXGI memory);
                            no GUI framework/WebView types
   lumen-bench/             benchmark harness binary `lumen-bench` (release-mode, JSON reports)
 apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
@@ -70,7 +70,10 @@ apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
     src/search.rs          search thread + catalog provider -> `lumen:results` (ADR-025)
     src/catalog.rs         catalog sync over the indexed locations (start-up, edits, 30 min)
     src/indexing.rs        content pass + embedding-queue slices on the catalog thread,
-                           device policy from power/memory/idle (ADR-029); model via env
+                           device policy from power/memory/idle (ADR-029/038)
+    src/gpu.rs            optional GPU preference, cached probe/quarantine, CPU fallback
+    src/gpu_probe.rs      bounded synthetic subprocess mode, before Tauri/SQLite startup
+    src/provisioning.rs   consented model/CPU/DirectML runtime installation (ADR-034/038)
     src/actions.rs         action executors behind the core policy (ADR-026)
     src/preview.rs         Quick Look data: metadata + bounded text excerpt (T105)
     src/instance.rs        second-launch commands (--show/--hide/--toggle/--quit)
@@ -245,6 +248,16 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
   (`LUMEN_EMBED_VARIANT=q4|q8|fp32`, `LUMEN_EMBED_THREADS=N` override the defaults). Tray →
   Content indexing shows progress and "Pause indexing"; tray → Indexed locations → a
   location → "Index file contents". `scripts/t202/run-windows-indexing.ps1 [-Launch]`.
+- Dedicated GPU indexing (T212, ADR-038): tray → Content indexing → "Use dedicated GPU
+  for faster indexing", off by default, saved in `indexing.gpu.enabled`. A synthetic
+  compatibility check selects the explicit discrete adapter; queries always use CPU.
+  GPU batches may use available VRAM on AC; battery/memory policy and interactive holds
+  remain. Switching devices preserves the generation and completed vectors, taking
+  effect at a queue boundary. Without DirectML, the same option offers a pinned 26 MB
+  consented runtime download and asks for a restart. On restart an enabled GPU preference
+  selects that installed runtime; `LUMEN_ORT_DYLIB` overrides it. The DLL path is pinned
+  for each process. A DirectML runtime already beside the exe enables switching without
+  another restart. See `docs/benchmarks/t212/2026-10-09-joao-pc/README.md` for native checks.
 - Root search (T107, ADR-025): the UI calls `search(queryId, text)` per query change, on
   show and on `lumen:catalog-changed`; results stream as `lumen:results`. The catalog lives
   in the same `lumen.db`; the first sync starts 2 s after launch.

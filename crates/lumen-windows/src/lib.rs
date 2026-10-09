@@ -8,6 +8,7 @@
 #![deny(unsafe_code)]
 
 pub mod apps;
+pub mod gpu;
 pub mod material;
 pub mod process;
 pub mod system;

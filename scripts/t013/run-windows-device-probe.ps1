@@ -112,7 +112,7 @@ try {
         $quoted = ($benchArgs | ForEach-Object { if ("$_" -match '\s') { '"' + $_ + '"' } else { "$_" } }) -join " "
         Write-Step "probe $($run.name)"
         $errFile = Join-Path $OutDir "probe-$($run.name).stderr.log"
-        $proc = Start-Process -FilePath (Join-Path $dir "lumen-bench.exe") -ArgumentList $quoted -NoNewWindow -PassThru `
+        $proc = Start-Process -FilePath (Join-Path $dir "lumen-bench.exe") -ArgumentList $quoted -WindowStyle Hidden -PassThru `
             -RedirectStandardError $errFile -RedirectStandardOutput (Join-Path $OutDir "probe-$($run.name).stdout.log")
         $null = $proc.Handle   # PS 5.1: keep the handle so ExitCode is available later
         $peak = 0

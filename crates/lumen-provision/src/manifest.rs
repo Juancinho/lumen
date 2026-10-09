@@ -72,6 +72,55 @@ impl Component {
     }
 }
 
+/// Optional runtime hosting both CPU queries and DirectML indexing sessions (T212).
+pub const GPU_RUNTIME: Component = Component {
+    id: "runtime/onnxruntime-directml",
+    version: "1.24.4-win-x64",
+    title: "ONNX Runtime with DirectML GPU acceleration",
+    license: "MIT",
+    license_url: "https://github.com/microsoft/onnxruntime/blob/main/LICENSE",
+    host: "files.pythonhosted.org",
+    files: &[RemoteFile {
+        url: "https://files.pythonhosted.org/packages/88/ea/33814eb0ec96775eda4c1d30b0d86e91d7d2cd0d84c66d3915aef0e06fa3/onnxruntime_directml-1.24.4-cp312-cp312-win_amd64.whl",
+        size: 25_111_930,
+        sha256: "f2ecb68b7b7b259d2ef3112ae760149f9b5a1e7c0fbb73d539da6250a648a614",
+        install: Install::Extract(&[
+            Member {
+                name: "onnxruntime/capi/onnxruntime.dll",
+                dest: "onnxruntime.dll",
+                size: 21_111_832,
+                sha256: "302c69f9779d63ef4ab90316e59444c4acbaca7fe3455020d79d10bcfcb00715",
+            },
+            Member {
+                name: "onnxruntime/capi/DirectML.dll",
+                dest: "DirectML.dll",
+                size: 18_527_776,
+                sha256: "b73972115320e906a49602f2027a3266622881b0d325ba685e0f165a9482a8d7",
+            },
+            Member {
+                name: "onnxruntime/capi/onnxruntime_providers_shared.dll",
+                dest: "onnxruntime_providers_shared.dll",
+                size: 21_576,
+                sha256: "f6bbae3af4c0673b0d1e6ca8db900dc85ad959a395b69d361038ec7995cc2652",
+            },
+            Member {
+                name: "onnxruntime/LICENSE",
+                dest: "LICENSE",
+                size: 1_094,
+                sha256: "c250d6278f0b47a6439fb7592b08b58a55eb9f535aa49a1db63211c3f982b674",
+            },
+            Member {
+                name: "onnxruntime/ThirdPartyNotices.txt",
+                dest: "ThirdPartyNotices.txt",
+                size: 331_175,
+                sha256: "fb0af774b4d7cffc5b9d046f2aaeade2f37df2f80abf8033c95dfffcc77a8866",
+            },
+        ]),
+    }],
+    notices: &["LICENSE", "ThirdPartyNotices.txt"],
+    platform_ok: cfg!(all(windows, target_arch = "x86_64")),
+};
+
 /// A file of the pinned Hugging Face revision.
 macro_rules! hf {
     ($path:literal) => {

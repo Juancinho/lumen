@@ -277,6 +277,24 @@ pub fn init_runtime(dylib: &Path) -> Result<(), EmbeddingError> {
     }
 }
 
+/// Whether the loaded runtime exposes DirectML (not an adapter/quality probe).
+///
+/// # Errors
+/// Runtime provider discovery fails.
+pub fn directml_available() -> Result<bool, EmbeddingError> {
+    #[cfg(feature = "directml")]
+    {
+        use ort::ep::ExecutionProvider;
+        ort::ep::DirectML::default()
+            .is_available()
+            .map_err(|e| backend_err("DirectML availability", e))
+    }
+    #[cfg(not(feature = "directml"))]
+    {
+        Ok(false)
+    }
+}
+
 fn backend_err(context: &str, err: impl fmt::Display) -> EmbeddingError {
     EmbeddingError::Backend(format!("{context}: {err}"))
 }

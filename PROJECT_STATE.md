@@ -141,9 +141,9 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
   own runtime session, latest-wins requests, cancellation, cache, warm/unload, and indexing
   preemption (hold + 1.5 s linger; one-chunk queue batches for 10 s after the overlay is
   shown). Sandbox: query p95 189 → 70 ms next to indexing; used by root search (T205).
-- **T014 REVIEW (Windows run pending):** throughput harness for ORT thread sweeps and
-  llama.cpp builds (CPU/Vulkan/CUDA, GGUF) with CPU share per run; sandbox ORT q4 3.4
-  chunks/s per busy core. The runtime/thread verdict becomes an ADR after the joao-pc run.
+- **T014 REVIEW:** loaded GTX 1650 q4 recheck 2.24× CPU; full Windows runtime/thread matrix pending.
+- **T212 REVIEW (ADR-038):** persisted dedicated-GPU indexing option, CPU queries and
+  same-generation fallback; release queue 6.80 chunks/s, CPU query p95 65 ms; native tray review pending.
 - **T111 REVIEW (ADR-027):** indexed locations + exclusions in one versioned setting; tray
   → Indexed locations / Exclusions (native folder picker), per-location state, developer
   noise and marker-based build folders excluded by default (visible, toggleable), Action

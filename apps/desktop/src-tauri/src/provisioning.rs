@@ -6,6 +6,9 @@
 //! 2. the runtime next to `lumen.exe` (how a packaged build ships it, ADR-015);
 //! 3. what this module installed under the app-data folder (`models/…`, `runtime/…`).
 //!
+//! An enabled GPU preference selects its installed DirectML build ahead of a beside-exe
+//! CPU build, after a restart (ADR-038). Environment overrides retain precedence.
+//!
 //! Nothing is downloaded until the user picks *Download…* in the tray and confirms a dialog
 //! that names the size, the hosts and the licenses. The download uses the system `curl`
 //! (no TLS stack in Lumen), resumes after a cancel or a crash and verifies every file's
@@ -17,19 +20,23 @@ use std::time::Instant;
 
 use lumen_core::CancellationToken;
 use lumen_provision::{
-    Component, CurlFetch, EMBEDDING_MODEL, INFERENCE_RUNTIME, InstallError, Progress, State,
-    install, remove,
+    Component, CurlFetch, EMBEDDING_MODEL, GPU_RUNTIME, INFERENCE_RUNTIME, InstallError, Progress,
+    State, install, remove,
 };
 use tauri::{App, AppHandle, Manager, Runtime};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
-use crate::{indexing, tray};
+use crate::{indexing, settings, tray};
 
 pub(crate) const ENV_MODEL_DIR: &str = "LUMEN_EMBED_MODEL_DIR";
 pub(crate) const ENV_ORT_DYLIB: &str = "LUMEN_ORT_DYLIB";
 
 /// The app-data folder (set once at start-up).
 static ROOT: OnceLock<PathBuf> = OnceLock::new();
+/// ORT cannot change libraries inside a process. An optional GPU install takes effect
+/// on the next launch, without disrupting current CPU sessions.
+static RUNTIME_PATH: OnceLock<PathBuf> = OnceLock::new();
+static GPU_REQUESTED: OnceLock<bool> = OnceLock::new();
 
 #[cfg(windows)]
 const RUNTIME_FILE: &str = "onnxruntime.dll";
@@ -79,6 +86,15 @@ pub(crate) fn model_dir() -> Option<PathBuf> {
 
 /// The ONNX Runtime library, if any.
 pub(crate) fn runtime_library() -> Option<PathBuf> {
+    if let Some(path) = RUNTIME_PATH.get() {
+        return Some(path.clone());
+    }
+    let path = resolve_runtime()?;
+    let _ = RUNTIME_PATH.set(path.clone());
+    Some(RUNTIME_PATH.get().cloned().unwrap_or(path))
+}
+
+fn resolve_runtime() -> Option<PathBuf> {
     if let Some(p) = std::env::var_os(ENV_ORT_DYLIB) {
         return Some(PathBuf::from(p));
     }
@@ -86,7 +102,51 @@ pub(crate) fn runtime_library() -> Option<PathBuf> {
         .ok()
         .and_then(|exe| exe.parent().map(|d| d.join(RUNTIME_FILE)))
         .filter(|p| p.is_file());
-    beside.or_else(|| installed(&INFERENCE_RUNTIME).map(|d| d.join(RUNTIME_FILE)))
+    let gpu = || installed(&GPU_RUNTIME).map(|d| d.join(RUNTIME_FILE));
+    let cpu = || installed(&INFERENCE_RUNTIME).map(|d| d.join(RUNTIME_FILE));
+    if GPU_REQUESTED.get().copied().unwrap_or(false) {
+        gpu().or(beside).or_else(cpu)
+    } else {
+        beside.or_else(cpu).or_else(gpu)
+    }
+}
+
+pub(crate) fn gpu_runtime_installed() -> bool {
+    installed(&GPU_RUNTIME).is_some()
+}
+
+pub(crate) fn ask_gpu_download<R: Runtime>(app: &AppHandle<R>) {
+    if app
+        .state::<Provisioning>()
+        .running
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_some()
+    {
+        return;
+    }
+    if gpu_runtime_installed() {
+        crate::gpu::remember(app, true);
+        let override_note = if std::env::var_os(ENV_ORT_DYLIB).is_some() {
+            " A development runtime override is active; use the GPU runtime or remove LUMEN_ORT_DYLIB before restarting."
+        } else {
+            ""
+        };
+        app.dialog().message(format!("GPU acceleration is installed. Restart Lumen to enable it. Your indexing progress is kept.{override_note}"))
+            .title("GPU acceleration").show(|_| {});
+        tray::refresh_indexing(app);
+        return;
+    }
+    let handle = app.clone();
+    app.dialog().message(format!("{}\n\nRestart Lumen after installation. Dedicated GPU indexing can use available video memory; search queries stay on CPU.",
+        consent_text(&[GPU_RUNTIME], GPU_RUNTIME.download_bytes())
+            .replace(" You can remove it again from this menu.", "")))
+        .title("Download GPU acceleration?").kind(MessageDialogKind::Info)
+        .buttons(MessageDialogButtons::OkCancelCustom("Download".into(), "Not now".into()))
+        .show(move |ok| {
+            if ok { crate::gpu::remember(&handle, true); start(&handle, vec![GPU_RUNTIME]); }
+            tray::refresh_indexing(&handle);
+        });
 }
 
 /// The model in use is the one this module installed (not a development path).
@@ -129,6 +189,10 @@ pub(crate) fn install_state<R: Runtime>(app: &App<R>) {
     if let Ok(dir) = app.path().app_data_dir() {
         let _ = ROOT.set(dir);
     }
+    let _ = GPU_REQUESTED.set(
+        settings::get_raw(&app.state::<settings::Settings>(), "indexing.gpu.enabled")
+            .is_some_and(|s| s == "true"),
+    );
     app.manage(Provisioning {
         setup: Mutex::new(current_setup()),
         running: Mutex::new(None),
@@ -233,6 +297,7 @@ pub(crate) fn ask_download<R: Runtime>(app: &AppHandle<R>) {
 }
 
 fn start<R: Runtime>(app: &AppHandle<R>, parts: Vec<Component>) {
+    let gpu_runtime = parts.iter().any(|c| c.id == GPU_RUNTIME.id);
     let Some(root) = root().map(Path::to_owned) else {
         set(app, Setup::Failed("no app-data folder".into()));
         return;
@@ -274,8 +339,16 @@ fn start<R: Runtime>(app: &AppHandle<R>, parts: Vec<Component>) {
                 Ok(()) => {
                     crate::diag::record("provision_s", started.elapsed().as_secs_f64());
                     set(&handle, current_setup());
-                    indexing::on_model_installed(&handle);
-                    crate::search::on_model_installed(&handle);
+                    if gpu_runtime {
+                        crate::gpu::runtime_installed(&handle);
+                        handle.dialog().message("GPU acceleration installed. Restart Lumen to enable it. Your indexing progress is kept.")
+                            .title("GPU acceleration").show(|_| {});
+                        tray::refresh_indexing(&handle);
+                    } else {
+                        indexing::on_model_installed(&handle);
+                        crate::search::on_model_installed(&handle);
+                        crate::gpu::discover(&handle);
+                    }
                 }
                 Err(InstallError::Cancelled) => set(&handle, current_setup()),
                 Err(e) => {

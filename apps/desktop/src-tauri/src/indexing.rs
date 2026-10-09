@@ -71,6 +71,7 @@ pub(crate) enum Semantic {
     Running {
         threads: usize,
     },
+    RunningGpu,
     PausedByUser,
     Waiting(PauseReason),
 }
@@ -96,6 +97,7 @@ pub(crate) enum Next {
 
 struct Loaded {
     threads: usize,
+    device: lumen_embedding_ort::Device,
     embedder: Embedder,
     generation: Option<i64>,
 }
@@ -314,22 +316,33 @@ pub(crate) fn system_state(
     }
 }
 
-fn current_plan(space_key: &str) -> IndexingPlan {
-    let state = system_state(
+pub(crate) fn current_system_state() -> SystemState {
+    system_state(
         lumen_windows::system::power_status(),
         lumen_windows::system::available_memory_mib(),
         lumen_windows::system::input_idle(),
         std::thread::available_parallelism().map_or(1, usize::from),
-    );
-    let plan = policy::plan(
+    )
+}
+
+fn current_plan<R: Runtime>(app: &AppHandle<R>, space_key: &str) -> IndexingPlan {
+    let state = current_system_state();
+    crate::gpu::retry_if_ready(app, &state);
+    let baseline = policy::plan(
         space_key,
         &[],
         &Quarantine::new(),
         &state,
         &PolicyConfig::default(),
     );
-    match (plan.indexing, env_threads()) {
-        (IndexingPlan::Run { device, .. }, Some(threads)) => IndexingPlan::Run { device, threads },
+    let plan = app
+        .try_state::<crate::gpu::Gpu>()
+        .and_then(|gpu| gpu.plan(space_key, &state))
+        .unwrap_or(baseline.indexing);
+    match (plan, env_threads()) {
+        (IndexingPlan::Run { device, .. }, Some(threads)) if device == "cpu" => {
+            IndexingPlan::Run { device, threads }
+        }
         (plan, _) => plan,
     }
 }
@@ -342,15 +355,26 @@ fn env_threads() -> Option<usize> {
 }
 
 pub(crate) fn build_embedder(threads: usize) -> Result<Embedder, String> {
-    use lumen_embedding_ort::{Device, ModelVariant, OrtBackend, OrtConfig, init_runtime};
+    build_device_embedder(threads, lumen_embedding_ort::Device::Cpu)
+}
+
+pub(crate) fn model_variant() -> lumen_embedding_ort::ModelVariant {
+    use lumen_embedding_ort::ModelVariant;
+    std::env::var(ENV_VARIANT)
+        .ok()
+        .and_then(|v| ModelVariant::parse(v.trim()))
+        .unwrap_or(ModelVariant::Q4)
+}
+
+fn build_device_embedder(
+    threads: usize,
+    device: lumen_embedding_ort::Device,
+) -> Result<Embedder, String> {
+    use lumen_embedding_ort::{OrtBackend, OrtConfig, init_runtime};
     let dir = crate::provisioning::model_dir().ok_or("semantic search is not installed")?;
     let dylib = crate::provisioning::runtime_library().ok_or("no ONNX Runtime library")?;
     init_runtime(&dylib).map_err(|e| e.to_string())?;
-    let variant = std::env::var(ENV_VARIANT)
-        .ok()
-        .and_then(|v| ModelVariant::parse(v.trim()))
-        .unwrap_or(ModelVariant::Q4);
-    let mut cfg = OrtConfig::new(dir, variant, Device::Cpu);
+    let mut cfg = OrtConfig::new(dir, model_variant(), device);
     cfg.threads = Some(threads);
     cfg.max_batch = QueueConfig::default().batch;
     let backend = OrtBackend::new(cfg).map_err(|e| e.to_string())?;
@@ -381,7 +405,7 @@ pub(crate) fn embed_slice<R: Runtime>(
     };
 
     // The space key is only known once a backend exists; the policy needs it for probes
-    // only (none yet), so any key is fine before the first load.
+    // only; the GPU manager uses its validated probe's key before the first load.
     let space_key = state
         .loaded
         .lock()
@@ -389,27 +413,40 @@ pub(crate) fn embed_slice<R: Runtime>(
         .as_ref()
         .map(|l| l.embedder.space().key())
         .unwrap_or_default();
-    let threads = match current_plan(&space_key) {
+    let (device, threads) = match current_plan(app, &space_key) {
         IndexingPlan::Paused(why) => {
             state.set_semantic(Semantic::Waiting(why));
             unload(&state);
             tray::refresh_indexing(app);
             return Next::RetryIn(POLICY_RETRY);
         }
-        IndexingPlan::Run { threads, .. } => threads,
+        IndexingPlan::Run { device, threads } => (
+            lumen_embedding_ort::Device::parse(&device).unwrap_or(lumen_embedding_ort::Device::Cpu),
+            threads,
+        ),
     };
 
     let mut loaded = state.loaded.lock().unwrap_or_else(PoisonError::into_inner);
-    if loaded.as_ref().is_none_or(|l| l.threads != threads) {
-        match build_embedder(threads) {
+    if loaded
+        .as_ref()
+        .is_none_or(|l| l.threads != threads || l.device != device)
+    {
+        *loaded = None;
+        match build_device_embedder(threads, device) {
             Ok(embedder) => {
                 *loaded = Some(Loaded {
                     threads,
+                    device,
                     embedder,
                     generation: None,
                 });
             }
             Err(err) => {
+                if device != lumen_embedding_ort::Device::Cpu {
+                    drop(loaded);
+                    crate::gpu::failed(app);
+                    return Next::More;
+                }
                 eprintln!("lumen: semantic indexing unavailable: {err}");
                 *state.failed.lock().unwrap_or_else(PoisonError::into_inner) = true;
                 state.set_semantic(Semantic::Failed);
@@ -461,7 +498,11 @@ pub(crate) fn embed_slice<R: Runtime>(
         return Next::Idle;
     }
 
-    state.set_semantic(Semantic::Running { threads });
+    state.set_semantic(if device == lumen_embedding_ort::Device::Cpu {
+        Semantic::Running { threads }
+    } else {
+        Semantic::RunningGpu
+    });
     tray::refresh_indexing(app);
     let job = QueueJob {
         embedder: &l.embedder,
@@ -505,6 +546,13 @@ pub(crate) fn embed_slice<R: Runtime>(
         }
         Err(QueueError::Device(err)) => {
             eprintln!("lumen: embedding device failed: {err}");
+            if device != lumen_embedding_ort::Device::Cpu {
+                *state.loaded.lock().unwrap_or_else(PoisonError::into_inner) = None;
+                crate::gpu::failed(app);
+                state.set_semantic(Semantic::Idle);
+                tray::refresh_indexing(app);
+                return Next::More;
+            }
             *state.failed.lock().unwrap_or_else(PoisonError::into_inner) = true;
             state.set_semantic(Semantic::Failed);
             *state.loaded.lock().unwrap_or_else(PoisonError::into_inner) = None;
@@ -685,17 +733,24 @@ pub(crate) fn status_text(s: &Status) -> String {
                 PauseReason::UserActive => "you are using the PC",
             }
         ),
-        Semantic::Idle | Semantic::Running { .. } if s.chunks == 0 => "nothing to embed".to_owned(),
-        Semantic::Idle | Semantic::Running { .. } => {
+        Semantic::Idle | Semantic::Running { .. } | Semantic::RunningGpu if s.chunks == 0 => {
+            "nothing to embed".to_owned()
+        }
+        Semantic::Idle | Semantic::Running { .. } | Semantic::RunningGpu => {
             #[allow(clippy::cast_precision_loss)]
             let pct = 100.0 * s.embedded as f64 / s.chunks as f64;
             if s.embedded >= s.chunks {
                 "semantic index up to date".to_owned()
             } else {
-                format!(
+                let progress = format!(
                     "semantic {pct:.0}% ({} of {} passages)",
                     s.embedded, s.chunks
-                )
+                );
+                if s.semantic == Semantic::RunningGpu {
+                    format!("{progress} · GPU")
+                } else {
+                    progress
+                }
             }
         }
     };

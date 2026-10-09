@@ -1,0 +1,10 @@
+{
+  "malformed_request_exit": 1,
+  "output_created": false,
+  "resident_pid": 11356,
+  "resident_start_unchanged": true,
+  "live_db_untouched": true,
+  "integrated_adapter": 1,
+  "integrated_adapter_exit": 1,
+  "integrated_output_created": false
+}

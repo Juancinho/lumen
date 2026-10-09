@@ -1,0 +1,14 @@
+[
+  {
+    "name": "NVIDIA GeForce GTX 1650",
+    "driver": "32.0.15.9227",
+    "integrated": false,
+    "memory_mib": 4096.0
+  },
+  {
+    "name": "AMD Radeon(TM) Graphics",
+    "driver": "31.0.12002.1002",
+    "integrated": true,
+    "memory_mib": 512.0
+  }
+]

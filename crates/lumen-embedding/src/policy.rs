@@ -394,6 +394,34 @@ pub fn plan(
     }
 }
 
+/// User-requested GPU indexing: same correctness/speed gates, available dedicated VRAM,
+/// while on AC. The ordinary CPU plan (including pauses/thread limits) is the fallback.
+#[must_use]
+pub fn accelerated_indexing_plan(
+    space_key: &str,
+    probes: &[DeviceProbe],
+    quarantine: &Quarantine,
+    state: &SystemState,
+) -> IndexingPlan {
+    let cfg = PolicyConfig::default();
+    let baseline = plan(space_key, &[], quarantine, state, &cfg).indexing;
+    if !matches!(state.power, PowerSource::Ac) || matches!(baseline, IndexingPlan::Paused(_)) {
+        return baseline;
+    }
+    let mut requested = *state;
+    requested.profile = ResourceProfile::Turbo;
+    let cfg = PolicyConfig {
+        turbo_max_device_memory_fraction: 1.0,
+        ..cfg
+    };
+    match plan(space_key, probes, quarantine, &requested, &cfg).indexing {
+        chosen if matches!(&chosen, IndexingPlan::Run { device, .. } if device != CPU_DEVICE) => {
+            chosen
+        }
+        _ => baseline,
+    }
+}
+
 fn eligibility(
     p: &DeviceProbe,
     space_key: &str,
@@ -622,6 +650,100 @@ mod tests {
             }
         );
         assert!(p.rejected.is_empty());
+    }
+
+    #[test]
+    fn requested_gpu_mode_waives_vram_cap_while_preserving_cpu_fallback() {
+        let mut state = ac_idle();
+        state.user_active = true;
+        let mut gpu = metrics(500.0, 8.0);
+        gpu.device_memory_mib = Some(3500.0);
+        gpu.device_memory_total_mib = Some(4096.0);
+        let probes = [cpu(), probe("dml:0", gpu)];
+        let choose = |probes: &[DeviceProbe], state: &SystemState, quarantine: &Quarantine| {
+            accelerated_indexing_plan(SPACE, probes, quarantine, state)
+        };
+        assert_eq!(
+            choose(&probes, &state, &Quarantine::new()),
+            IndexingPlan::Run {
+                device: "dml:0".into(),
+                threads: 1
+            }
+        );
+        assert_eq!(
+            choose(&[], &state, &Quarantine::new()),
+            IndexingPlan::Run {
+                device: "cpu".into(),
+                threads: 3
+            }
+        );
+        let mut quarantined = Quarantine::new();
+        quarantined.record_failure(
+            "dml:0",
+            &probes[1].runtime_key,
+            &EmbeddingError::Backend("device removed".into()),
+        );
+        assert_eq!(
+            choose(&probes, &state, &quarantined),
+            IndexingPlan::Run {
+                device: "cpu".into(),
+                threads: 3
+            }
+        );
+        state.power = PowerSource::Battery { percent: Some(70) };
+        assert_eq!(
+            choose(&probes, &state, &Quarantine::new()),
+            IndexingPlan::Run {
+                device: "cpu".into(),
+                threads: 1
+            }
+        );
+        state.power = PowerSource::Battery { percent: Some(15) };
+        assert_eq!(
+            choose(&probes, &state, &Quarantine::new()),
+            IndexingPlan::Paused(PauseReason::LowBattery)
+        );
+        state.power = PowerSource::Ac;
+        state.available_memory_mib = Some(100);
+        assert_eq!(
+            choose(&probes, &state, &Quarantine::new()),
+            IndexingPlan::Paused(PauseReason::MemoryPressure)
+        );
+    }
+
+    #[test]
+    fn requested_gpu_mode_keeps_correctness_and_speed_gates() {
+        let mut gpu = probe("dml:0", metrics(500.0, 8.0));
+        let state = ac_idle();
+        let accepted = |gpu: DeviceProbe| {
+            matches!(accelerated_indexing_plan(SPACE,
+            &[cpu(), gpu], &Quarantine::new(), &state), IndexingPlan::Run { device, .. } if device != "cpu")
+        };
+        assert!(accepted(gpu.clone()));
+        gpu.integrated = true;
+        assert!(!accepted(gpu.clone()));
+        gpu.integrated = false;
+        gpu.space_key = "different weights".into();
+        assert!(!accepted(gpu.clone()));
+        gpu.space_key = SPACE.into();
+        for m in [
+            ProbeMetrics {
+                stable: false,
+                ..metrics(500.0, 8.0)
+            },
+            ProbeMetrics {
+                min_cosine_vs_cpu: Some(0.998),
+                ..metrics(500.0, 8.0)
+            },
+            ProbeMetrics {
+                offloaded_fraction: Some(0.8),
+                ..metrics(500.0, 8.0)
+            },
+            metrics(500.0, 1.0),
+        ] {
+            gpu.outcome = ProbeOutcome::Measured(m);
+            assert!(!accepted(gpu.clone()));
+        }
     }
 
     #[test]

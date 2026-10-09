@@ -15,6 +15,8 @@ mod catalog;
 mod commands;
 mod diag;
 mod dto;
+mod gpu;
+mod gpu_probe;
 mod indexing;
 mod instance;
 mod lifecycle;
@@ -37,6 +39,9 @@ use commands::overlay::ShowWhenReady;
 const BACKGROUND_ARG: &str = "--background";
 
 fn main() {
+    if let Some(code) = gpu_probe::child_mode() {
+        std::process::exit(code);
+    }
     diag::init();
     let start_hidden = std::env::args().any(|a| a == BACKGROUND_ARG);
 
@@ -58,11 +63,13 @@ fn main() {
             material::install(app);
             // Provisioning, then indexing, then search: each reads the one before.
             provisioning::install_state(app);
+            gpu::install(app);
             indexing::install(app);
             search::install(app);
             catalog::start(app);
             shortcut::install(app)?;
             tray::install(app)?;
+            gpu::discover(app.handle());
             // First show happens when the UI reports ready (`overlay_ready`).
             app.manage(ShowWhenReady(AtomicBool::new(!start_hidden)));
             diag::record("setup_ms", diag::since_start_ms());

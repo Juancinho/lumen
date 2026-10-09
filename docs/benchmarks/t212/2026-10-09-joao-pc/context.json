@@ -1,0 +1,11 @@
+{
+  "started": "2026-10-09T17:19:20.902287+02:00",
+  "finished": "2026-10-09T17:20:11.2054273+02:00",
+  "resident_pid": 11356,
+  "resident_start": "2026-10-09T15:59:27.4879388+02:00",
+  "resident_cpu_after_s": 22622.140625,
+  "live_db_untouched": true,
+  "compilers_running": 0,
+  "model_download": false,
+  "cpu_delta_not_measured": true
+}

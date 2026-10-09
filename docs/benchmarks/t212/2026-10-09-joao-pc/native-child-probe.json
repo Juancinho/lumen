@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "key": "t212-native-smoke",
+  "space": "embeddinggemma-2@onnx-community-q4/pre1/embeddinggemma-retrieval@1/d256/l2",
+  "adapter": 0,
+  "name": "NVIDIA GeForce GTX 1650",
+  "cpu": {
+    "query_p50_ms": 44.9395,
+    "query_p95_ms": 56.3902,
+    "index_chunks_per_s": 3.8091593999412154,
+    "min_cosine_vs_cpu": 1.0,
+    "stable": true,
+    "offloaded_fraction": null,
+    "device_memory_mib": null,
+    "device_memory_total_mib": null
+  },
+  "gpu": {
+    "query_p50_ms": 518.8416,
+    "query_p95_ms": 636.4725,
+    "index_chunks_per_s": 9.037458684692782,
+    "min_cosine_vs_cpu": 0.9999998211860657,
+    "stable": true,
+    "offloaded_fraction": 0.9443016281062554,
+    "device_memory_mib": 905.91796875,
+    "device_memory_total_mib": 3935.0
+  }
+}

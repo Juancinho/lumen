@@ -36,7 +36,10 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 12. ~~T209~~ code results — REVIEW (ADR-036): Windows release relevance and upgrade
     measured; native Open / Copy symbol / Reveal repository checks in HANDOFF.
 13. ~~T207~~ incremental watcher — REVIEW (ADR-037): native synthetic freshness measured;
-    overlay/reconnect checks in HANDOFF. **T208** query syntax is the next implementation.
+    overlay/reconnect checks in HANDOFF.
+14. ~~T212~~ optional dedicated-GPU indexing — REVIEW (ADR-038): Windows release GPU/CPU
+    queue and compatibility measured; native tray/persistence/download checks in HANDOFF.
+    **T208** query syntax is the next implementation.
 
 # M0 — technical spikes and foundation
 
@@ -55,7 +58,7 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 | T011 | DONE   | claude | Minimal universal domain contracts: `ResultItem`, `ProviderId`, `ActionDescriptor`, typed execution context          | T001       |
 | T012 | DONE   | claude | WebView lifecycle/RAM spike: one WebView, hidden state, timers, optional suspension/low-memory path                  | T002       |
 | T013 | DONE   | claude | Embedding device selection + fallback policy: CPU default; GPU/NPU only when placement + probe beat CPU; battery/memory profiles; never switch weights inside an index generation | T006       |
-| T014 | REVIEW | claude | Indexing-throughput runtime spike: LiteRT-LM (QAT int4, 270M text model), llama.cpp GGUF (CPU/Vulkan/CUDA), Windows ML EPs (TensorRT-RTX/OpenVINO/WebGPU); reuse fidelity harness | T006       |
+| T014 | REVIEW | codex | Indexing-throughput runtime spike; GTX 1650 q4 recheck complete, full ORT thread/llama.cpp matrix remains pending | T006       |
 | T015 | DONE   | claude | Docs consolidation (no code): §0 implementation status in each spec + fix sections contradicted by ADR-014..018; merge "Refinement" appendices; crate layout only in DEVELOPMENT.md; reading order only in AGENTS.md; split ADRs into docs/adr/ with DECISIONS.md as index; fixed roles for TASKS/HANDOFF/WORKLOG/PROJECT_STATE; indexing-throughput (chunks/s @ CPU %) budget and one memory metric in PERFORMANCE.md; ordered "Next" list in TASKS.md. Start after T013 merges (touches shared docs) | T013       |
 | T016 | DONE   | claude | Fix `lumen-bench storage` corpus: no query is covered by the 50-word synthetic vocabulary, so final FTS queries always return 0 hits and typing p50 is optimistic (p95/budget worst case stays valid). Mix query terms in with a skewed distribution, report hits per query, warn when mean hits = 0; re-measure and correct ADR-017 numbers. After T013 (may touch lumen-bench) | T007,T010  |
 
@@ -90,6 +93,7 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 | T209 | REVIEW | codex | Code result model: symbol/file/repository context + code actions        | T201,T108           |
 | T210 | REVIEW | claude | Model + runtime provisioning: explicit download (consent, size), SHA-256 check, versioned app-data location, ORT DLL next to the exe, license notices, removal | T006,T202           |
 | T211 | REVIEW | claude | Harder relevance set for fusion tuning: hundreds of synthetic documents, near-duplicates, folder noise, long documents, graded judgments; re-tune ADR-032 weights | T205                |
+| T212 | REVIEW | codex | Opt-in dedicated GPU indexing with CPU queries, isolated compatibility probe and CPU fallback (user requested) | T013,T202,T204,T210 |
 
 # M3 — PDF/image intelligence and semantic objects
 

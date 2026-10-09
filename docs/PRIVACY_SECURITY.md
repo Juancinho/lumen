@@ -1,6 +1,6 @@
 # PRIVACY_SECURITY.md
 
-## 0. Implementation status (2026-10-08)
+## 0. Implementation status (2026-10-09)
 
 - Stores on device only: `%APPDATA%\dev.lumen.desktop\lumen.db` (catalog, settings, usage).
   Usage is aggregates only — frecency, learned query prefix → item, pins; no raw event log;
@@ -14,6 +14,10 @@
   inference runtime (tray → Semantic search → Download…; pinned URLs on huggingface.co and
   files.pythonhosted.org, SHA-256 verified, via the system `curl`; ADR-034). Nothing about
   files, queries or usage is sent. Not built yet: clipboard history, Rewind.
+- Optional dedicated-GPU acceleration (T212/ADR-038) uses a consented, pinned DirectML
+  runtime download from files.pythonhosted.org. Its isolated compatibility probe reads
+  synthetic inputs only, opens no catalog DB and exits before Tauri startup. Local settings
+  retain hardware/model/runtime identities and counts/timings, never indexed content.
 
 ## 1. Default posture
 
