@@ -94,11 +94,13 @@ export function App() {
   // A refinement never moves the selected row once the user navigated (T206).
   const rows = useMemo(() => stabilize(answer.rows, selection), [answer.rows, selection]);
   const results = useMemo(() => ({ ...answer, rows }), [answer, rows]);
-  const actions = useActions();
-  const height = rootSearchHeight(query, results, actions.panel?.actions.length ?? 0);
   const selected = selectedIndex(selection, results.rows);
   const selectedRow = results.rows[selected];
   const preview = usePreview(results.queryId, selectedRow);
+  const actions = useActions((queryId, rowId) => {
+    if (queryId === results.queryId && rowId === selectedRow?.id) preview.show();
+  });
+  const height = rootSearchHeight(query, results, actions.panel?.actions.length ?? 0);
   const want = overlaySize(height, preview.open);
   const [applied, setApplied] = useState({ width: COMPACT_WIDTH, height: want.height });
 
@@ -207,6 +209,9 @@ export function App() {
         setSelection(moveSelection(selection, results.rows, command.direction * MAX_VISIBLE_ROWS));
         actions.clearNotice();
         return;
+      case "previewPage":
+        if (preview.open) preview.stepPage(command.direction);
+        return;
       case "focusQuery":
         focusQuery(inputRef.current);
         return;
@@ -246,7 +251,23 @@ export function App() {
           notice={actions.noticeFor === selectedRow?.id ? actions.notice : null}
           preview={
             preview.open && (
-              <PreviewPane data={preview.data} docked={applied.width >= DOCKED_MIN_WIDTH} />
+              <PreviewPane
+                data={preview.data}
+                docked={applied.width >= DOCKED_MIN_WIDTH}
+                pdf={preview.pdf}
+                pageNumber={preview.pageNumber}
+                onPage={preview.setPage}
+                onClose={() => {
+                  preview.close();
+                  inputRef.current?.focus();
+                }}
+                onFocusQuery={() => {
+                  inputRef.current?.focus();
+                }}
+                onOpenFile={() => {
+                  runOn(selectedRow, selectedRow?.primaryAction, "primary");
+                }}
+              />
             )
           }
           panel={

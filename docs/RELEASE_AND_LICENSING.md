@@ -27,7 +27,15 @@ linked Rust parser, no PDF renderer/DLL. ADR-039 records the source/license revi
 limits. Ship `docs/licenses/pdf-extractor-notices.txt` with the app alongside existing
 model/runtime notices. `scripts/t301/pdf-notices.ps1` regenerates the exact 28 introduced
 package notices offline from the locked registry packages; this does not replace the
-whole-product distribution audit. T302 rendering needs its own engine/license review.
+whole-product distribution audit.
+
+T302 raster backend: Windows.Data.Pdf, an OS-serviced Windows component through the
+already pinned MIT/Apache Windows bindings. No OS renderer DLL, PDFium/PDF.js package,
+Sumatra executable/GPL engine or new Cargo package is redistributed. Sumatra is an
+optional user's registered viewer; separate arguments use its documented page transport.
+base64 0.22.1 and futures-channel 0.3.34 were already locked transitive MIT/Apache packages.
+ADR-040 records the API/license scope and native proof; broad distribution still requires
+the whole-product notice/signing audit.
 
 ## Model
 

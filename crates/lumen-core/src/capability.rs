@@ -24,17 +24,20 @@ pub enum Capability {
     CodeSymbol = 4,
     /// The code file has a known local repository root.
     Repository = 5,
+    /// A PDF result has a known physical matching page.
+    PdfPage = 6,
 }
 
 impl Capability {
     /// Every capability, in bit order.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::LocalPath,
         Self::Launchable,
         Self::TextValue,
         Self::Pinnable,
         Self::CodeSymbol,
         Self::Repository,
+        Self::PdfPage,
     ];
 
     const fn bit(self) -> u32 {

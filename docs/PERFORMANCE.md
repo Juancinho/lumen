@@ -18,6 +18,11 @@ p50/p95 (query embedding dominated) + contents 0.2 ms + fusion; Windows timing p
 Not measured yet: keystroke → painted results end to end, arrow-key response, Quick Look
 cached preview.
 
+T302 Windows release: 128-page synthetic standard-font PDF, first OS load/page 333 ms;
+uncached pages 22.68/39.17 ms p50/p95, cached raster lookup 0.035/0.053 ms. Metadata/text
+arrive before rasterization. This excludes IPC/visible paint, complex PDFs and native heap
+peaks; no interaction budget changes. Evidence: `benchmarks/t302/2026-10-09-joao-pc/`.
+
 T209 Windows (ADR-036): 162 synthetic documents / 177 chunks / 49 queries; contents
 0.85 / 2.32 ms p50/p95, meaning 33.52 / 65.67 ms (CPU q4, six threads). These are small
 fixture timings, not 100k search evidence. A 100k-code-chunk v3→v4 upgrade took 1.10 s;

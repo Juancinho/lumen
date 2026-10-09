@@ -18,6 +18,14 @@ describe("keymap", () => {
     expect(commandFor(key("ArrowDown"))).toEqual({ type: "move", delta: 1 });
     expect(commandFor(key("ArrowUp"))).toEqual({ type: "move", delta: -1 });
     expect(commandFor(key("PageDown"))).toEqual({ type: "page", direction: 1 });
+    expect(commandFor(key("PageDown", { altKey: true }))).toEqual({
+      type: "previewPage",
+      direction: 1,
+    });
+    expect(commandFor(key("PageUp", { altKey: true }))).toEqual({
+      type: "previewPage",
+      direction: -1,
+    });
     expect(commandFor(key("Enter"))).toEqual({ type: "primary" });
     expect(commandFor(key("Enter", { ctrlKey: true }))).toEqual({ type: "reveal" });
     expect(commandFor(key("Enter", { altKey: true }))).toEqual({ type: "details" });

@@ -20,6 +20,9 @@ conceptual sketches below. Notable concrete choices:
 - `Payload` never crosses to the UI (ADR-013). T209 adds a boxed typed `CodeTarget` (path,
   symbol/language/repository, normalized-text offsets, passage); the UI receives only
   display labels. Code rows share the file ID across all lanes (ADR-036).
+- T301/T302 PDF targets keep a trusted physical page and indexed passage in Rust; the
+  wire carries display context, and capability-based Open matched PDF page uses the same
+  ids-only authorization. Unknown viewers return a local Quick Look outcome (ADR-040).
 - Quick Look (T105) asks the shell for a preview
   by result id instead of a `PreviewRef`.
 

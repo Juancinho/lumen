@@ -4,7 +4,8 @@
 //! Payloads (paths, launch keys) never come from the UI.
 
 use lumen_core::builtin::{
-    COPY_PATH, COPY_SYMBOL, DESCRIPTORS, EXCLUDE_FOLDER, LAUNCH, OPEN, REVEAL, REVEAL_REPOSITORY,
+    COPY_PATH, COPY_SYMBOL, DESCRIPTORS, EXCLUDE_FOLDER, LAUNCH, OPEN, OPEN_PDF_PAGE, REVEAL,
+    REVEAL_REPOSITORY,
 };
 use lumen_core::{
     ActionDescriptor, ActionGroup, ActionId, ActionRequest, Invocation, Payload, QueryId, ResultId,
@@ -17,7 +18,7 @@ use crate::dto::ActionDto;
 use crate::{overlay, search, settings};
 
 /// Actions Lumen can execute (one registry for every provider).
-pub(crate) static REGISTRY: [ActionDescriptor; 7] = DESCRIPTORS;
+pub(crate) static REGISTRY: [ActionDescriptor; 8] = DESCRIPTORS;
 
 /// Keyboard hint shown in the Action Panel (must match `features/root-search/keymap.ts`).
 pub(crate) fn shortcut_hint(action: &ActionId, primary: bool) -> Option<&'static str> {
@@ -99,7 +100,7 @@ pub(crate) fn run<R: Runtime>(
     result: &str,
     action: &str,
     invocation: &str,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let started = std::time::Instant::now();
     let (query, text, item) = lookup(app, query, result)?;
     let request = ActionRequest {
@@ -111,11 +112,30 @@ pub(crate) fn run<R: Runtime>(
     };
     let (ctx, _) = prepare(request, &item, &REGISTRY).map_err(|e| e.to_string())?;
     let action = ctx.request().action.clone();
-    execute(app, &action, &item.payload)?;
+    if action == OPEN_PDF_PAGE {
+        let Payload::Pdf(target) = &item.payload else {
+            return Err("result has no PDF page".into());
+        };
+        let launch = lumen_windows::pdf_viewer::registered().and_then(|exe| {
+            lumen_windows::pdf_viewer::plan(&exe, &target.path, target.page_number.get())
+        });
+        if let Some(launch) = launch {
+            std::process::Command::new(launch.executable)
+                .args(launch.arguments)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        } else {
+            // The shell authorizes the action first. The UI then opens Quick Look for
+            // the same ids; ordinary Open remains available for every PDF handler.
+            return Ok(true);
+        }
+    } else {
+        execute(app, &action, &item.payload)?;
+    }
     crate::diag::record("action_ms", started.elapsed().as_secs_f64() * 1000.0);
     record_use(app, &item, &action, &text);
     overlay::hide(app);
-    Ok(())
+    Ok(false)
 }
 
 fn path_of(payload: &Payload) -> Result<&std::path::Path, String> {

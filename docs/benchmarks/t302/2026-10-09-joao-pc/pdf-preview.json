@@ -1,0 +1,48 @@
+{
+  "build": "release",
+  "cached": {
+    "max_ms": 0.0962,
+    "mean_ms": 0.03922,
+    "min_ms": 0.0329,
+    "n": 100,
+    "p50_ms": 0.0354,
+    "p95_ms": 0.052899999999999996,
+    "p99_ms": 0.0833
+  },
+  "cold_ms": 333.1383,
+  "engine": "Windows.Data.Pdf",
+  "image": {
+    "height": 960,
+    "png_bytes": 8211,
+    "width": 678
+  },
+  "machine": {
+    "arch": "x86_64",
+    "build_profile": "release",
+    "cpu": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "logical_cpus": 12,
+    "lumen_version": "0.1.0",
+    "os": "windows",
+    "unix_time_s": 1791567862
+  },
+  "memory_after": {
+    "resident_mib": 50.69921875,
+    "virtual_mib": 65.6015625
+  },
+  "memory_before": {
+    "resident_mib": 5.2265625,
+    "virtual_mib": 1.15234375
+  },
+  "physical_pages": 128,
+  "source_bytes": 36087,
+  "task": "T302",
+  "uncached_page": {
+    "max_ms": 49.7853,
+    "mean_ms": 27.144453333333335,
+    "min_ms": 16.5548,
+    "n": 30,
+    "p50_ms": 22.679100000000002,
+    "p95_ms": 39.1689,
+    "p99_ms": 49.7853
+  }
+}

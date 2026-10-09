@@ -12,10 +12,14 @@ import {
   overlayPainted,
   overlayReady,
   previewResult,
+  previewPdfPage,
+  cancelPdfPreview,
+  onOverlayHidden,
   resizeOverlay,
   type Appearance,
   type OverlayShown,
   type Preview,
+  type PdfPreview,
 } from "../ipc";
 import { useResults, type ResultsState } from "../features/root-search/useResults";
 import { App } from "./App";
@@ -32,11 +36,15 @@ vi.mock("../ipc", () => ({
   overlayPainted: vi.fn(),
   overlayReady: vi.fn(),
   previewResult: vi.fn(),
+  previewPdfPage: vi.fn(),
+  cancelPdfPreview: vi.fn(),
+  onOverlayHidden: vi.fn(),
   resizeOverlay: vi.fn(),
 }));
 
 let shownHandler: ((shown: OverlayShown) => void) | undefined;
 let appearanceHandler: ((appearance: Appearance) => void) | undefined;
+let hiddenHandler: (() => void) | undefined;
 const unlisten = vi.fn();
 
 function nthOption(index: number): HTMLElement {
@@ -62,7 +70,23 @@ beforeEach(() => {
     text: "hola\nmundo",
     truncated: false,
   });
-  vi.mocked(runAction).mockResolvedValue(undefined);
+  vi.mocked(runAction).mockResolvedValue(false);
+  vi.mocked(previewPdfPage).mockImplementation((_request, _query, _row, pageNumber) =>
+    Promise.resolve({
+      pageNumber,
+      pageCount: 10,
+      width: 742,
+      height: 960,
+      image: "data:image/png;base64,test",
+      unavailable: null,
+    }),
+  );
+  vi.mocked(cancelPdfPreview).mockResolvedValue(undefined);
+  hiddenHandler = undefined;
+  vi.mocked(onOverlayHidden).mockImplementation((handler) => {
+    hiddenHandler = handler;
+    return Promise.resolve(unlisten);
+  });
   vi.mocked(listActions).mockResolvedValue([
     { id: "lumen.open", title: "Open", group: "primary", shortcut: "Enter" },
     {
@@ -499,6 +523,101 @@ describe("App overlay", () => {
       expect(screen.getByRole("complementary")).toHaveTextContent("Page 7");
       expect(screen.getByRole("option")).toHaveAttribute("aria-selected", "true");
       expect(previewResult).toHaveBeenCalledTimes(2);
+    });
+
+    it("navigates rendered PDF pages, returns to the match and cancels on hide", async () => {
+      results = {
+        rows: [{ ...file("item:1"), title: "guide.pdf", extension: "pdf", pdf: { pageNumber: 3 } }],
+        queryId: 7,
+        status: "done",
+      };
+      vi.mocked(previewResult).mockResolvedValue({
+        title: "guide.pdf",
+        kind: "file",
+        location: null,
+        sizeBytes: 100,
+        modifiedMs: null,
+        text: "matched page three",
+        truncated: true,
+        pageNumber: 3,
+      });
+      render(<App />);
+      await userEvent.keyboard("{Alt>}{Enter}{/Alt}");
+      expect(await screen.findByRole("img", { name: "Page 3 of guide.pdf" })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: "Search" })).toHaveFocus();
+      await userEvent.keyboard("{Alt>}{PageDown}{/Alt}");
+      expect(await screen.findByRole("img", { name: "Page 4 of guide.pdf" })).toBeInTheDocument();
+      expect(nthOption(0)).toHaveAttribute("aria-selected", "true");
+      expect(cancelPdfPreview).toHaveBeenCalled();
+      await userEvent.click(screen.getByRole("button", { name: "Return to match" }));
+      await screen.findByRole("img", { name: "Page 3 of guide.pdf" });
+      const page = screen.getByRole("textbox", { name: "PDF page number" });
+      await userEvent.clear(page);
+      await userEvent.type(page, "10{Enter}");
+      await screen.findByRole("img", { name: "Page 10 of guide.pdf" });
+      expect(screen.getByRole("button", { name: "Next PDF page" })).toBeDisabled();
+      await userEvent.keyboard("{Control>}l{/Control}");
+      expect(screen.getByRole("combobox", { name: "Search" })).toHaveFocus();
+      await act(async () => {
+        hiddenHandler?.();
+        await Promise.resolve();
+      });
+      expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+      expect(cancelPdfPreview).toHaveBeenCalledTimes(4);
+    });
+
+    it("drops a late raster after closing and uses the authorized page-action fallback", async () => {
+      results = {
+        rows: [{ ...file("item:1"), title: "guide.pdf", extension: "pdf", pdf: { pageNumber: 2 } }],
+        queryId: 7,
+        status: "done",
+      };
+      vi.mocked(previewResult).mockResolvedValue({
+        title: "guide.pdf",
+        kind: "file",
+        location: null,
+        sizeBytes: 100,
+        modifiedMs: null,
+        text: "matched page two",
+        truncated: true,
+        pageNumber: 2,
+      });
+      let finish: ((pdf: PdfPreview) => void) | undefined;
+      vi.mocked(previewPdfPage).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      vi.mocked(listActions).mockResolvedValue([
+        {
+          id: "lumen.open-pdf-page",
+          title: "Open matched PDF page",
+          group: "common",
+          shortcut: null,
+        },
+      ]);
+      vi.mocked(runAction).mockResolvedValueOnce(true);
+      render(<App />);
+      await userEvent.keyboard("{Control>}k{/Control}");
+      await screen.findByRole("listbox", { name: "Actions" });
+      await userEvent.keyboard("{Enter}");
+      await screen.findByText("Loading page…");
+      await userEvent.keyboard("{Escape}");
+      await act(async () => {
+        finish?.({
+          pageNumber: 2,
+          pageCount: 10,
+          width: 678,
+          height: 960,
+          image: "data:image/png;base64,old",
+          unavailable: null,
+        });
+        await Promise.resolve();
+      });
+      expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+      expect(hideOverlay).not.toHaveBeenCalled();
+      expect(runAction).toHaveBeenLastCalledWith(7, "item:1", "lumen.open-pdf-page", "panel");
     });
 
     it("covers the list when the monitor is too narrow for two panes", async () => {

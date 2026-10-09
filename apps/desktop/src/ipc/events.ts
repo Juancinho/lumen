@@ -30,6 +30,10 @@ export function onOverlayShown(handler: (shown: OverlayShown) => void): Promise<
   });
 }
 
+export function onOverlayHidden(handler: () => void): Promise<UnlistenFn> {
+  return listen("lumen:overlay-hidden", handler);
+}
+
 /** Mirrors `material::EVENT_APPEARANCE` in `src-tauri/src/material.rs`. */
 export const APPEARANCE_CHANGED = "lumen:appearance";
 

@@ -18,6 +18,10 @@
   runtime download from files.pythonhosted.org. Its isolated compatibility probe reads
   synthetic inputs only, opens no catalog DB and exits before Tauri startup. Local settings
   retain hardware/model/runtime identities and counts/timings, never indexed content.
+- T302 PDF Quick Look is an explicit local read, including filename-only/scan PDFs;
+  it adds no indexed content or network path. Only a bounded OS-produced PNG reaches the
+  WebView; raw PDF/viewer targets stay in Rust. Memory cache clears on hide/new query;
+  offline/recall placeholders are refused before reading (ADR-040).
 
 ## 1. Default posture
 

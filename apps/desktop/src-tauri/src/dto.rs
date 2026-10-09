@@ -42,6 +42,19 @@ pub(crate) struct PreviewDto {
 }
 
 /// Mirrors `Size` in `src/ipc/types.ts`: logical px.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PdfPreviewDto {
+    pub(crate) page_number: u32,
+    pub(crate) page_count: Option<u32>,
+    pub(crate) width: Option<u32>,
+    pub(crate) height: Option<u32>,
+    /// OS-produced bounded PNG only; no file URL, raw PDF or executable target.
+    pub(crate) image: Option<String>,
+    pub(crate) unavailable: Option<&'static str>,
+}
+
+/// Mirrors `Size` in `src/ipc/types.ts`: logical px.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub(crate) struct SizeDto {
     pub(crate) width: f64,
@@ -387,6 +400,22 @@ mod tests {
                 "group": "navigation",
                 "shortcut": "Ctrl+Enter"
             })
+        );
+    }
+
+    #[test]
+    fn pdf_raster_wire_has_only_image_and_display_metadata() {
+        let dto = PdfPreviewDto {
+            page_number: 7,
+            page_count: Some(128),
+            width: Some(678),
+            height: Some(960),
+            image: Some("data:image/png;base64,cG5n".into()),
+            unavailable: None,
+        };
+        assert_eq!(
+            serde_json::to_value(dto).unwrap(),
+            serde_json::json!({"pageNumber":7,"pageCount":128,"width":678,"height":960,"image":"data:image/png;base64,cG5n","unavailable":null})
         );
     }
 

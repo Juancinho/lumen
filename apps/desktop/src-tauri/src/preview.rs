@@ -1,7 +1,7 @@
 //! Quick Look data (T105): metadata and a short text excerpt of a result the user saw.
 //! Narrow, bounded reads only (docs/ARCHITECTURE.md §4): at most [`READ_BYTES`] from files
-//! up to [`MAX_TEXT_FILE`], text-like extensions only, nothing for binaries. Rich previews
-//! (images, PDF pages) come with their extractors (T302/T303).
+//! up to [`MAX_TEXT_FILE`], text-like extensions only. T302 renders PDF pages separately
+//! on its bounded worker; this first response supplies metadata and indexed text.
 
 use std::io::Read;
 use std::path::Path;
@@ -143,6 +143,12 @@ pub(crate) fn preview(item: &ResultItem) -> PreviewDto {
     let Some(path) = item.payload.local_path() else {
         return dto;
     };
+    if path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("pdf"))
+    {
+        dto.page_number.get_or_insert(1);
+    }
     let Ok(meta) = std::fs::metadata(path) else {
         return dto;
     };

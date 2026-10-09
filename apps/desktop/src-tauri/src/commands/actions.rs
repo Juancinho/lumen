@@ -13,7 +13,7 @@ pub(crate) async fn list_actions(
 }
 
 /// Runs `action_id` on a result (T109). `invocation`: `primary` | `panel` | `shortcut`.
-/// The overlay hides on success; the error is a short reason for diagnostics.
+/// False: completed and hidden. True: authorized PDF-page fallback keeps Quick Look open.
 #[tauri::command]
 pub(crate) async fn run_action(
     app: AppHandle,
@@ -21,6 +21,6 @@ pub(crate) async fn run_action(
     result_id: String,
     action_id: String,
     invocation: String,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     crate::actions::run(&app, query_id, &result_id, &action_id, &invocation)
 }

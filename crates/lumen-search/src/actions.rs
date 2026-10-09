@@ -78,7 +78,7 @@ mod tests {
     use super::*;
     use crate::coordinator::tests::item;
 
-    static REGISTRY: [ActionDescriptor; 7] = DESCRIPTORS;
+    static REGISTRY: [ActionDescriptor; 8] = DESCRIPTORS;
 
     fn file() -> ResultItem {
         let mut it = item("item:1", &ProviderId::new("test.p").unwrap(), 0.5);
@@ -145,6 +145,46 @@ mod tests {
             )
             .err(),
             Some(ActionError::UnknownAction)
+        );
+    }
+
+    #[test]
+    fn pdf_page_action_requires_an_offered_trusted_page_capability() {
+        use lumen_core::builtin::OPEN_PDF_PAGE;
+        let mut pdf = file();
+        assert!(
+            prepare(
+                request(OPEN_PDF_PAGE, Invocation::ActionPanel),
+                &pdf,
+                &DESCRIPTORS
+            )
+            .is_err()
+        );
+        pdf.secondary_actions.push(OPEN_PDF_PAGE);
+        assert!(
+            prepare(
+                request(OPEN_PDF_PAGE, Invocation::ActionPanel),
+                &pdf,
+                &DESCRIPTORS
+            )
+            .is_err()
+        );
+        pdf.capabilities = pdf.capabilities.with(Capability::PdfPage);
+        assert!(
+            prepare(
+                request(OPEN_PDF_PAGE, Invocation::ActionPanel),
+                &pdf,
+                &DESCRIPTORS
+            )
+            .is_ok()
+        );
+        assert!(
+            prepare(
+                request(OPEN_PDF_PAGE, Invocation::Primary),
+                &pdf,
+                &DESCRIPTORS
+            )
+            .is_err()
         );
     }
 

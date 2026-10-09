@@ -75,7 +75,8 @@ apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
     src/gpu_probe.rs      bounded synthetic subprocess mode, before Tauri/SQLite startup
     src/provisioning.rs   consented model/CPU/DirectML runtime installation (ADR-034/038)
     src/actions.rs         action executors behind the core policy (ADR-026)
-    src/preview.rs         Quick Look data: metadata + bounded text excerpt (T105)
+    src/preview.rs         Quick Look metadata + bounded indexed/text excerpt (T105/T301)
+    src/pdf_preview.rs     latest-wins PDF raster worker and memory cache (T302/ADR-040)
     src/instance.rs        second-launch commands (--show/--hide/--toggle/--quit)
     src/tray.rs            tray icon + menu (Show, Keyboard shortcut, Window material, Quit)
     src/dto.rs             wire DTOs mapped from core types
@@ -236,8 +237,11 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
 - PDF text hits (T301, ADR-039): enable "Index file contents" for a location, then search
   words/meaning with `ext:pdf`. Text pages enter the existing FTS/embedding queue; a hit
   shows its physical page and Alt+Enter displays the indexed passage. Enter still opens
-  the PDF file handler. Rendering/direct page jumps are T302; scanned PDFs need future
-  OCR/vision. No migration/re-embedding of unchanged text/code or model download is added.
+  the PDF file handler. T302 adds lazy rendered Quick Look, previous/next/page entry and
+  Return to match. Alt+PageUp/Down navigate PDF pages; Ctrl+K → Open matched PDF page
+  supports the registered Sumatra viewer, otherwise the Lumen preview with Open file.
+  Scanned PDFs can be previewed by filename but need future OCR/vision for retrieval.
+  No migration/re-embedding of unchanged text/code or model download is added.
 - On every show the shell emits `lumen:overlay-shown`; the UI focuses and selects the query.
 - Diagnostics mode (T110): `LUMEN_DIAGNOSTICS=1` adds provider · match kind · confidence
   under every result row and logs per-query timing/failed providers to the WebView console

@@ -22,6 +22,7 @@ mod instance;
 mod lifecycle;
 mod material;
 mod overlay;
+mod pdf_preview;
 mod preview;
 mod provisioning;
 mod search;
@@ -66,6 +67,7 @@ fn main() {
             gpu::install(app);
             indexing::install(app);
             search::install(app);
+            pdf_preview::install(app.handle());
             catalog::start(app);
             shortcut::install(app)?;
             tray::install(app)?;
@@ -103,6 +105,8 @@ fn main() {
             commands::actions::list_actions,
             commands::actions::run_action,
             commands::preview::preview_result,
+            commands::preview::preview_pdf_page,
+            commands::preview::cancel_pdf_preview,
             commands::overlay::overlay_painted
         ])
         .run(tauri::generate_context!());

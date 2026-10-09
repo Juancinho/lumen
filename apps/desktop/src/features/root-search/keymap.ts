@@ -7,6 +7,7 @@ export type KeyCommand =
   | { type: "dismiss" }
   | { type: "move"; delta: number }
   | { type: "page"; direction: 1 | -1 }
+  | { type: "previewPage"; direction: 1 | -1 }
   | { type: "primary" }
   | { type: "reveal" }
   | { type: "details" }
@@ -37,8 +38,10 @@ export function commandFor(e: KeyInput): KeyCommand | null {
     case "ArrowUp":
       return plain ? { type: "move", delta: -1 } : null;
     case "PageDown":
+      if (altOnly) return { type: "previewPage", direction: 1 };
       return plain ? { type: "page", direction: 1 } : null;
     case "PageUp":
+      if (altOnly) return { type: "previewPage", direction: -1 };
       return plain ? { type: "page", direction: -1 } : null;
     case "Enter":
       if (plain) return { type: "primary" };

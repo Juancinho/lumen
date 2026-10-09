@@ -32,7 +32,7 @@
 - **PDF text (built, T301):** physical-page chunks, FTS and the existing semantic queue;
   matched-page labels and indexed text Quick Look, unchanged generation/vectors (ADR-039).
   Consent-scoped, bounded Rust parser; scans/encryption/limits have explicit skip codes.
-  Rendered previews/page jumps remain T302, images/OCR T303/T304.
+  T302 adds on-demand rendered pages/navigation; images/OCR remain T303/T304.
 
 ## 1. Retrieval philosophy
 
@@ -268,8 +268,11 @@ No editor CLI is guessed and offsets are not treated as raw-file line numbers.
 Built text path (T301): see `specs/T301-pdf-text.md` and ADR-039. Text-bearing PDF pages
 are independently chunked, including physical numbering through blank pages. Existing
 FTS/semantic providers retain one file row with its best matched page. Alt+Enter shows
-the indexed passage and page; Enter opens the registered PDF file handler. The rendering
-and direct-page-navigation portions below remain T302; scans need future OCR/vision.
+the indexed passage and page; Enter opens the registered PDF file handler. T302 renders
+the matched page in Quick Look (page 1 for names), with physical-page controls and a
+capability-based Open matched PDF page action. The registered Sumatra handler supports
+direct page arguments; other handlers use the Lumen preview and ordinary Open file.
+Rendering scans adds no searchable visual content; scans still need future OCR/vision.
 
 Two complementary representations:
 

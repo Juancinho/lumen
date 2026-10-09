@@ -19,12 +19,13 @@ pub const COPY_PATH: ActionId = ActionId::from_static("lumen.copy-path");
 pub const EXCLUDE_FOLDER: ActionId = ActionId::from_static("lumen.exclude-folder");
 pub const COPY_SYMBOL: ActionId = ActionId::from_static("lumen.copy-symbol");
 pub const REVEAL_REPOSITORY: ActionId = ActionId::from_static("lumen.reveal-repository");
+pub const OPEN_PDF_PAGE: ActionId = ActionId::from_static("lumen.open-pdf-page");
 
 const LOCAL_PATH: CapabilitySet = CapabilitySet::of(&[Capability::LocalPath]);
 const LAUNCHABLE: CapabilitySet = CapabilitySet::of(&[Capability::Launchable]);
 
 /// Descriptors of the built-in actions, in panel order.
-pub const DESCRIPTORS: [ActionDescriptor; 7] = [
+pub const DESCRIPTORS: [ActionDescriptor; 8] = [
     ActionDescriptor::new_static(
         OPEN,
         "Open",
@@ -66,6 +67,13 @@ pub const DESCRIPTORS: [ActionDescriptor; 7] = [
         ActionSafety::SafeRead,
         ActionGroup::Navigation,
         CapabilitySet::of(&[Capability::Repository]),
+    ),
+    ActionDescriptor::new_static(
+        OPEN_PDF_PAGE,
+        "Open matched PDF page",
+        ActionSafety::SafeRead,
+        ActionGroup::Common,
+        CapabilitySet::of(&[Capability::LocalPath, Capability::PdfPage]),
     ),
     ActionDescriptor::new_static(
         EXCLUDE_FOLDER,

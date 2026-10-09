@@ -93,3 +93,12 @@ export interface Preview {
   truncated: boolean;
   pageNumber?: number | null;
 }
+
+export interface PdfPreview {
+  pageNumber: number;
+  pageCount: number | null;
+  width: number | null;
+  height: number | null;
+  image: string | null;
+  unavailable: string | null;
+}

@@ -9,6 +9,8 @@ import {
   overlayPainted,
   overlayReady,
   previewResult,
+  previewPdfPage,
+  cancelPdfPreview,
   resizeOverlay,
   runAction,
   search,
@@ -81,5 +83,17 @@ describe("ipc commands", () => {
     vi.mocked(invoke).mockResolvedValueOnce({});
     await previewResult(3, "item:9");
     expect(invoke).toHaveBeenLastCalledWith("preview_result", { queryId: 3, resultId: "item:9" });
+  });
+
+  it("PDF preview sends only result ids, bounded page metadata and a cancellation id", async () => {
+    await previewPdfPage(11, 3, "item:9", 7);
+    expect(invoke).toHaveBeenLastCalledWith("preview_pdf_page", {
+      requestId: 11,
+      queryId: 3,
+      resultId: "item:9",
+      pageNumber: 7,
+    });
+    await cancelPdfPreview(11);
+    expect(invoke).toHaveBeenLastCalledWith("cancel_pdf_preview", { requestId: 11 });
   });
 });

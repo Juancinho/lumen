@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { listActions, runAction, type ActionView, type Invocation } from "../../ipc";
 import type { ResultRowModel } from "./model";
@@ -36,17 +36,25 @@ const FAILED = "Couldn't do that";
  * which actions a result offers and whether a request is allowed; the UI only sends ids.
  * On success the shell hides the overlay; a failure shows a short notice on the row.
  */
-export function useActions(): Actions {
+export function useActions(onPreview?: (queryId: number, rowId: string) => void): Actions {
+  const previewHandler = useRef(onPreview);
+  useEffect(() => {
+    previewHandler.current = onPreview;
+  }, [onPreview]);
   const [panel, setPanel] = useState<PanelState | null>(null);
   const [notice, setNotice] = useState<{ rowId: string; text: string } | null>(null);
 
   const run: Actions["run"] = (queryId, row, actionId, how) => {
     setPanel(null);
     setNotice(null);
-    runAction(queryId, row.id, actionId, how).catch((error: unknown) => {
-      console.error("lumen: action failed", error);
-      setNotice({ rowId: row.id, text: FAILED });
-    });
+    runAction(queryId, row.id, actionId, how)
+      .then((preview) => {
+        if (preview) previewHandler.current?.(queryId, row.id);
+      })
+      .catch((error: unknown) => {
+        console.error("lumen: action failed", error);
+        setNotice({ rowId: row.id, text: FAILED });
+      });
   };
 
   const openPanel: Actions["openPanel"] = (queryId, row) => {

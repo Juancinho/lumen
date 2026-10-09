@@ -1,5 +1,5 @@
 //! Attach trusted PDF page context to the existing file row (T301, ADR-039).
-use lumen_core::{Payload, PdfTarget, ResultItem, ResultKind};
+use lumen_core::{Capability, Payload, PdfTarget, ResultItem, ResultKind, builtin::OPEN_PDF_PAGE};
 use lumen_storage::ChunkRef;
 
 pub fn enrich(result: &mut ResultItem, reference: &ChunkRef, extension: Option<&str>) {
@@ -21,6 +21,10 @@ pub fn enrich(result: &mut ResultItem, reference: &ChunkRef, extension: Option<&
         return;
     };
     result.kind = ResultKind::PdfPage;
+    result.capabilities = result.capabilities.with(Capability::PdfPage);
+    if !result.secondary_actions.contains(&OPEN_PDF_PAGE) {
+        result.secondary_actions.push(OPEN_PDF_PAGE);
+    }
     result.payload = Payload::Pdf(Box::new(PdfTarget {
         path,
         page_number,

@@ -2707,6 +2707,8 @@ name = "lumen-desktop"
 version = "0.1.0"
 dependencies = [
  "arboard",
+ "base64 0.22.1",
+ "futures-channel",
  "lumen-catalog",
  "lumen-content",
  "lumen-core",
@@ -2815,6 +2817,7 @@ dependencies = [
 name = "lumen-windows"
 version = "0.1.0"
 dependencies = [
+ "lopdf",
  "windows",
  "windows-core",
  "windows-version",

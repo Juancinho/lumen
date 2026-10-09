@@ -1,10 +1,47 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { formatSize } from "./format";
 import { PreviewPane } from "./PreviewPane";
 
 describe("PreviewPane", () => {
+  it("keeps indexed text on rendering failure and Escape works from PDF controls", () => {
+    const close = vi.fn();
+    render(
+      <PreviewPane
+        docked
+        data={{
+          title: "guide.pdf",
+          kind: "pdf-page",
+          location: null,
+          sizeBytes: null,
+          modifiedMs: null,
+          text: "matched text",
+          truncated: true,
+          pageNumber: 7,
+        }}
+        pdf={{
+          pageNumber: 7,
+          pageCount: null,
+          width: null,
+          height: null,
+          image: null,
+          unavailable: "Page preview is unavailable",
+        }}
+        onClose={close}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Page preview is unavailable");
+    expect(screen.getByText(/matched text/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next PDF page" })).toBeDisabled();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Next PDF page" }), {
+      key: "Escape",
+      isComposing: true,
+    });
+    expect(close).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Next PDF page" }), { key: "Escape" });
+    expect(close).toHaveBeenCalledOnce();
+  });
   it("labels the physical PDF page beside its indexed text passage", () => {
     render(
       <PreviewPane

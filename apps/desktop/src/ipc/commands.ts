@@ -1,7 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { toAppearance } from "./events";
-import type { ActionView, Appearance, CoreInfo, Invocation, Preview, Size } from "./types";
+import type {
+  ActionView,
+  Appearance,
+  CoreInfo,
+  Invocation,
+  Preview,
+  PdfPreview,
+  Size,
+} from "./types";
 
 /** Identity of the linked Rust core. Command: `core_info`. */
 export function getCoreInfo(): Promise<CoreInfo> {
@@ -51,6 +59,19 @@ export function previewResult(queryId: number, resultId: string): Promise<Previe
   return invoke<Preview>("preview_result", { queryId, resultId });
 }
 
+export function previewPdfPage(
+  requestId: number,
+  queryId: number,
+  resultId: string,
+  pageNumber: number,
+): Promise<PdfPreview> {
+  return invoke<PdfPreview>("preview_pdf_page", { requestId, queryId, resultId, pageNumber });
+}
+
+export function cancelPdfPreview(requestId: number): Promise<void> {
+  return invoke("cancel_pdf_preview", { requestId });
+}
+
 /**
  * Starts root search `queryId` (increasing per query) for `text`. Results arrive as
  * `lumen:results`; resolves to whether the shell accepted it. Command: `search`.
@@ -66,13 +87,14 @@ export function listActions(queryId: number, resultId: string): Promise<ActionVi
 
 /**
  * Runs an action on a result the user saw; the shell checks it is offered, executes it,
- * learns from it and hides the overlay. Rejects with a short reason. Command: `run_action`.
+ * learns from it and hides the overlay. Returns true for an authorized local preview
+ * fallback, which keeps the overlay open. Rejects with a short reason. Command: `run_action`.
  */
 export function runAction(
   queryId: number,
   resultId: string,
   actionId: string,
   invocation: Invocation,
-): Promise<void> {
+): Promise<boolean> {
   return invoke("run_action", { queryId, resultId, actionId, invocation });
 }

@@ -16,6 +16,8 @@
   unless it would overflow, so the search bar does not move), list keeps 800 px, preview
   pane beside it with metadata and a text excerpt; below 1100 px available it covers the
   list. Window resize is native and instant (no 180–240 ms expansion animation yet).
+- T302 adds on-demand PDF page rasters, compact page controls and a collapsible matched
+  excerpt inside that pane. Alt+PageUp/Down navigate pages; root result keys stay unchanged.
 - Action Panel (T108): elevated opaque card bottom-right (no second blur), primary first.
 - Not yet: real app/file icons (IconRef::Native), scope chips, status area, sections.
 
@@ -367,4 +369,3 @@ Avoid:
 - macOS traffic-light mimicry;
 - "AI" sparkles as a generic semantic-search icon;
 - animation on every state change.
-
