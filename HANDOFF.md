@@ -5,21 +5,39 @@
 
 ## Branch and exact continuation
 
-main on github.com/Juancinho/lumen. Continued clean 60befce (T302); T303 is implemented
-and REVIEW. No active claim remains. No push requested. The user deferred manual reviews
-until later; preserve all checklists and the resident indexer. Next implementation is
-T304 optional Windows OCR. Read AGENTS.md's canonical list, SEARCH_AND_INDEXING §11/12,
+T213 continues main 2328f1e in managed worktree
+`C:\Users\tj14o\.codex\worktrees\t213-indexing-progress\lumen`, branch
+`codex/t213-indexing-progress`. The user explicitly requested repairing zero image work,
+using GPU where measured faster and showing phase/counts/percentages. Separate T112
+manual exclusions are active in the primary checkout; do not overwrite that claim/work.
+No push requested. Older REVIEW checklists below remain. Next roadmap implementation
+after this user repair is T304 optional Windows OCR. Read SEARCH_AND_INDEXING §11/12,
 PRIVACY_SECURITY, PERFORMANCE and actual Windows OCR API/language/runtime contracts;
 claim T304 and define bounded optional OCR/FTS/coverage/privacy/license behavior before
 code. Preserve T303 metadata/image vectors, existing text/code/PDF vectors, CPU queries,
-text GPU acceleration and the single writer. No OCR presently exists. Semantic Drop/
+GPU acceleration and the single writer. No OCR presently exists. Semantic Drop/
 Similar are T305/T306; full T014 downloads/runtime matrix remain separate.
 
-Resident read-only checks still found PID 7404/start 2026-10-09 18:04:57 +02:00,
-target/t212-release/lumen.exe. The agent did not stop/restart it, change settings, write
-its live app-data DB or replace that executable. Temporary synthetic/public CC0 data only.
-A second launch addresses the running single-instance app until the user chooses Quit.
-Inspect current PIDs before acting; loaded DirectML DLLs alone do not prove GPU activity.
+T213 initial live checks found PID 6344/start 2026-10-09 23:35:50 +02:00 at
+`D:\Proyectos\lumen\target\t303-release\lumen.exe`. Images were installed/consented,
+GPU opt-in enabled, but all image preparation waited behind text/PDF extraction.
+Preserve the DB, roots and completed vectors. A normal `--quit`/new-bundle restart is
+authorized by this user's repair request after validation; never replace a loaded exe.
+
+## T213 — live indexing repair
+
+Read `docs/specs/T213-indexing-progress.md` and ADR-042. Bounded extraction cursors,
+eight-text-batch image fairness, cached root progress and separately validated hybrid
+CPU-vision/GPU-backbone route are implemented. Full GPU vision fails native Reshape on
+GTX 1650; it is not enabled. Public-photo mixed cycles improve 21.929→18.401 s with
+CPU-reference cosine >= 0.99999994. No vector-generation/weight/schema change.
+
+Frontend format/lint/types, 84 tests and build pass. Actual root footer browser QA passes
+at 1280x720, including unknown coverage without invented percentages. Final Rust gate,
+optimized bundle and live native checks are in progress; record final outcomes below.
+Build target is `D:\Proyectos\lumen\target\t213-build`, isolated from T112/main artifacts.
+Do not copy workspace fingerprints from a different checkout: Cargo can reuse stale
+workspace dependencies and produce misleading field errors.
 
 ## T303 — implementation and native review
 

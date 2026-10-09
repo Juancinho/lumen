@@ -24,8 +24,8 @@ use std::time::{Duration, Instant};
 
 use lumen_catalog::IndexLocations;
 use lumen_content::{
-    Control, PassConfig, QueueConfig, QueueError, QueueJob, Stop, run_content_pass, run_image_pass,
-    run_queue,
+    Control, PassConfig, QueueConfig, QueueError, QueueJob, Slice, Stop, run_content_slice,
+    run_image_slice, run_queue,
 };
 use lumen_core::CancellationToken;
 use lumen_embedding::policy::{
@@ -64,6 +64,8 @@ const RETIRE_BATCH: usize = 5_000;
 /// Semantic-indexing state shown in the tray.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Semantic {
+    CheckingGpu,
+    Reading(&'static str),
     /// No model configured (T210 not built): lexical content only.
     NoModel,
     /// The model or runtime failed to load / the device failed; message for logs only.
@@ -73,12 +75,19 @@ pub(crate) enum Semantic {
         threads: usize,
     },
     RunningGpu,
+    RunningImages {
+        gpu: bool,
+    },
     PausedByUser,
     Waiting(PauseReason),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Status {
+    pub(crate) coverage: lumen_storage::content::FileCoverage,
+    pub(crate) image_files: u64,
+    pub(crate) known: bool,
+    pub(crate) vector_failures: u64,
     pub(crate) images: lumen_storage::images::ImageCounts,
     pub(crate) files: u64,
     pub(crate) chunks: u64,
@@ -101,6 +110,7 @@ struct Loaded {
     threads: usize,
     device: lumen_embedding_ort::Device,
     images: bool,
+    image_gpu: bool,
     embedder: Embedder,
     generation: Option<i64>,
 }
@@ -173,6 +183,12 @@ pub(crate) fn on_model_installed<R: Runtime>(app: &AppHandle<R>) {
     });
     crate::catalog::request_work(app);
     tray::refresh_indexing(app);
+    if app
+        .try_state::<crate::gpu::Gpu>()
+        .is_some_and(|gpu| gpu.enabled())
+    {
+        crate::gpu::discover(app);
+    }
 }
 
 /// The model is about to be deleted: drop the indexing session (vectors stay).
@@ -200,6 +216,10 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) {
     app.manage(Indexing {
         control,
         status: Mutex::new(Status {
+            coverage: Default::default(),
+            image_files: 0,
+            known: false,
+            vector_failures: 0,
             images: Default::default(),
             files: 0,
             chunks: 0,
@@ -247,49 +267,143 @@ pub(crate) fn set_paused<R: Runtime>(app: &AppHandle<R>, paused: bool) {
     tray::refresh_indexing(app);
 }
 
-/// The content pass over content-indexed locations. Cheap when nothing changed.
+/// Cursors belong to this catalog round; persistent states survive restart/settings edits.
+#[derive(Default)]
+pub(crate) struct ContentProgress {
+    text: i64,
+    image: i64,
+    text_done: bool,
+    image_done: bool,
+}
+
+/// One bounded extraction round, followed by a turn for the persistent vector queue.
 pub(crate) fn content_pass<R: Runtime>(
     app: &AppHandle<R>,
     db: &Path,
     model: &IndexLocations,
     token: &CancellationToken,
-) {
+    progress: &mut ContentProgress,
+) -> bool {
+    let state = app.state::<Indexing>();
+    if state.paused() {
+        return false;
+    }
     let started = Instant::now();
     let mut store = match Store::open_writer(db) {
         Ok(s) => s,
         Err(err) => {
             eprintln!("lumen: content pass skipped: {err}");
-            return;
+            return false;
         }
     };
     let now = now_ms;
-    match run_content_pass(
-        &mut store,
-        &PassConfig::default(),
-        &EstimateTokens,
-        &|path| model.indexes_content(path),
-        token,
-        &now,
-        &mut |_| {},
-    ) {
-        Ok(r) => {
-            crate::diag::record("content_pass_ms", started.elapsed().as_secs_f64() * 1000.0);
-            crate::diag::record("content_files", count(r.files));
-            crate::catalog::notify(app, r.files > 0);
+    refresh_content_counts(&state, &store, model);
+    if !progress.image_done && !token.is_cancelled() {
+        state.set_semantic(Semantic::Reading("image metadata"));
+        tray::refresh_indexing(app);
+        match run_image_slice(
+            &mut store,
+            &|path| model.indexes_content(path),
+            token,
+            &now,
+            progress.image,
+            Slice {
+                max_files: 8,
+                max_run: Duration::from_millis(250),
+            },
+        ) {
+            Ok(r) => {
+                progress.image = r.cursor;
+                progress.image_done = r.exhausted;
+                crate::catalog::notify(app, r.files > 0);
+            }
+            Err(err) => {
+                eprintln!("lumen: image metadata pass failed: {err}");
+                progress.image_done = true;
+            }
         }
-        Err(err) => eprintln!("lumen: content pass failed: {err}"),
+        refresh_content_counts(&state, &store, model);
     }
-    match run_image_pass(&mut store, &|path| model.indexes_content(path), token, &now) {
-        Ok(r) => crate::catalog::notify(app, r.files > 0),
-        Err(err) => eprintln!("lumen: image metadata pass failed: {err}"),
+    if !progress.text_done && !token.is_cancelled() && !state.paused() {
+        state.set_semantic(Semantic::Reading("text and PDFs"));
+        tray::refresh_indexing(app);
+        match run_content_slice(
+            &mut store,
+            &PassConfig {
+                batch_files: 8,
+                ..PassConfig::default()
+            },
+            &EstimateTokens,
+            &|path| model.indexes_content(path),
+            token,
+            &now,
+            &mut |_| {},
+            progress.text,
+            Slice {
+                max_files: 8,
+                max_run: Duration::from_millis(750),
+            },
+        ) {
+            Ok(r) => {
+                progress.text = r.cursor;
+                progress.text_done = r.exhausted;
+                crate::diag::record("content_pass_ms", started.elapsed().as_secs_f64() * 1000.0);
+                crate::diag::record("content_files", count(r.files));
+                crate::catalog::notify(app, r.files > 0);
+            }
+            Err(err) => {
+                eprintln!("lumen: content pass failed: {err}");
+                progress.text_done = true;
+            }
+        }
     }
-    let state = app.state::<Indexing>();
+    refresh_content_counts(&state, &store, model);
+    state.set_semantic(if state.paused() {
+        Semantic::PausedByUser
+    } else {
+        Semantic::Idle
+    });
+    tray::refresh_indexing(app);
+    !progress.text_done || !progress.image_done
+}
+
+fn refresh_content_counts(state: &Indexing, store: &Store, model: &IndexLocations) {
+    let generation = store.active_generation().ok().flatten().map(|g| g.id);
+    let content = store.content_counts().ok();
+    let images = store.image_counts(generation).ok();
+    let queue = generation.and_then(|g| store.queue_counts(g).ok());
+    let extensions: Vec<_> = lumen_extract::TEXT_EXTENSIONS
+        .iter()
+        .copied()
+        .chain(["pdf"])
+        .chain(lumen_content::IMAGE_EXTENSIONS.iter().copied())
+        .collect();
+    let coverage = store
+        .file_coverage(&extensions, &|path| model.indexes_content(path))
+        .ok();
+    let image_files = store
+        .file_coverage(lumen_content::IMAGE_EXTENSIONS, &|path| {
+            model.indexes_content(path)
+        })
+        .ok();
     let mut s = state.status.lock().unwrap_or_else(PoisonError::into_inner);
-    if let Ok(c) = store.content_counts() {
+    if let Some(c) = coverage {
+        s.coverage = c;
+        s.known = true;
+    }
+    if let Some(c) = image_files {
+        s.image_files = c.total;
+    }
+    if let Some(c) = content {
         s.files = c.indexed;
     }
-    if let Ok(c) = store.image_counts(store.active_generation().ok().flatten().map(|g| g.id)) {
+    if let Some(c) = images {
         s.images = c;
+    }
+    if let Some(c) = queue {
+        s.chunks = c.chunks;
+        s.embedded = c.embedded;
+        s.vector_failures = c.failed;
     }
 }
 
@@ -367,7 +481,7 @@ fn env_threads() -> Option<usize> {
 }
 
 pub(crate) fn build_embedder(threads: usize) -> Result<Embedder, String> {
-    build_device_embedder(threads, lumen_embedding_ort::Device::Cpu, false)
+    build_device_embedder(threads, lumen_embedding_ort::Device::Cpu, false, false)
 }
 
 pub(crate) fn model_variant() -> lumen_embedding_ort::ModelVariant {
@@ -382,6 +496,7 @@ fn build_device_embedder(
     threads: usize,
     device: lumen_embedding_ort::Device,
     images: bool,
+    image_gpu: bool,
 ) -> Result<Embedder, String> {
     use lumen_embedding_ort::{OrtBackend, OrtConfig, init_runtime};
     let dir = crate::provisioning::model_dir().ok_or("semantic search is not installed")?;
@@ -392,6 +507,9 @@ fn build_device_embedder(
     cfg.max_batch = QueueConfig::default().batch;
     if images {
         cfg.vision_dir = crate::provisioning::vision_dir();
+        if image_gpu {
+            cfg.image_device = device;
+        }
     }
     let backend = OrtBackend::new(cfg).map_err(|e| e.to_string())?;
     Embedder::new(Arc::new(backend), EmbeddingProfile::DEFAULT).map_err(|e| e.to_string())
@@ -411,6 +529,11 @@ pub(crate) fn embed_slice<R: Runtime>(
         state.set_semantic(Semantic::PausedByUser);
         unload(&state);
         return Next::Idle;
+    }
+    if app.state::<crate::gpu::Gpu>().status() == crate::gpu::Status::Checking {
+        state.set_semantic(Semantic::CheckingGpu);
+        tray::refresh_indexing(app);
+        return Next::RetryIn(POLICY_RETRY);
     }
     let mut store = match Store::open_writer(db) {
         Ok(s) => s,
@@ -444,18 +567,21 @@ pub(crate) fn embed_slice<R: Runtime>(
 
     // Expensive media work pauses on battery (PERFORMANCE §10); text keeps its policy.
     let images = !matches!(current_system_state().power, PowerSource::Battery { .. });
+    let image_gpu = images
+        && device != lumen_embedding_ort::Device::Cpu
+        && app.state::<crate::gpu::Gpu>().images_ready();
     let mut loaded = state.loaded.lock().unwrap_or_else(PoisonError::into_inner);
-    if loaded
-        .as_ref()
-        .is_none_or(|l| l.threads != threads || l.device != device || l.images != images)
-    {
+    if loaded.as_ref().is_none_or(|l| {
+        l.threads != threads || l.device != device || l.images != images || l.image_gpu != image_gpu
+    }) {
         *loaded = None;
-        match build_device_embedder(threads, device, images) {
+        match build_device_embedder(threads, device, images, image_gpu) {
             Ok(embedder) => {
                 *loaded = Some(Loaded {
                     threads,
                     device,
                     images,
+                    image_gpu,
                     embedder,
                     generation: None,
                 });
@@ -517,6 +643,7 @@ pub(crate) fn embed_slice<R: Runtime>(
         return Next::Idle;
     }
 
+    refresh_counts(&state, &store, generation);
     state.set_semantic(if device == lumen_embedding_ort::Device::Cpu {
         Semantic::Running { threads }
     } else {
@@ -534,7 +661,32 @@ pub(crate) fn embed_slice<R: Runtime>(
         },
     };
     let now = now_ms;
-    let result = run_queue(&mut store, &job, &now, &mut |_| {});
+    let baseline = state.status();
+    let mut last_published = Instant::now();
+    let mut last_modality = None;
+    let result = run_queue(&mut store, &job, &now, &mut |r| {
+        if r.working {
+            state.set_semantic(if r.modality == Some(Modality::Image) {
+                Semantic::RunningImages { gpu: image_gpu }
+            } else if device == lumen_embedding_ort::Device::Cpu {
+                Semantic::Running { threads }
+            } else {
+                Semantic::RunningGpu
+            });
+        }
+        {
+            let mut s = state.status.lock().unwrap_or_else(PoisonError::into_inner);
+            s.embedded = baseline.embedded + r.embedded;
+            s.vector_failures = baseline.vector_failures + r.failed;
+            s.images.indexed = baseline.images.indexed + r.images_embedded;
+            s.images.pending = baseline.images.pending.saturating_sub(r.images_embedded);
+        }
+        if r.modality != last_modality || last_published.elapsed() >= Duration::from_secs(1) {
+            crate::progress::publish(app);
+            last_published = Instant::now();
+            last_modality = r.modality;
+        }
+    });
     drop(loaded);
     refresh_counts(&state, &store, generation);
     if result.as_ref().is_ok_and(|r| r.stale_images > 0) {
@@ -728,6 +880,7 @@ fn refresh_counts(state: &Indexing, store: &Store, generation: i64) {
         let mut s = state.status.lock().unwrap_or_else(PoisonError::into_inner);
         s.chunks = c.chunks;
         s.embedded = c.embedded;
+        s.vector_failures = c.failed;
     }
     if let Ok(c) = store.image_counts(Some(generation)) {
         state
@@ -738,10 +891,14 @@ fn refresh_counts(state: &Indexing, store: &Store, generation: i64) {
     }
 }
 
-pub(crate) fn image_status_text(c: &lumen_storage::images::ImageCounts) -> String {
+pub(crate) fn image_status_text(c: &lumen_storage::images::ImageCounts, gpu: bool) -> String {
     format!(
-        "Images: {} visual, {} pending, {} failed, {} skipped · CPU",
-        c.indexed, c.pending, c.failed, c.skipped
+        "Images: {} visual, {} pending, {} failed, {} skipped · {}",
+        c.indexed,
+        c.pending,
+        c.failed,
+        c.skipped,
+        if gpu { "GPU model + CPU vision" } else { "CPU" }
     )
 }
 
@@ -766,6 +923,11 @@ pub(crate) fn status_text(s: &Status) -> String {
         n => format!("Contents of {n} files indexed"),
     };
     let semantic = match &s.semantic {
+        Semantic::CheckingGpu => "checking GPU compatibility".into(),
+        Semantic::Reading(kind) => format!("reading {kind} · vectors continue between batches"),
+        Semantic::RunningImages { gpu } => {
+            format!("embedding images · {}", if *gpu { "GPU" } else { "CPU" })
+        }
         Semantic::NoModel => "semantic search not installed".to_owned(),
         Semantic::Failed => "semantic indexing failed (see log)".to_owned(),
         Semantic::PausedByUser => "paused".to_owned(),
@@ -838,6 +1000,10 @@ mod tests {
     #[test]
     fn status_lines() {
         let mut s = Status {
+            coverage: Default::default(),
+            image_files: 0,
+            known: false,
+            vector_failures: 0,
             images: Default::default(),
             files: 0,
             chunks: 0,
@@ -861,5 +1027,8 @@ mod tests {
         assert!(status_text(&s).ends_with("semantic index up to date"));
         s.semantic = Semantic::Waiting(PauseReason::LowBattery);
         assert!(status_text(&s).ends_with("waiting: battery low"));
+        s.semantic = Semantic::Reading("text and PDFs");
+        assert!(status_text(&s).contains("reading text and PDFs"));
+        assert!(!status_text(&s).contains("nothing to embed"));
     }
 }

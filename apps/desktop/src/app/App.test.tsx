@@ -25,6 +25,7 @@ import { useResults, type ResultsState } from "../features/root-search/useResult
 import { App } from "./App";
 
 vi.mock("../features/root-search/useResults", () => ({ useResults: vi.fn() }));
+vi.mock("../features/root-search/useIndexProgress", () => ({ useIndexProgress: () => null }));
 
 vi.mock("../ipc", () => ({
   getAppearance: vi.fn(),
@@ -244,7 +245,7 @@ describe("App overlay", () => {
 
   it("sizes the window to the content and resets the selection on a new query", async () => {
     const { rerender } = render(<App />);
-    expect(resizeOverlay).toHaveBeenLastCalledWith(800, 64);
+    expect(resizeOverlay).toHaveBeenLastCalledWith(800, 64 + 80);
 
     results = {
       rows: [
@@ -269,7 +270,7 @@ describe("App overlay", () => {
       queryId: 1,
     };
     rerender(<App />);
-    expect(resizeOverlay).toHaveBeenLastCalledWith(800, 64 + 1 + 12 + 2 * 52);
+    expect(resizeOverlay).toHaveBeenLastCalledWith(800, 64 + 1 + 12 + 2 * 52 + 80);
 
     await userEvent.hover(nthOption(1));
     expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");

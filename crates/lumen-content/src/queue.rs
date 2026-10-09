@@ -225,6 +225,10 @@ pub enum Stop {
 /// Counts and timings only.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct QueueReport {
+    /// Modality about to run / last completed batch. Notifications precede native inference.
+    pub modality: Option<lumen_embedding::Modality>,
+    pub working: bool,
+    pub images_embedded: u64,
     pub embedded: u64,
     pub failed: u64,
     /// Source changed during inference; metadata must run again before retrying.
@@ -274,7 +278,7 @@ pub struct QueueJob<'a> {
 }
 
 /// Embeds pending chunks of `job.generation` until drained, paused, cancelled or
-/// `cfg.max_run` elapsed. `progress` runs after each written batch.
+/// `cfg.max_run` elapsed. `progress` runs before inference and after each written batch.
 ///
 /// # Errors
 /// [`QueueError::Device`] on a device/runtime failure (nothing of that batch is written);
@@ -294,6 +298,9 @@ pub fn run_queue(
     } = *job;
     let started = Instant::now();
     let mut report = QueueReport {
+        modality: None,
+        working: false,
+        images_embedded: 0,
         embedded: 0,
         failed: 0,
         stale_images: 0,
@@ -303,8 +310,16 @@ pub fn run_queue(
         elapsed: Duration::ZERO,
         stop: Stop::Drained,
     };
-    let mut cursor = 0;
+    let mut text_cursor = 0;
+    let mut image_cursor = 0;
     let mut rescanned = false;
+    let mut text_batches = 0;
+    let visual = embedder
+        .backend()
+        .capabilities()
+        .model
+        .modalities
+        .contains(lumen_embedding::Modality::Image);
     let stop = loop {
         if cancel.is_cancelled() {
             break Stop::Cancelled;
@@ -330,30 +345,45 @@ pub fn run_queue(
         } else {
             cfg.batch.max(1)
         };
-        let mut batch = store.pending_chunks_with_images(generation, cursor, size, false)?;
-        if batch.is_empty()
-            && embedder
-                .backend()
-                .capabilities()
-                .model
-                .modalities
-                .contains(lumen_embedding::Modality::Image)
-        {
-            // Lower-priority images: one decode/inference, never a decoded batch.
-            batch = store.pending_chunks_with_images(generation, cursor, 1, true)?;
+        // Text keeps first turn, but a large text backlog cannot starve images forever.
+        // Independent cursors preserve work when modality IDs are interleaved.
+        let mut batch = if visual && text_batches >= 8 {
+            store.pending_image_chunks(generation, image_cursor, 1)?
+        } else {
+            Vec::new()
+        };
+        if batch.is_empty() {
+            batch = store.pending_chunks_with_images(generation, text_cursor, size, false)?;
+        }
+        if batch.is_empty() && visual {
+            batch = store.pending_image_chunks(generation, image_cursor, 1)?;
         }
         let Some(last) = batch.last() else {
             // A deleted top chunk id can be reused below the cursor: one rescan from the
             // start before declaring the queue empty.
-            if cursor > 0 && !rescanned {
-                cursor = 0;
+            if (text_cursor > 0 || image_cursor > 0) && !rescanned {
+                text_cursor = 0;
+                image_cursor = 0;
                 rescanned = true;
                 continue;
             }
             break Stop::Drained;
         };
-        cursor = last.chunk_id;
+        if last.kind == "image" {
+            image_cursor = last.chunk_id;
+            text_batches = 0;
+        } else {
+            text_cursor = last.chunk_id;
+            text_batches += 1;
+        }
 
+        report.modality = Some(if last.kind == "image" {
+            lumen_embedding::Modality::Image
+        } else {
+            lumen_embedding::Modality::Text
+        });
+        report.working = true;
+        progress(&report);
         let t = Instant::now();
         let results = embed_batch(embedder, &batch, cancel);
         let spent = t.elapsed();
@@ -383,11 +413,15 @@ pub fn run_queue(
         for r in &results {
             if r.is_ok() {
                 report.embedded += 1;
+                if report.modality == Some(lumen_embedding::Modality::Image) {
+                    report.images_embedded += 1;
+                }
             } else if *r != Err("image:changed") {
                 report.failed += 1;
             }
         }
         report.elapsed = started.elapsed();
+        report.working = false;
         progress(&report);
 
         // Duty cycle: busy / (busy + idle) = duty.
@@ -400,6 +434,7 @@ pub fn run_queue(
         }
     };
     report.stop = stop;
+    report.working = false;
     report.elapsed = started.elapsed();
     Ok(report)
 }

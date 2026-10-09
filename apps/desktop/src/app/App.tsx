@@ -20,6 +20,7 @@ import {
 import { REVEAL_ACTION, useActions } from "../features/root-search/useActions";
 import { usePreview } from "../features/root-search/usePreview";
 import { useResults } from "../features/root-search/useResults";
+import { useIndexProgress } from "../features/root-search/useIndexProgress";
 import {
   getAppearance,
   hideOverlay,
@@ -86,6 +87,7 @@ function focusQuery(input: HTMLInputElement | null) {
  *   Escape closes the panel, then the preview, then the overlay.
  */
 export function App() {
+  const indexing = useIndexProgress();
   const [query, setQuery] = useState("");
   const [selection, setSelection] = useState(INITIAL_SELECTION);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -236,6 +238,7 @@ export function App() {
     <main className="overlay">
       <div className="overlay__content" ref={contentRef}>
         <RootSearch
+          indexing={indexing}
           query={query}
           onQueryChange={changeQuery}
           inputRef={inputRef}

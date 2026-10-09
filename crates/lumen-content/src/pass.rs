@@ -37,6 +37,10 @@ impl Default for PassConfig {
 /// Counts and timings only (never paths or text).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PassReport {
+    /// Last fully visited candidate; resume from here without retrying failures in this pass.
+    pub cursor: i64,
+    /// No candidate remains after cursor. False for cancellation or a bounded slice.
+    pub exhausted: bool,
     /// Files looked at.
     pub files: u64,
     pub indexed: u64,
@@ -64,27 +68,82 @@ pub fn run_content_pass(
     now_ms: &dyn Fn() -> i64,
     progress: &mut dyn FnMut(&PassReport),
 ) -> Result<PassReport, StorageError> {
+    run_content_slice(
+        store,
+        cfg,
+        counter,
+        scope,
+        cancel,
+        now_ms,
+        progress,
+        0,
+        Slice::unbounded(),
+    )
+}
+
+/// Cooperative extraction bound, checked between files (native reads/parsers can overrun).
+#[derive(Debug, Clone, Copy)]
+pub struct Slice {
+    pub max_files: usize,
+    pub max_run: Duration,
+}
+
+impl Slice {
+    #[must_use]
+    pub const fn unbounded() -> Self {
+        Self {
+            max_files: usize::MAX,
+            max_run: Duration::MAX,
+        }
+    }
+}
+
+/// Resume extraction after a committed cursor and return before a large library drains.
+/// # Errors
+/// Storage failure; interrupted files remain candidates for the next slice.
+#[allow(clippy::too_many_arguments)]
+pub fn run_content_slice(
+    store: &mut Store,
+    cfg: &PassConfig,
+    counter: &dyn TokenCount,
+    scope: &dyn Fn(&str) -> bool,
+    cancel: &CancellationToken,
+    now_ms: &dyn Fn() -> i64,
+    progress: &mut dyn FnMut(&PassReport),
+    after: i64,
+    slice: Slice,
+) -> Result<PassReport, StorageError> {
     let started = Instant::now();
-    let mut report = PassReport::default();
-    let mut cursor = 0;
+    let mut report = PassReport {
+        cursor: after,
+        ..PassReport::default()
+    };
     let extensions: Vec<_> = TEXT_EXTENSIONS.iter().copied().chain(["pdf"]).collect();
     loop {
         let candidates = store.content_candidates(
-            cursor,
+            report.cursor,
             &extensions,
             EXTRACTOR_VERSION,
             cfg.batch_files.max(1),
         )?;
-        let Some(last) = candidates.last() else {
+        if candidates.is_empty() {
+            report.exhausted = true;
             break;
-        };
-        cursor = last.item_id;
+        }
 
         // Extract everything first (owned), then borrow it into one write batch.
         let mut extracted = Vec::with_capacity(candidates.len());
-        for c in candidates.iter().filter(|c| scope(&c.path)) {
-            if cancel.is_cancelled() {
+        let mut visited = report.cursor;
+        for c in &candidates {
+            if cancel.is_cancelled()
+                || started.elapsed() >= slice.max_run
+                || report.files + extracted.len() as u64 >= slice.max_files as u64
+            {
                 break;
+            }
+            if !scope(&c.path) {
+                visited = c.item_id;
+                continue;
             }
             let path = lumen_catalog::path::decode(&c.path, c.raw_path.as_deref());
             let result =
@@ -96,6 +155,7 @@ pub fn run_content_pass(
                 break;
             }
             extracted.push((c.item_id, c.fingerprint(), result));
+            visited = c.item_id;
         }
         let writes: Vec<ContentWrite<'_>> = extracted
             .iter()
@@ -108,6 +168,7 @@ pub fn run_content_pass(
         if !writes.is_empty() {
             store.write_content(&writes, EXTRACTOR_VERSION, now_ms())?;
         }
+        report.cursor = visited;
 
         for (_, _, result) in &extracted {
             report.files += 1;
@@ -129,8 +190,11 @@ pub fn run_content_pass(
             report.cancelled = true;
             break;
         }
+        if started.elapsed() >= slice.max_run || report.files >= slice.max_files as u64 {
+            break;
+        }
     }
-    if !cancel.is_cancelled() {
+    if report.exhausted && !cancel.is_cancelled() {
         crate::code::refresh(store, scope, cancel)?;
     }
     report.cancelled |= cancel.is_cancelled();

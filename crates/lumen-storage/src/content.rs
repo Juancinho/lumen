@@ -132,7 +132,55 @@ pub struct ContentCounts {
     pub failed: u64,
 }
 
+/// Content-consented, recognized files. Read includes terminal skips/failures, not vectors.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FileCoverage {
+    pub total: u64,
+    pub read: u64,
+    pub skipped: u64,
+    pub failed: u64,
+}
+
 impl Store {
+    /// Count eligible content files using catalog metadata only; never read source files.
+    /// # Errors
+    /// SQLite failure.
+    pub fn file_coverage(
+        &self,
+        extensions: &[&str],
+        scope: &dyn Fn(&str) -> bool,
+    ) -> Result<FileCoverage> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT canonical_path, extension, content_state FROM items
+            WHERE source='files' AND kind='file' AND status <> 'error' AND (attributes & 4)=0",
+        )?;
+        let mut rows = stmt.query([])?;
+        let mut result = FileCoverage::default();
+        while let Some(row) = rows.next()? {
+            let ext: Option<String> = row.get(1)?;
+            if !ext.as_deref().is_some_and(|ext| extensions.contains(&ext)) {
+                continue;
+            }
+            let path: String = row.get(0)?;
+            if !scope(&path) {
+                continue;
+            }
+            result.total += 1;
+            match row.get::<_, Option<String>>(2)?.as_deref() {
+                Some("indexed") => result.read += 1,
+                Some("skipped") => {
+                    result.read += 1;
+                    result.skipped += 1;
+                }
+                Some("failed") => {
+                    result.read += 1;
+                    result.failed += 1;
+                }
+                _ => {}
+            }
+        }
+        Ok(result)
+    }
     /// Compare an ambiguous rename/write against the indexed representation, without
     /// loading vectors or replacing chunks. Only bounded extraction output is supplied.
     /// # Errors
@@ -428,11 +476,38 @@ impl Store {
         limit: usize,
         images: bool,
     ) -> Result<Vec<PendingChunk>> {
+        self.pending_modality_chunks(
+            generation,
+            after_chunk_id,
+            limit,
+            if images { 0 } else { 1 },
+        )
+    }
+
+    /// Image-only keyset page, for fair scheduling without skipping older text units.
+    /// # Errors
+    /// SQLite failure.
+    pub fn pending_image_chunks(
+        &self,
+        generation: i64,
+        after_chunk_id: i64,
+        limit: usize,
+    ) -> Result<Vec<PendingChunk>> {
+        self.pending_modality_chunks(generation, after_chunk_id, limit, 2)
+    }
+
+    fn pending_modality_chunks(
+        &self,
+        generation: i64,
+        after_chunk_id: i64,
+        limit: usize,
+        modality: i64,
+    ) -> Result<Vec<PendingChunk>> {
         let mut stmt = self.conn.prepare_cached(
             "SELECT c.id, c.item_id, c.text, i.display_name, c.chunk_kind, i.canonical_path, i.raw_path, i.image_digest
              FROM chunks c JOIN items i ON i.id = c.item_id
              WHERE c.id > ?2
-               AND (?4 OR c.chunk_kind <> 'image')
+               AND (?4 = 0 OR (?4 = 1 AND c.chunk_kind <> 'image') OR (?4 = 2 AND c.chunk_kind = 'image'))
                AND NOT EXISTS (SELECT 1 FROM chunk_vectors v
                                WHERE v.generation = ?1 AND v.chunk_id = c.id)
             ORDER BY c.id LIMIT ?3",
@@ -442,7 +517,7 @@ impl Store {
                 generation,
                 after_chunk_id,
                 i64::try_from(limit).unwrap_or(i64::MAX),
-                images
+                modality
             ],
             |r| {
                 Ok(PendingChunk {

@@ -160,6 +160,7 @@ Benchmarks (release builds only; debug runs are flagged in the report):
 | Code metadata upgrade (synthetic v3→v4, vectors retained) | `cargo run --release -p lumen-storage --example code_upgrade -- 100000 target/bench/code-upgrade.json` |
 | Persistent ANN generation (build/open/delta/stale/rebuild) | `cargo run --release -p lumen-bench -- ann-gen --vectors 100000 --json target/bench/ann-gen.json` |
 | Options | `cargo run --release -p lumen-bench -- --help` (`--backend`, `--dim`, `--iterations`, `--batch-sizes`, `--label`, …) |
+| Image GPU backbone / mixed-cycle fidelity | `cargo run --release --locked -p lumen-bench --features directml --example image_gpu -- MODEL VISION RUNTIME FIXTURES REPORT` (T213 evidence) |
 
 Real model (ADR-015): `cargo run --release -p lumen-bench --features ort -- embed --backend ort
 --ort-dylib <onnxruntime.dll> --model-dir <embeddinggemma-2-ONNX copy> --variant q4

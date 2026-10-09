@@ -35,9 +35,13 @@
   T302 adds on-demand rendered pages/navigation; scanned PDF indexing remains future.
 - **Images (built, T303):** bounded PNG/JPEG/WebP/BMP metadata and native q4 visual
   embeddings in the existing queue/generation (ADR-041). Optional consented 109 MB vision
-  download, CPU image inference, CPU queries; text GPU indexing unchanged. Root meaning
+  download, CPU vision and optional measured GPU backbone (T213/ADR-042), CPU queries. Root meaning
   queries, `type:image`, file actions and metadata/coverage Quick Look work on the same ID.
   OCR/Drop/Similar and image raster previews remain separate. Native review is pending.
+- **Indexing visibility (T213):** bounded image/text preparation rounds alternate with
+  vector slices; separate cursors give images a turn after eight text batches. Root
+  footer shows cached phase/device, files read, vectors ready, percentages and image/
+  skip/error coverage. Updates are worker-driven while visible; no hidden polling.
 
 ## 1. Retrieval philosophy
 

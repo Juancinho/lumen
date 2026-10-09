@@ -5,6 +5,7 @@
  * (checked by layout.test.ts) — change both together.
  */
 :root {
+  --index-status-height: 80px;
   /* §6 spacing: 4 px base, 8 px rhythm. */
   --space-1: 4px;
   --space-2: 8px;

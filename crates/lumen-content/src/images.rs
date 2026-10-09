@@ -1,5 +1,5 @@
 //! Metadata pass before visual inference; no pixels/text retained in SQLite.
-use crate::PassReport;
+use crate::{PassReport, Slice};
 use lumen_core::CancellationToken;
 use lumen_storage::{ContentOutcome, ContentWrite, StorageError, Store};
 use std::time::Instant;
@@ -13,17 +13,43 @@ pub fn run_image_pass(
     cancel: &CancellationToken,
     now: &dyn Fn() -> i64,
 ) -> Result<PassReport, StorageError> {
+    run_image_slice(store, scope, cancel, now, 0, Slice::unbounded())
+}
+
+/// Resume bounded metadata work so extraction/embedding get a turn in a large library.
+/// # Errors
+/// Storage failure. A cancelled candidate remains eligible after the returned cursor.
+pub fn run_image_slice(
+    store: &mut Store,
+    scope: &dyn Fn(&str) -> bool,
+    cancel: &CancellationToken,
+    now: &dyn Fn() -> i64,
+    after: i64,
+    slice: Slice,
+) -> Result<PassReport, StorageError> {
     let started = Instant::now();
-    let mut report = PassReport::default();
-    let mut cursor = 0;
+    let mut report = PassReport {
+        cursor: after,
+        ..PassReport::default()
+    };
     loop {
-        let candidates = store.content_candidates(cursor, lumen_image::EXTENSIONS, 1, 32)?;
-        let Some(last) = candidates.last() else { break };
-        cursor = last.item_id;
-        for candidate in candidates.iter().filter(|c| scope(&c.path)) {
+        let candidates = store.content_candidates(report.cursor, lumen_image::EXTENSIONS, 1, 32)?;
+        if candidates.is_empty() {
+            report.exhausted = true;
+            break;
+        }
+        for candidate in &candidates {
             if cancel.is_cancelled() {
                 report.cancelled = true;
                 break;
+            }
+            if started.elapsed() >= slice.max_run || report.files >= slice.max_files as u64 {
+                report.elapsed = started.elapsed();
+                return Ok(report);
+            }
+            if !scope(&candidate.path) {
+                report.cursor = candidate.item_id;
+                continue;
             }
             let path = lumen_catalog::path::decode(&candidate.path, candidate.raw_path.as_deref());
             match lumen_image::inspect(&path, &|| cancel.is_cancelled()) {
@@ -76,6 +102,7 @@ pub fn run_image_pass(
                 }
             }
             report.files += 1;
+            report.cursor = candidate.item_id;
         }
         if report.cancelled {
             break;

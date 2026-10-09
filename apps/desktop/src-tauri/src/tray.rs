@@ -188,7 +188,7 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
     let index_gpu = CheckMenuItem::with_id(
         app,
         INDEX_GPU,
-        "Use dedicated GPU for text indexing",
+        "Use dedicated GPU for indexing",
         false,
         false,
         None::<&str>,
@@ -366,7 +366,7 @@ pub(crate) fn refresh_semantic<R: Runtime>(app: &AppHandle<R>) {
         .set_enabled(setup == Setup::Ready && provisioning::model_removable());
     let vision = provisioning::vision_dir().is_some();
     let _ = items.vision_status.set_text(if vision {
-        "Image search installed · CPU indexing"
+        "Image search installed · local indexing"
     } else {
         "Image search not installed (109 MB download)"
     });
@@ -381,6 +381,7 @@ pub(crate) fn refresh_semantic<R: Runtime>(app: &AppHandle<R>) {
 
 /// Updates the content-indexing status line and pause check (no-op before the tray).
 pub(crate) fn refresh_indexing<R: Runtime>(app: &AppHandle<R>) {
+    crate::progress::publish(app);
     let (Some(items), Some(state)) = (
         app.try_state::<IndexingItems<R>>(),
         app.try_state::<indexing::Indexing>(),
@@ -391,9 +392,11 @@ pub(crate) fn refresh_indexing<R: Runtime>(app: &AppHandle<R>) {
         .status
         .set_text(indexing::status_text(&state.status()));
     let _ = items.pause.set_checked(state.paused());
-    let _ = items
-        .images
-        .set_text(indexing::image_status_text(&state.status().images));
+    let _ = items.images.set_text(indexing::image_status_text(
+        &state.status().images,
+        app.try_state::<crate::gpu::Gpu>()
+            .is_some_and(|gpu| gpu.images_ready()),
+    ));
     if let Some(gpu) = app.try_state::<crate::gpu::Gpu>() {
         let status = gpu.status();
         let _ = items.gpu.set_checked(gpu.enabled());

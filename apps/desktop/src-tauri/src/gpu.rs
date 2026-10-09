@@ -52,6 +52,17 @@ impl Gpu {
     fn set(&self, status: Status) {
         *self.status.lock().unwrap_or_else(PoisonError::into_inner) = status;
     }
+
+    pub(crate) fn images_ready(&self) -> bool {
+        self.enabled()
+            && self
+                .report
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .as_ref()
+                .and_then(|r| r.images.as_ref())
+                .is_some_and(|m| m.accepted())
+    }
     pub(crate) fn plan(&self, space: &str, state: &SystemState) -> Option<IndexingPlan> {
         if !self.enabled() {
             return None;
@@ -225,6 +236,7 @@ fn discover_inner<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
         Some(report) => report,
         None => {
             let request = Request {
+                vision: provisioning::vision_dir(),
                 key: key.clone(),
                 model,
                 runtime,
@@ -287,7 +299,7 @@ fn cache_key(
 ) -> Result<String, String> {
     let hash = |path: &Path| lumen_provision::sha256_file(path).map_err(|e| e.to_string());
     let mut parts = vec![
-        "gpu-probe-v1".to_owned(),
+        "gpu-probe-v2-image-backbone".to_owned(),
         adapter.identity.clone(),
         hash(runtime)?,
         hash(&model.join("tokenizer.json"))?,
@@ -304,6 +316,10 @@ fn cache_key(
     let weights = model.join("onnx").join(format!("{stem}.onnx_data"));
     if weights.is_file() {
         parts.push(hash(&weights)?);
+    }
+    if let Some(vision) = provisioning::vision_dir() {
+        parts.push(hash(&vision.join("onnx/vision_encoder_q4.onnx"))?);
+        parts.push(hash(&vision.join("onnx/vision_encoder_q4.onnx_data"))?);
     }
     Ok(parts.join("/"))
 }
@@ -339,13 +355,13 @@ fn run_child<R: Runtime>(app: &AppHandle<R>, request: &Request) -> Result<Report
     let result = (|| {
         let mut child = command.spawn().map_err(|e| e.to_string())?;
         let started = Instant::now();
+        // Image validation adds six native visual calls to the existing text probe.
+        // Keep a finite child lifetime without rejecting the text route halfway through.
+        let timeout = Duration::from_secs(if request.vision.is_some() { 240 } else { 120 });
         let status = loop {
             match child.try_wait() {
                 Ok(Some(status)) => break status,
-                Ok(None)
-                    if started.elapsed() < Duration::from_secs(120)
-                        && app.state::<Gpu>().enabled() =>
-                {
+                Ok(None) if started.elapsed() < timeout && app.state::<Gpu>().enabled() => {
                     std::thread::sleep(Duration::from_millis(100));
                 }
                 _ => {

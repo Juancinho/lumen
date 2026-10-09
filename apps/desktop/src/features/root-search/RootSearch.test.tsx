@@ -149,7 +149,7 @@ describe("RootSearch", () => {
   it("does not flash the no-results message while still searching", () => {
     expect(listState("zzz", { rows: [], status: "searching" })).toEqual({ kind: "none" });
     expect(listState("  ", { rows: [], status: "done" })).toEqual({ kind: "none" });
-    expect(rootSearchHeight("x", { rows, status: "searching" })).toBe(64 + 1 + 12 + 3 * 52);
+    expect(rootSearchHeight("x", { rows, status: "searching" })).toBe(64 + 1 + 12 + 3 * 52 + 80);
   });
 
   it("shows the matching passage for content/meaning matches, the location on hover", () => {

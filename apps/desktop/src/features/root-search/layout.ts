@@ -14,6 +14,8 @@ export const DIVIDER = 1;
 export const MAX_VISIBLE_ROWS = 8;
 /** Height of a one-line status/empty message area. */
 export const MESSAGE_HEIGHT = 56;
+/** Activity footer, shared with --index-status-height. */
+export const INDEX_STATUS_HEIGHT = 80;
 
 export type ListState = { kind: "none" } | { kind: "rows"; count: number } | { kind: "message" };
 
@@ -49,8 +51,11 @@ export function rootSearchHeight(
   panelActions = 0,
 ): number {
   const list = overlayHeight(listState(query, results));
-  if (panelActions <= 0) return list;
-  return Math.max(list, SEARCH_HEIGHT + DIVIDER + 2 * LIST_PADDING + panelHeight(panelActions));
+  if (panelActions <= 0) return list + INDEX_STATUS_HEIGHT;
+  return (
+    Math.max(list, SEARCH_HEIGHT + DIVIDER + 2 * LIST_PADDING + panelHeight(panelActions)) +
+    INDEX_STATUS_HEIGHT
+  );
 }
 
 /** Action Panel entry height and chrome (mirrors `--action-height`, `--panel-chrome`). */

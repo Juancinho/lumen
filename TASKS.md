@@ -10,6 +10,10 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 
 ## Next (ordered)
 
+User repair (2026-10-09): **T213 CLAIMED by codex**, isolated branch
+`codex/t213-indexing-progress`: interleave extraction and embedding, prevent image
+starvation, and report live progress. Preserve the separate T112 exclusion work.
+
 1. **Close REVIEW tasks on Windows (human):** T003, T004 (Acrylic vs Mica default), T103,
    T104, T105, T107, T108/T109, T110 — checklists in `HANDOFF.md`.
 2. **T111** indexed locations — REVIEW on Windows: add `D:\Proyectos` from the tray, USB
@@ -102,6 +106,7 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 | T210 | REVIEW | claude | Model + runtime provisioning: explicit download (consent, size), SHA-256 check, versioned app-data location, ORT DLL next to the exe, license notices, removal | T006,T202           |
 | T211 | REVIEW | claude | Harder relevance set for fusion tuning: hundreds of synthetic documents, near-duplicates, folder noise, long documents, graded judgments; re-tune ADR-032 weights | T205                |
 | T212 | REVIEW | codex | Opt-in dedicated GPU indexing with CPU queries, isolated compatibility probe and CPU fallback (user requested) | T013,T202,T204,T210 |
+| T213 | CLAIMED | codex | Repair stalled-looking indexing: bounded extraction rounds, live status and fair image queue | T202,T207,T303 |
 
 # M3 — PDF/image intelligence and semantic objects
 

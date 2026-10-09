@@ -1,6 +1,7 @@
 import type { KeyboardEvent, ReactNode, Ref } from "react";
 
-import type { ActionView } from "../../ipc";
+import type { ActionView, IndexProgress } from "../../ipc";
+import { IndexingStatus } from "./IndexingStatus";
 import { ActionPanel } from "./ActionPanel";
 import { listState } from "./layout";
 import { ACTION_LIST_ID, actionDomId, RESULT_LIST_ID, rowDomId } from "./model";
@@ -9,6 +10,7 @@ import { SearchField } from "./SearchField";
 import type { ResultsState } from "./useResults";
 
 interface RootSearchProps {
+  indexing?: IndexProgress | null;
   query: string;
   onQueryChange: (query: string) => void;
   inputRef: Ref<HTMLInputElement>;
@@ -35,6 +37,7 @@ interface RootSearchProps {
  * One surface, no tabs/cards (DESIGN_SYSTEM "Root surface").
  */
 export function RootSearch({
+  indexing = null,
   query,
   onQueryChange,
   inputRef,
@@ -86,6 +89,7 @@ export function RootSearch({
         )}
         {preview}
       </div>
+      <IndexingStatus status={indexing} />
       {panel && <ActionPanel {...panel} />}
     </>
   );

@@ -1,4 +1,5 @@
 // The only module UI code may import to reach the native shell (enforced by ESLint).
+export { getIndexProgress, onIndexProgress, type IndexProgress } from "./progress";
 export {
   getAppearance,
   getCoreInfo,

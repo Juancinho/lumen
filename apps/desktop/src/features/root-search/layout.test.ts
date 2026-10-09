@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import tokens from "../../design/tokens.css?raw";
 import {
   ACTION_HEIGHT,
+  INDEX_STATUS_HEIGHT,
   LIST_PADDING,
   PANEL_CHROME,
   panelHeight,
@@ -27,6 +28,7 @@ describe("overlay layout", () => {
     expect(token("--list-padding")).toBe(LIST_PADDING);
     expect(token("--message-height")).toBe(MESSAGE_HEIGHT);
     expect(token("--action-height")).toBe(ACTION_HEIGHT);
+    expect(token("--index-status-height")).toBe(INDEX_STATUS_HEIGHT);
     expect(token("--panel-chrome")).toBe(PANEL_CHROME);
   });
 
@@ -60,7 +62,7 @@ describe("overlay layout", () => {
     ];
     const short = rootSearchHeight("a", { rows, status: "done" });
     const withPanel = rootSearchHeight("a", { rows, status: "done" }, 3);
-    expect(withPanel).toBe(64 + 1 + 12 + panelHeight(3));
+    expect(withPanel).toBe(64 + 1 + 12 + panelHeight(3) + INDEX_STATUS_HEIGHT);
     expect(withPanel).toBeGreaterThan(short);
   });
 });

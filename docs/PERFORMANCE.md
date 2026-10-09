@@ -42,7 +42,14 @@ p50/p95 53.76/63.14 ms during an in-flight image call (30 samples). Loaded-machi
 samples do not establish a causal runtime speed comparison or native painted latency.
 Evidence, hot-name regression and runtime/query-under-image checks:
 `benchmarks/t303/2026-10-09-joao-pc/README.md`. Existing budgets are unchanged; whole-app
-private memory, long real-library soak and visual-GPU acceleration are not established.
+private memory and long real-library soak are not established.
+
+T213 Windows release: CPU vision plus shared DirectML text/image backbone took 18.401 s
+for two public-photo image→text cycles versus 21.929 s with GPU text and separate CPU
+image backbone (1.192x throughput). Cosine >= 0.99999994, unchanged text space. DirectML
+vision encoder failed at Reshape on GTX 1650; it remains CPU. Image acceleration requires
+its own isolated speed/fidelity probe. Loaded-machine samples, not a library ETA; no
+interaction budget changes. See `benchmarks/t213/2026-10-10-joao-pc/README.md` and ADR-042.
 
 ## 1. Principle
 

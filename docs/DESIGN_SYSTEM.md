@@ -19,7 +19,10 @@
 - T302 adds on-demand PDF page rasters, compact page controls and a collapsible matched
   excerpt inside that pane. Alt+PageUp/Down navigate pages; root result keys stay unchanged.
 - Action Panel (T108): elevated opaque card bottom-right (no second blur), primary first.
-- Not yet: real app/file icons (IconRef::Native), scope chips, status area, sections.
+- Indexing status (T213/ADR-042): quiet 80 px root footer with phase/device, separate
+  accessible file/vector coverage meters and image/skip/error counts. No animation or
+  focusable controls; existing result keys/selection remain. Geometry includes the footer.
+- Not yet: real app/file icons (IconRef::Native), scope chips, sections.
 
 ## 1. Design intent
 

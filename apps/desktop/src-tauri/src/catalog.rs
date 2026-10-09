@@ -234,9 +234,11 @@ pub(crate) fn start<R: Runtime>(app: &App<R>) {
             let mut next = Next::Idle;
             let mut last_full: Option<Instant> = None;
             let mut watch = None;
+            let mut content = indexing::ContentProgress::default();
             loop {
                 let (token, full, batch) = wait_for_work(&handle, next, last_full);
                 if full {
+                    content = indexing::ContentProgress::default();
                     // Re-register before scanning: restore offline/deleted roots and close
                     // the registration gap with this inventory. Old events can only add hints.
                     watch = install_watch(&handle, &db);
@@ -245,18 +247,16 @@ pub(crate) fn start<R: Runtime>(app: &App<R>) {
                     }
                     pass(&handle, &db, &token);
                     if !token.is_cancelled() {
-                        let model = handle.state::<Catalog>().locations();
-                        indexing::content_pass(&handle, &db, &model, &token);
                         last_full = Some(Instant::now());
                     }
                     tray::refresh_locations(&handle);
                 } else if !batch.changes.is_empty() {
+                    content = indexing::ContentProgress::default();
                     incremental_pass(&handle, &db, &batch, &token);
-                    if !token.is_cancelled() {
-                        let model = handle.state::<Catalog>().locations();
-                        indexing::content_pass(&handle, &db, &model, &token);
-                    }
                 }
+                let model = handle.state::<Catalog>().locations();
+                let more_content = !token.is_cancelled()
+                    && indexing::content_pass(&handle, &db, &model, &token, &mut content);
                 let catalog = handle.state::<Catalog>();
                 let pending = {
                     let mut c = catalog
@@ -269,7 +269,8 @@ pub(crate) fn start<R: Runtime>(app: &App<R>) {
                 next = if token.is_cancelled() || pending {
                     Next::More
                 } else {
-                    indexing::embed_slice(&handle, &db, &token)
+                    let embedding = indexing::embed_slice(&handle, &db, &token);
+                    if more_content { Next::More } else { embedding }
                 };
                 handle
                     .state::<Catalog>()

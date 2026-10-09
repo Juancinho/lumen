@@ -16,8 +16,9 @@ mod images;
 mod pass;
 mod queue;
 
-pub use images::run_image_pass;
-pub use pass::{PassConfig, PassReport, run_content_pass};
+pub use images::{run_image_pass, run_image_slice};
+pub use lumen_image::EXTENSIONS as IMAGE_EXTENSIONS;
+pub use pass::{PassConfig, PassReport, Slice, run_content_pass, run_content_slice};
 pub use queue::{Control, Hold, QueueConfig, QueueError, QueueJob, QueueReport, Stop, run_queue};
 
 #[cfg(test)]

@@ -24,6 +24,7 @@ mod material;
 mod overlay;
 mod pdf_preview;
 mod preview;
+mod progress;
 mod provisioning;
 mod search;
 mod settings;
@@ -96,6 +97,7 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            progress::indexing_progress,
             commands::app_info::core_info,
             commands::overlay::hide_overlay,
             commands::overlay::overlay_ready,

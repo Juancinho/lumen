@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct Request {
+    #[serde(default)]
+    pub vision: Option<PathBuf>,
     pub key: String,
     pub model: PathBuf,
     pub runtime: PathBuf,
@@ -86,6 +88,8 @@ impl Metrics {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Report {
+    #[serde(default)]
+    pub images: Option<ImageMetrics>,
     pub version: u32,
     pub key: String,
     pub space: String,
@@ -93,6 +97,94 @@ pub(crate) struct Report {
     pub name: String,
     pub cpu: Metrics,
     pub gpu: Metrics,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct ImageMetrics {
+    pub legacy_cycle_ms: f64,
+    pub accelerated_cycle_ms: f64,
+    pub min_cosine: f64,
+}
+
+impl ImageMetrics {
+    pub(crate) fn accepted(&self) -> bool {
+        self.legacy_cycle_ms.is_finite()
+            && self.legacy_cycle_ms > 0.0
+            && self.accelerated_cycle_ms.is_finite()
+            && self.accelerated_cycle_ms > 0.0
+            && self.min_cosine.is_finite()
+            && self.min_cosine >= 0.999
+            && self.min_cosine <= 1.0
+            && self.legacy_cycle_ms / self.accelerated_cycle_ms >= 1.15
+    }
+}
+
+/// CPU vision encoder + validated GPU multimodal backbone. No files, captions or user DB.
+fn measure_images(request: &Request) -> Result<ImageMetrics, String> {
+    use lumen_embedding::{ImageInput, dot};
+    use std::time::Instant;
+    let vision = request.vision.as_ref().ok_or("vision absent")?;
+    if request.variant != "q4" {
+        return Err("q4 required".into());
+    }
+    let device = Device::DirectMl {
+        adapter: request.adapter,
+    };
+    let mut reference = Vec::new();
+    let mut cycles = [0.0; 2];
+    let mut min_cosine = 1.0_f64;
+    let text = "Synthetic text fidelity after visual inference";
+    let mut text_reference = Vec::new();
+    for mode in 0..3 {
+        let text_device = if mode == 0 { Device::Cpu } else { device };
+        let mut cfg = OrtConfig::new(&request.model, ModelVariant::Q4, text_device);
+        cfg.vision_dir = Some(vision.clone());
+        cfg.image_device = if mode == 2 { device } else { Device::Cpu };
+        cfg.threads = Some(2);
+        let e = Embedder::new(
+            Arc::new(OrtBackend::new(cfg).map_err(|e| e.to_string())?),
+            EmbeddingProfile::DEFAULT,
+        )
+        .map_err(|e| e.to_string())?;
+        let before = e.embed_query(text, None).map_err(|e| e.to_string())?;
+        if mode == 0 {
+            text_reference = before;
+        }
+        for (index, (width, height)) in [(64, 48), (48, 64)].into_iter().enumerate() {
+            let rgb: Vec<u8> = (0..width * height * 3)
+                .map(|i| u8::try_from((i * 17 + index as u32 * 31) % 256).unwrap_or(0))
+                .collect();
+            e.embed_query(text, None).map_err(|e| e.to_string())?;
+            let start = Instant::now();
+            let v = e
+                .embed_images(
+                    &[ImageInput {
+                        width,
+                        height,
+                        rgb: &rgb,
+                    }],
+                    None,
+                )
+                .map_err(|e| e.to_string())?
+                .into_flat();
+            let after = e.embed_query(text, None).map_err(|e| e.to_string())?;
+            if mode == 0 {
+                reference.push(v);
+            } else {
+                cycles[mode - 1] += start.elapsed().as_secs_f64() * 1000.0;
+                if mode == 2 {
+                    min_cosine = min_cosine
+                        .min(f64::from(dot(&reference[index], &v)))
+                        .min(f64::from(dot(&text_reference, &after)));
+                }
+            }
+        }
+    }
+    Ok(ImageMetrics {
+        legacy_cycle_ms: cycles[0],
+        accelerated_cycle_ms: cycles[1],
+        min_cosine,
+    })
 }
 
 impl Report {
@@ -219,7 +311,14 @@ pub(crate) fn run(request: &Request) -> Result<Report, String> {
     {
         gpu_metrics.device_memory_total_mib = Some(request.total_mib as f64);
     }
+    drop(gpu);
+    let images = if request.vision.is_some() {
+        measure_images(request).ok()
+    } else {
+        None
+    };
     Ok(Report {
+        images,
         version: 1,
         key: request.key.clone(),
         space,
@@ -280,6 +379,7 @@ mod tests {
             device_memory_total_mib: Some(4096.0),
         };
         let mut report = Report {
+            images: None,
             version: 1,
             key: "driver-runtime-model".into(),
             space: "q4-space".into(),
@@ -299,5 +399,22 @@ mod tests {
         report.gpu.offloaded_fraction = Some(0.95);
         report.version = 0;
         assert!(!report.valid_for("driver-runtime-model", 1));
+    }
+
+    #[test]
+    fn image_gate_requires_fidelity_and_measured_mixed_work_speedup() {
+        let mut m = ImageMetrics {
+            legacy_cycle_ms: 12000.0,
+            accelerated_cycle_ms: 9000.0,
+            min_cosine: 0.999999,
+        };
+        assert!(m.accepted());
+        m.min_cosine = 0.998;
+        assert!(!m.accepted());
+        m.min_cosine = 1.0;
+        m.accelerated_cycle_ms = 11900.0;
+        assert!(!m.accepted());
+        m.accelerated_cycle_ms = f64::NAN;
+        assert!(!m.accepted());
     }
 }

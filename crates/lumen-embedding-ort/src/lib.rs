@@ -142,6 +142,10 @@ impl fmt::Display for Device {
 pub struct OrtConfig {
     /// Optional separately provisioned q4 vision graph. Text-only query backends leave None.
     pub vision_dir: Option<PathBuf>,
+    /// Visual encoder device, independently validated from text inference.
+    pub vision_device: Device,
+    /// Multimodal backbone device. May be GPU even with a CPU visual encoder.
+    pub image_device: Device,
     /// Local copy of the export: `tokenizer.json` and `onnx/<variant>.onnx[_data]`.
     pub model_dir: PathBuf,
     pub variant: ModelVariant,
@@ -163,6 +167,8 @@ impl OrtConfig {
     pub fn new(model_dir: impl Into<PathBuf>, variant: ModelVariant, device: Device) -> Self {
         Self {
             vision_dir: None,
+            vision_device: Device::Cpu,
+            image_device: Device::Cpu,
             model_dir: model_dir.into(),
             variant,
             device,
@@ -591,7 +597,7 @@ impl EmbeddingBackend for OrtBackend {
                     .ok_or(EmbeddingError::Unsupported(modality))?;
                 *slot = Some(self.create_graph_session(
                     dir.join("onnx/vision_encoder_q4.onnx"),
-                    Device::Cpu,
+                    self.config.vision_device,
                     None,
                 )?);
             }
@@ -658,7 +664,7 @@ impl EmbeddingBackend for OrtBackend {
                     .ok_or(EmbeddingError::Unsupported(Modality::Image))?;
                 *slot = Some(self.create_graph_session(
                     dir.join("onnx/vision_encoder_q4.onnx"),
-                    Device::Cpu,
+                    self.config.vision_device,
                     None,
                 )?);
             }
@@ -687,14 +693,13 @@ impl EmbeddingBackend for OrtBackend {
             }
             values.to_vec()
         };
-        // CPU visual inference is deliberate: the GPU compatibility probe covers text only.
-        // Drop the bulk text session before retaining the visual backbone on GPU indexers.
-        if self.config.device != Device::Cpu {
+        // Reuse one backbone when both modalities have the same validated device.
+        if self.config.device != self.config.image_device {
             self.unload(Modality::Text)?;
         }
         // CPU indexing can reuse its text backbone; retaining a second copy adds
         // a full model session with no benefit (T303 release memory evidence).
-        let backbone = if self.config.device == Device::Cpu {
+        let backbone = if self.config.device == self.config.image_device {
             &self.session
         } else {
             &self.image_model
@@ -703,7 +708,11 @@ impl EmbeddingBackend for OrtBackend {
             .lock()
             .map_err(|_| EmbeddingError::Backend("image model lock poisoned".into()))?;
         if slot.is_none() {
-            *slot = Some(self.create_graph_session(self.config.onnx_path(), Device::Cpu, None)?);
+            *slot = Some(self.create_graph_session(
+                self.config.onnx_path(),
+                self.config.image_device,
+                None,
+            )?);
         }
         // Tokenizer verifies the pinned special-token ids; image-only inputs have no prompt.
         let block = format!("<|image>{}<image|>", "<|image|>".repeat(patches.tokens));

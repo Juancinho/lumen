@@ -77,6 +77,140 @@ fn image_pass(store: &mut Store) -> PassReport {
 }
 
 #[test]
+fn bounded_extraction_resumes_inside_a_page_and_keeps_cancelled_work() {
+    let t = Temp::new("sliced-extraction");
+    let mut store = seeded(&t);
+    let cfg = PassConfig {
+        max_bytes: 4096,
+        ..PassConfig::default()
+    };
+    let cancel = CancellationToken::new();
+    let slice = Slice {
+        max_files: 1,
+        max_run: Duration::MAX,
+    };
+    let mut cursor = 0;
+    let mut files = 0;
+    loop {
+        let r = run_content_slice(
+            &mut store,
+            &cfg,
+            &EstimateTokens,
+            &|_| true,
+            &cancel,
+            &|| 1,
+            &mut |_| {},
+            cursor,
+            slice,
+        )
+        .unwrap();
+        assert!(r.files <= 1);
+        files += r.files;
+        cursor = r.cursor;
+        if r.exhausted {
+            break;
+        }
+        assert!(files <= 5);
+    }
+    assert_eq!(files, 5);
+    assert_eq!(store.content_counts().unwrap().indexed, 3);
+    let coverage = store
+        .file_coverage(lumen_extract::TEXT_EXTENSIONS, &|_| true)
+        .unwrap();
+    assert_eq!(
+        (
+            coverage.total,
+            coverage.read,
+            coverage.skipped,
+            coverage.failed
+        ),
+        (5, 5, 2, 0)
+    );
+    assert_eq!(
+        store
+            .file_coverage(lumen_extract::TEXT_EXTENSIONS, &|_| false)
+            .unwrap()
+            .total,
+        0
+    );
+    assert_eq!(pass(&mut store, &cfg).files, 0);
+
+    let t = Temp::new("sliced-images");
+    for n in 0..3 {
+        image::RgbImage::from_pixel(4, 3, image::Rgb([255, 0, 0]))
+            .save(t.files().join(format!("{n}.png")))
+            .unwrap();
+    }
+    let mut store = t.store();
+    sync(&mut store, &t.files());
+    let cancelled = CancellationToken::new();
+    cancelled.cancel();
+    let r = run_image_slice(&mut store, &|_| true, &cancelled, &|| 1, 0, slice).unwrap();
+    assert!(r.cancelled);
+    assert_eq!(r.cursor, 0);
+    assert!(!r.exhausted);
+    let mut cursor = 0;
+    let mut files = 0;
+    loop {
+        let r = run_image_slice(&mut store, &|_| true, &cancel, &|| 1, cursor, slice).unwrap();
+        assert!(r.files <= 1);
+        files += r.files;
+        cursor = r.cursor;
+        if r.exhausted {
+            break;
+        }
+        assert!(files <= 3);
+    }
+    assert_eq!(files, 3);
+    let coverage = store.file_coverage(IMAGE_EXTENSIONS, &|_| true).unwrap();
+    assert_eq!((coverage.total, coverage.read), (3, 3));
+    assert_eq!(image_pass(&mut store).files, 0);
+}
+
+#[test]
+fn images_get_a_turn_before_a_large_text_backlog_drains_without_skipping_text() {
+    let t = Temp::new("image-fairness");
+    for n in 0..2 {
+        image::RgbImage::from_pixel(4, 3, image::Rgb([255, 0, 0]))
+            .save(t.files().join(format!("photo{n}.png")))
+            .unwrap();
+    }
+    for n in 0..100 {
+        std::fs::write(
+            t.files().join(format!("note{n}.txt")),
+            "searchable document contents",
+        )
+        .unwrap();
+    }
+    let mut store = t.store();
+    sync(&mut store, &t.files());
+    image_pass(&mut store); // Image chunk IDs precede the entire text backlog.
+    pass(&mut store, &PassConfig::default());
+    let backend = Arc::new(Visual::new(None));
+    let e = embedder(backend.clone());
+    let g = generation(&store, &e);
+    let r = queue(
+        &mut store,
+        &e,
+        g,
+        &Control::new(),
+        &QueueConfig {
+            batch: 1,
+            ..QueueConfig::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(r.stop, Stop::Drained);
+    assert_eq!(r.embedded, 102);
+    let calls = backend.calls.lock().unwrap();
+    assert_eq!(&calls[..8], &[Modality::Text; 8]);
+    assert_eq!(calls[8], Modality::Image);
+    assert_eq!(calls[17], Modality::Image);
+    assert_eq!(store.image_counts(Some(g)).unwrap().indexed, 2);
+    assert_eq!(store.queue_counts(g).unwrap().pending(), 0);
+}
+
+#[test]
 fn images_are_consent_bound_deferred_resumable_and_keep_text_vectors_and_actions() {
     use lumen_core::{ImageState, Payload, Provider, ProviderQuery, QueryId, ResultKind};
     let t = Temp::new("image-pipeline");
