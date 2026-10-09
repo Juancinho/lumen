@@ -64,6 +64,8 @@ pub struct Exclusions {
     pub user_paths: Vec<PathBuf>,
     /// Entry names excluded anywhere, e.g. `my-archive` (user setting).
     pub user_names: Vec<String>,
+    /// Literal file extensions, without a leading dot; never directory names.
+    pub user_extensions: Vec<String>,
     /// Enabled default directory names (usually a subset of [`DEV_NOISE_NAMES`]); matched
     /// against directories only, reported as `default:<name>`.
     pub default_names: Vec<String>,
@@ -77,6 +79,7 @@ impl Default for Exclusions {
             system_defaults: true,
             user_paths: Vec::new(),
             user_names: Vec::new(),
+            user_extensions: Vec::new(),
             default_names: Vec::new(),
             build_dirs_next_to_markers: false,
         }
@@ -665,6 +668,7 @@ struct Rules {
     system: Vec<(String, &'static str)>,
     names: Vec<(String, String)>,
     paths: Vec<(PathBuf, PathBuf)>,
+    extensions: Vec<String>,
     defaults: Vec<(String, String)>,
     build: Vec<(String, &'static str)>,
     /// Parent directory → holds a project marker (checked once per parent).
@@ -697,6 +701,11 @@ impl Rules {
         };
         Self {
             system,
+            extensions: ex
+                .user_extensions
+                .iter()
+                .filter_map(|e| normalize_extension(e))
+                .collect(),
             names: ex
                 .user_names
                 .iter()
@@ -724,6 +733,15 @@ impl Rules {
     /// The rule label that excludes `path`, if any. `is_dir`: the entry is a directory
     /// (default and build rules apply to directories only).
     fn matches(&self, path: &Path, is_dir: bool) -> Option<String> {
+        if !is_dir
+            && let Some(extension) = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .and_then(normalize_extension)
+            && self.extensions.contains(&extension)
+        {
+            return Some(format!("extension:.{extension}"));
+        }
         let name = path.file_name().map(|n| name_key(&n.to_string_lossy()));
         if let Some(name) = &name {
             if let Some((_, label)) = self.system.iter().find(|(k, _)| k == name) {
@@ -760,6 +778,20 @@ impl Rules {
         }
         None
     }
+}
+
+/// Literal extension validation shared by settings, native pickers and scan rules.
+/// Accepts `js`/`.JS`; patterns, paths, empty values and control characters are refused.
+#[must_use]
+pub fn normalize_extension(value: &str) -> Option<String> {
+    let value = value.trim();
+    let value = value.strip_prefix('.').unwrap_or(value);
+    (!value.is_empty()
+        && value.len() <= 255
+        && !value
+            .chars()
+            .any(|c| c.is_control() || c.is_whitespace() || ".\\/:*?\"<>|".contains(c)))
+    .then(|| value.to_ascii_lowercase())
 }
 
 #[cfg(test)]
@@ -945,6 +977,51 @@ mod tests {
         assert_eq!(all.len(), unique.len(), "duplicates emitted");
         assert_eq!(report.overlapping_roots.len(), 2);
         assert_eq!(report.files, 1);
+    }
+
+    #[test]
+    fn literal_file_types_apply_to_inventory_and_watcher_but_not_directories() {
+        let t = TempDir::new("extensions");
+        let r = &t.0;
+        for name in [
+            "app.JS",
+            "data.json",
+            "old.log",
+            "keep.jsx",
+            "keep.jsonl",
+            "dir.js/notes.md",
+        ] {
+            write(&r.join(name), b"x");
+        }
+        let mut o = opts(&[r]);
+        o.exclusions.user_extensions = [".JS", "json", "LOG"].map(String::from).to_vec();
+        let (entries, report) = run(&o);
+        assert_eq!(report.files, 3);
+        assert_eq!(report.excluded.len(), 3);
+        assert!(paths(&entries).contains(&r.join("dir.js/notes.md")));
+        assert_eq!(report.excluded_by_rule().get("extension:.js"), Some(&1));
+        let change = crate::watch::Change {
+            path: r.join("app.JS"),
+            recursive: false,
+            content: true,
+            renamed_from: false,
+        };
+        let report = scan_changed(
+            &o,
+            &[change],
+            |_| panic!("excluded file reintroduced"),
+            None,
+        );
+        assert_eq!(report.excluded[0].rule, "extension:.js");
+        o.exclusions.user_extensions.clear();
+        assert_eq!(
+            run(&o).1.files,
+            6,
+            "including again needs no filesystem change"
+        );
+        for bad in ["", "*.js", "tar.gz", "../js", "js log", "a:b"] {
+            assert_eq!(normalize_extension(bad), None);
+        }
     }
 
     #[test]

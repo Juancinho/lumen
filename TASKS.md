@@ -10,6 +10,10 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 
 ## Next (ordered)
 
+User priority (2026-10-09): **T112 REVIEW** — manual file/extension exclusions built;
+try Exclusions → File types / Exclude files… or root Ctrl+K, then undo (HANDOFF).
+Preserve the resident app and all existing REVIEW checklists. Next roadmap task is T304.
+
 1. **Close REVIEW tasks on Windows (human):** T003, T004 (Acrylic vs Mica default), T103,
    T104, T105, T107, T108/T109, T110 — checklists in `HANDOFF.md`.
 2. **T111** indexed locations — REVIEW on Windows: add `D:\Proyectos` from the tray, USB
@@ -85,6 +89,7 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 | T109 | REVIEW | claude | Core actions: open, reveal, copy path/value, pin/favorite, open with          | T108           |
 | T110 | REVIEW | claude | Provider/result diagnostics mode for development only                         | T107           |
 | T111 | REVIEW | claude | User-configurable indexed locations (folders/whole drives) + exclusions (folder, name, dev-noise defaults); spec `docs/specs/T111-indexed-locations.md` | T107,T108      |
+| T112 | REVIEW | codex | Manual file and extension exclusions from results/tray, reversible and persisted (user requested) | T111,T108 |
 
 # M2 — text/code semantic search
 

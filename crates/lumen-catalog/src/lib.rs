@@ -7,6 +7,7 @@
 pub mod apps;
 pub mod code;
 pub mod content;
+pub mod exclusions;
 pub mod files;
 pub mod locations;
 pub mod path;

@@ -249,6 +249,12 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
   (`console.debug`). Off by default; never shown in normal UI.
 - Indexed locations (T111, ADR-027): tray → Indexed locations / Exclusions; stored as
   `index.locations` in `lumen.db` settings; any edit cancels and restarts the catalog pass.
+- Manual exclusions (T112, ADR-027 amendment): tray → Exclusions → File types has `.js`,
+  `.json`, `.log` checks and an example-file picker for custom types; Exclude files… picks
+  individual files. Ctrl+K file/code/PDF/image rows offer Exclude this file / Exclude all
+  .ext files. Uncheck a type or Include again on a path to restore it. Changes remove
+  only derived indexed data, including offline entries, and preserve unrelated vectors.
+  Rules save as locations JSON v3; extraction/re-embedding resumes only for included files.
 - Content indexing (T202, ADR-029): after each catalog pass the same thread runs the
   content pass (text/code → `chunks`) and, once the model and runtime are present (tray →
   Semantic search → Download…, ADR-034; or, for development, `LUMEN_EMBED_MODEL_DIR` =

@@ -3,6 +3,13 @@
 > Task spec. Summarized in `SEARCH_AND_INDEXING.md` §7 and `ARCHITECTURE.md` §17 (T015);
 > this file stays the detailed spec until T111 is DONE.
 
+## 0. Implementation status (2026-10-09)
+
+T111 is built and remains REVIEW for native Windows checks. T112 extends its existing
+setting/tray/actions with manual exact-file and literal-extension exclusions; see
+`T112-manual-exclusions.md` and ADR-027's dated amendment. The historical T111 scope below
+does not limit that explicitly requested extension.
+
 ## Problem
 
 The catalog only inventories the user's standard folders on C: (Desktop, Documents,

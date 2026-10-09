@@ -1,0 +1,27 @@
+{
+  "assertions": "all queries return retained file; unaffected vectors and active generation retained",
+  "chunks_vectors_usage_per_item": 1,
+  "cleanup_ms": 16471.3406,
+  "concurrent_name_ms": {
+    "max_ms": 55.946000000000005,
+    "mean_ms": 25.707802652106082,
+    "min_ms": 15.8476,
+    "n": 641,
+    "p50_ms": 25.4409,
+    "p95_ms": 32.9861,
+    "p99_ms": 43.1079
+  },
+  "concurrent_name_queries": 641,
+  "dimension": 256,
+  "limitations": "one synthetic loaded-machine run; not real-library ETA or whole-app latency",
+  "machine": "JOAO-PC",
+  "os": "windows",
+  "page_limit": 512,
+  "release": true,
+  "removed": 75000,
+  "retained": 25000,
+  "retained_scan_ms": 232.77519999999998,
+  "schema_version": 1,
+  "synthetic_items": 100000,
+  "task": "T112"
+}

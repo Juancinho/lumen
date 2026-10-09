@@ -44,6 +44,13 @@ Evidence, hot-name regression and runtime/query-under-image checks:
 `benchmarks/t303/2026-10-09-joao-pc/README.md`. Existing budgets are unchanged; whole-app
 private memory, long real-library soak and visual-GPU acceleration are not established.
 
+T112 Windows release: 100k synthetic files/chunks/256d vectors/usage aggregates, explicit
+js/json/log exclusions remove 75k entries with cascades in 16.47 s on the writer (512-row
+pages/transactions). During cleanup, 641 independent retained-name queries p50/p95
+25.44/32.99 ms, maximum 55.95 ms. Remaining 25k items/vectors and active generation stay;
+repeat no-op scan takes 233 ms. Crowded numeric names on a loaded machine, not painted
+latency or a real-library ETA. Evidence: `benchmarks/t112/2026-10-10-joao-pc/README.md`.
+
 ## 1. Principle
 
 Performance is not a later optimization pass. Lumen's product value depends on invoking it reflexively. If opening or searching feels slower than opening Explorer, the product loses its reason to exist.

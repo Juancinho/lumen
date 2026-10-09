@@ -4,8 +4,8 @@
 //! Payloads (paths, launch keys) never come from the UI.
 
 use lumen_core::builtin::{
-    COPY_PATH, COPY_SYMBOL, DESCRIPTORS, EXCLUDE_FOLDER, LAUNCH, OPEN, OPEN_PDF_PAGE, REVEAL,
-    REVEAL_REPOSITORY,
+    COPY_PATH, COPY_SYMBOL, DESCRIPTORS, EXCLUDE_EXTENSION, EXCLUDE_FILE, EXCLUDE_FOLDER, LAUNCH,
+    OPEN, OPEN_PDF_PAGE, REVEAL, REVEAL_REPOSITORY,
 };
 use lumen_core::{
     ActionDescriptor, ActionGroup, ActionId, ActionRequest, Invocation, Payload, QueryId, ResultId,
@@ -18,7 +18,7 @@ use crate::dto::ActionDto;
 use crate::{overlay, search, settings};
 
 /// Actions Lumen can execute (one registry for every provider).
-pub(crate) static REGISTRY: [ActionDescriptor; 8] = DESCRIPTORS;
+pub(crate) static REGISTRY: [ActionDescriptor; 10] = DESCRIPTORS;
 
 /// Keyboard hint shown in the Action Panel (must match `features/root-search/keymap.ts`).
 pub(crate) fn shortcut_hint(action: &ActionId, primary: bool) -> Option<&'static str> {
@@ -81,7 +81,14 @@ pub(crate) fn list<R: Runtime>(
             let primary = d.id == item.primary_action;
             ActionDto {
                 id: d.id.as_str().to_owned(),
-                title: d.title.to_string(),
+                title: if d.id == EXCLUDE_EXTENSION {
+                    exclusion_extension(&item.payload).map_or_else(
+                        || d.title.to_string(),
+                        |e| format!("Exclude all .{e} files"),
+                    )
+                } else {
+                    d.title.to_string()
+                },
                 group: group_name(d.group),
                 shortcut: shortcut_hint(&d.id, primary),
             }
@@ -144,6 +151,14 @@ fn path_of(payload: &Payload) -> Result<&std::path::Path, String> {
         .ok_or_else(|| "result has no local path".into())
 }
 
+fn exclusion_extension(payload: &Payload) -> Option<String> {
+    payload
+        .local_path()?
+        .extension()?
+        .to_str()
+        .and_then(lumen_indexer::scan::normalize_extension)
+}
+
 fn execute<R: Runtime>(
     app: &AppHandle<R>,
     action: &ActionId,
@@ -184,7 +199,14 @@ fn execute<R: Runtime>(
         };
         let repository = code.repository.as_ref().ok_or("result has no repository")?;
         tauri_plugin_opener::reveal_item_in_dir(repository).map_err(|e| err(&e))
-    } else if *action == EXCLUDE_FOLDER {
+    } else if *action == EXCLUDE_EXTENSION {
+        let extension = exclusion_extension(payload).ok_or("file has no supported extension")?;
+        if crate::catalog::set_extension(app, &extension, true) {
+            Ok(())
+        } else {
+            Err("already excluded, or locations are read-only".into())
+        }
+    } else if *action == EXCLUDE_FOLDER || *action == EXCLUDE_FILE {
         // T111: saved in the locations setting; the next pass (started now) removes its items.
         if crate::catalog::exclude_path(app, path_of(payload)?) {
             Ok(())
@@ -228,5 +250,14 @@ mod tests {
     fn executors_need_a_path() {
         assert!(path_of(&Payload::Text("x".into())).is_err());
         assert!(path_of(&Payload::Path("/tmp/x".into())).is_ok());
+        assert_eq!(
+            exclusion_extension(&Payload::Path("/tmp/app.JS".into())).as_deref(),
+            Some("js")
+        );
+        assert_eq!(exclusion_extension(&Payload::Text(".json".into())), None);
+        assert_eq!(
+            exclusion_extension(&Payload::Path("/tmp/no-extension".into())),
+            None
+        );
     }
 }
