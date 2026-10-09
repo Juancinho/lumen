@@ -227,6 +227,8 @@ pub enum Stop {
 pub struct QueueReport {
     pub embedded: u64,
     pub failed: u64,
+    /// Source changed during inference; metadata must run again before retrying.
+    pub stale_images: u64,
     pub batches: u64,
     /// Time inside the embedder.
     pub busy: Duration,
@@ -294,6 +296,7 @@ pub fn run_queue(
     let mut report = QueueReport {
         embedded: 0,
         failed: 0,
+        stale_images: 0,
         batches: 0,
         busy: Duration::ZERO,
         yielded: Duration::ZERO,
@@ -327,7 +330,18 @@ pub fn run_queue(
         } else {
             cfg.batch.max(1)
         };
-        let batch = store.pending_chunks(generation, cursor, size)?;
+        let mut batch = store.pending_chunks_with_images(generation, cursor, size, false)?;
+        if batch.is_empty()
+            && embedder
+                .backend()
+                .capabilities()
+                .model
+                .modalities
+                .contains(lumen_embedding::Modality::Image)
+        {
+            // Lower-priority images: one decode/inference, never a decoded batch.
+            batch = store.pending_chunks_with_images(generation, cursor, 1, true)?;
+        }
         let Some(last) = batch.last() else {
             // A deleted top chunk id can be reused below the cursor: one rescan from the
             // start before declaring the queue empty.
@@ -349,9 +363,16 @@ pub fn run_queue(
             Err(EmbeddingError::Cancelled) => break Stop::Cancelled,
             Err(e) => return Err(QueueError::Device(e)),
         };
+        for (chunk, result) in batch.iter().zip(&results) {
+            if *result == Err("image:changed") {
+                store.invalidate_image(chunk.item_id)?;
+                report.stale_images += 1;
+            }
+        }
         let writes: Vec<VectorWrite<'_>> = batch
             .iter()
             .zip(&results)
+            .filter(|(_, r)| **r != Err("image:changed"))
             .map(|(c, r)| VectorWrite {
                 chunk_id: c.chunk_id,
                 result: r.as_deref().map_err(|code| *code),
@@ -362,7 +383,7 @@ pub fn run_queue(
         for r in &results {
             if r.is_ok() {
                 report.embedded += 1;
-            } else {
+            } else if *r != Err("image:changed") {
                 report.failed += 1;
             }
         }
@@ -391,6 +412,37 @@ fn embed_batch(
     batch: &[PendingChunk],
     cancel: &CancellationToken,
 ) -> Result<Vec<ItemResult>, EmbeddingError> {
+    if batch.len() == 1 && batch[0].kind == "image" {
+        let chunk = &batch[0];
+        let path = lumen_catalog::path::decode(&chunk.path, chunk.raw_path.as_deref());
+        let image = match lumen_image::decode(&path, chunk.image_digest.as_deref(), &|| {
+            cancel.is_cancelled()
+        }) {
+            Ok(image) => image,
+            Err(lumen_image::Error::Cancelled) => return Err(EmbeddingError::Cancelled),
+            Err(error) => return Ok(vec![Err(error.code())]),
+        };
+        let input = lumen_embedding::ImageInput {
+            width: image.metadata.width,
+            height: image.metadata.height,
+            rgb: &image.rgb,
+        };
+        let vector = match embedder.embed_images(&[input], Some(cancel)) {
+            Ok(vector) => vector.into_flat(),
+            Err(error) if error == EmbeddingError::Cancelled || is_device_failure(&error) => {
+                return Err(error);
+            }
+            Err(error) => return Ok(vec![Err(error_code(&error))]),
+        };
+        // A write during inference cannot publish an embedding for stale source pixels.
+        match lumen_image::inspect(&path, &|| cancel.is_cancelled()) {
+            Ok(metadata) if metadata.digest == image.metadata.digest => {
+                return Ok(vec![Ok(vector)]);
+            }
+            Err(lumen_image::Error::Cancelled) => return Err(EmbeddingError::Cancelled),
+            _ => return Ok(vec![Err("image:changed")]),
+        }
+    }
     let mut results: Vec<Option<ItemResult>> = batch
         .iter()
         .map(|c| c.text.trim().is_empty().then_some(Err("empty")))

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use lumen_core::CancellationToken;
 
-use crate::backend::{EmbeddingBackend, EmbeddingError};
+use crate::backend::{EmbeddingBackend, EmbeddingError, ImageInput};
 use crate::model::Modality;
 use crate::prompt::{EmbeddingTask, TextInput};
 use crate::space::{EmbeddingProfile, EmbeddingSpace};
@@ -118,6 +118,47 @@ impl Embedder {
         Ok(out)
     }
 
+    /// Validate and normalize native image outputs, one image per backend call.
+    ///
+    /// # Errors
+    /// Invalid RGB shape, cancellation, invalid native vectors or backend failure.
+    pub fn embed_images(
+        &self,
+        inputs: &[ImageInput<'_>],
+        cancel: Option<&CancellationToken>,
+    ) -> Result<EmbeddingBatch, EmbeddingError> {
+        for (index, input) in inputs.iter().enumerate() {
+            if input.width == 0
+                || input.height == 0
+                || u64::from(input.width) * u64::from(input.height) * 3 != input.rgb.len() as u64
+            {
+                return Err(EmbeddingError::InvalidImage { index });
+            }
+        }
+        let mut out = EmbeddingBatch::empty(self.profile.dim);
+        // Never retain a decoded batch of pictures. Preempt at each image boundary.
+        for (index, input) in inputs.iter().enumerate() {
+            if cancel.is_some_and(CancellationToken::is_cancelled) {
+                return Err(EmbeddingError::Cancelled);
+            }
+            let raw = self.backend.embed_images(std::slice::from_ref(input))?;
+            let native = self.backend.capabilities().model.native_dim;
+            if raw.len() != native {
+                return Err(EmbeddingError::OutputShape {
+                    expected: native,
+                    actual: raw.len(),
+                });
+            }
+            out.extend(truncate_and_normalize(
+                &raw,
+                native,
+                self.profile.dim,
+                index,
+            )?);
+        }
+        Ok(out)
+    }
+
     /// Convenience for one search query.
     ///
     /// # Errors
@@ -176,6 +217,21 @@ mod tests {
         fn is_warm(&self, _: Modality) -> bool {
             true
         }
+        fn embed_images(&self, inputs: &[ImageInput<'_>]) -> Result<Vec<f32>, EmbeddingError> {
+            assert_eq!(inputs.len(), 1);
+            if !self.caps.model.modalities.contains(Modality::Image) {
+                return Err(EmbeddingError::Unsupported(Modality::Image));
+            }
+            self.calls.lock().unwrap().push(vec!["image".into()]);
+            if let Some(cancel) = &self.cancel_after_first {
+                cancel.cancel();
+            }
+            Ok(self.malformed.clone().unwrap_or_else(|| {
+                let mut vector = vec![0.0; self.caps.model.native_dim];
+                vector[0] = 2.0;
+                vector
+            }))
+        }
         fn embed_text(&self, inputs: &[&str]) -> Result<Vec<f32>, EmbeddingError> {
             assert!(inputs.len() <= self.caps.max_batch, "batch limit exceeded");
             self.calls
@@ -192,6 +248,51 @@ mod tests {
             row[0] = 2.0;
             Ok(row.repeat(inputs.len()))
         }
+    }
+
+    #[test]
+    fn image_shape_normalization_output_validation_and_cancellation() {
+        let input = ImageInput {
+            width: 1,
+            height: 1,
+            rgb: &[1, 2, 3],
+        };
+        let make = |malformed, cancel| {
+            let mut backend = Recording::new(8);
+            backend.caps.model.modalities =
+                crate::ModalitySet::of(&[Modality::Text, Modality::Image]);
+            backend.malformed = malformed;
+            backend.cancel_after_first = cancel;
+            Embedder::new(Arc::new(backend), EmbeddingProfile::DEFAULT).unwrap()
+        };
+        let e = make(None, None);
+        let v = e.embed_images(&[input, input], None).unwrap();
+        assert_eq!(v.iter().count(), 2);
+        assert_eq!(v.iter().next().unwrap()[0], 1.0);
+        assert_eq!(
+            e.embed_images(&[ImageInput { rgb: &[1], ..input }], None),
+            Err(EmbeddingError::InvalidImage { index: 0 })
+        );
+        assert!(matches!(
+            make(Some(vec![1.0]), None).embed_images(&[input], None),
+            Err(EmbeddingError::OutputShape { .. })
+        ));
+        assert!(
+            make(Some(vec![f32::NAN; 768]), None)
+                .embed_images(&[input], None)
+                .is_err()
+        );
+        let cancel = CancellationToken::new();
+        let e = make(None, Some(cancel.clone()));
+        assert_eq!(
+            e.embed_images(&[input, input], Some(&cancel)),
+            Err(EmbeddingError::Cancelled)
+        );
+        let e = Embedder::new(Arc::new(MockBackend::new()), EmbeddingProfile::DEFAULT).unwrap();
+        assert_eq!(
+            e.embed_images(&[input], None),
+            Err(EmbeddingError::Unsupported(Modality::Image))
+        );
     }
 
     fn texts(n: usize) -> Vec<String> {

@@ -23,8 +23,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 use lumen_embedding::{
-    Capabilities, EmbeddingBackend, EmbeddingError, ExecutionTarget, Modality, ModalitySet,
-    ModelInfo,
+    Capabilities, EmbeddingBackend, EmbeddingError, ExecutionTarget, ImageInput, Modality,
+    ModalitySet, ModelInfo,
 };
 use ort::session::Session;
 use ort::session::builder::GraphOptimizationLevel;
@@ -140,6 +140,8 @@ impl fmt::Display for Device {
 /// Backend configuration.
 #[derive(Debug, Clone)]
 pub struct OrtConfig {
+    /// Optional separately provisioned q4 vision graph. Text-only query backends leave None.
+    pub vision_dir: Option<PathBuf>,
     /// Local copy of the export: `tokenizer.json` and `onnx/<variant>.onnx[_data]`.
     pub model_dir: PathBuf,
     pub variant: ModelVariant,
@@ -160,6 +162,7 @@ impl OrtConfig {
     #[must_use]
     pub fn new(model_dir: impl Into<PathBuf>, variant: ModelVariant, device: Device) -> Self {
         Self {
+            vision_dir: None,
             model_dir: model_dir.into(),
             variant,
             device,
@@ -307,6 +310,8 @@ pub struct OrtBackend {
     /// `None` while unloaded. `Session::run` needs `&mut`, so calls serialize here
     /// (`concurrent_calls = false`); T204 gives queries priority over indexing.
     session: Mutex<Option<Session>>,
+    vision: Mutex<Option<Session>>,
+    image_model: Mutex<Option<Session>>,
     /// Wall time of the last session creation (model load + EP compile), for reports.
     last_load_ms: Mutex<Option<f64>>,
 }
@@ -374,7 +379,15 @@ impl OrtBackend {
                 native_dim: NATIVE_DIM,
                 matryoshka_dims: vec![128, 256, 512, 768],
                 max_input_tokens: MAX_INPUT_TOKENS,
-                modalities: ModalitySet::TEXT,
+                modalities: if config.variant == ModelVariant::Q4
+                    && config.vision_dir.as_ref().is_some_and(|dir| {
+                        dir.join("onnx/vision_encoder_q4.onnx").is_file()
+                            && dir.join("onnx/vision_encoder_q4.onnx_data").is_file()
+                    }) {
+                    ModalitySet::of(&[Modality::Text, Modality::Image])
+                } else {
+                    ModalitySet::TEXT
+                },
             },
             target,
             device,
@@ -387,6 +400,8 @@ impl OrtBackend {
             caps,
             tokenizer,
             session: Mutex::new(None),
+            vision: Mutex::new(None),
+            image_model: Mutex::new(None),
             last_load_ms: Mutex::new(None),
         })
     }
@@ -430,6 +445,15 @@ impl OrtBackend {
         &self,
         verbose_logger: Option<ort::logging::LoggerFunction>,
     ) -> Result<Session, EmbeddingError> {
+        self.create_graph_session(self.config.onnx_path(), self.config.device, verbose_logger)
+    }
+
+    fn create_graph_session(
+        &self,
+        path: PathBuf,
+        device: Device,
+        verbose_logger: Option<ort::logging::LoggerFunction>,
+    ) -> Result<Session, EmbeddingError> {
         let started = Instant::now();
         let mut builder = Session::builder()
             .map_err(|e| backend_err("session builder", e))?
@@ -447,7 +471,7 @@ impl OrtBackend {
                 .with_intra_threads(threads)
                 .map_err(|e| backend_err("intra threads", e))?;
         }
-        match self.config.device {
+        match device {
             Device::Cpu => {}
             Device::DirectMl { adapter } => {
                 builder = directml(
@@ -465,7 +489,7 @@ impl OrtBackend {
             }
         }
         let session = builder
-            .commit_from_file(self.config.onnx_path())
+            .commit_from_file(path)
             .map_err(|e| backend_err("load model", e))?;
         if let Ok(mut slot) = self.last_load_ms.lock() {
             *slot = Some(started.elapsed().as_secs_f64() * 1000.0);
@@ -554,6 +578,25 @@ impl EmbeddingBackend for OrtBackend {
     }
 
     fn warm(&self, modality: Modality) -> Result<(), EmbeddingError> {
+        if modality == Modality::Image && self.caps.model.modalities.contains(Modality::Image) {
+            let mut slot = self
+                .vision
+                .lock()
+                .map_err(|_| EmbeddingError::Backend("vision lock poisoned".into()))?;
+            if slot.is_none() {
+                let dir = self
+                    .config
+                    .vision_dir
+                    .as_ref()
+                    .ok_or(EmbeddingError::Unsupported(modality))?;
+                *slot = Some(self.create_graph_session(
+                    dir.join("onnx/vision_encoder_q4.onnx"),
+                    Device::Cpu,
+                    None,
+                )?);
+            }
+            return Ok(());
+        }
         if modality != Modality::Text {
             return Err(EmbeddingError::Unsupported(modality));
         }
@@ -568,6 +611,14 @@ impl EmbeddingBackend for OrtBackend {
     }
 
     fn unload(&self, modality: Modality) -> Result<(), EmbeddingError> {
+        if modality == Modality::Image {
+            if let Ok(mut slot) = self.vision.lock() {
+                *slot = None;
+            }
+            if let Ok(mut slot) = self.image_model.lock() {
+                *slot = None;
+            }
+        }
         if modality == Modality::Text
             && let Ok(mut slot) = self.session.lock()
         {
@@ -577,7 +628,108 @@ impl EmbeddingBackend for OrtBackend {
     }
 
     fn is_warm(&self, modality: Modality) -> bool {
-        modality == Modality::Text && self.session.lock().is_ok_and(|s| s.is_some())
+        match modality {
+            Modality::Text => self.session.lock().is_ok_and(|s| s.is_some()),
+            Modality::Image => self.vision.lock().is_ok_and(|s| s.is_some()),
+            _ => false,
+        }
+    }
+
+    fn embed_images(&self, inputs: &[ImageInput<'_>]) -> Result<Vec<f32>, EmbeddingError> {
+        if !self.caps.model.modalities.contains(Modality::Image) {
+            return Err(EmbeddingError::Unsupported(Modality::Image));
+        }
+        if inputs.len() != 1 {
+            return Err(EmbeddingError::InvalidProfile("one image per call".into()));
+        }
+        let input = inputs[0];
+        let patches = lumen_image::prepare(input.width, input.height, input.rgb)
+            .map_err(|_| EmbeddingError::InvalidImage { index: 0 })?;
+        let features = {
+            let mut slot = self
+                .vision
+                .lock()
+                .map_err(|_| EmbeddingError::Backend("vision lock poisoned".into()))?;
+            if slot.is_none() {
+                let dir = self
+                    .config
+                    .vision_dir
+                    .as_ref()
+                    .ok_or(EmbeddingError::Unsupported(Modality::Image))?;
+                *slot = Some(self.create_graph_session(
+                    dir.join("onnx/vision_encoder_q4.onnx"),
+                    Device::Cpu,
+                    None,
+                )?);
+            }
+            let session = slot
+                .as_mut()
+                .ok_or_else(|| EmbeddingError::Backend("vision unavailable".into()))?;
+            let pixels = Tensor::from_array((
+                [1, lumen_image::MAX_PATCHES, lumen_image::PATCH_DIM],
+                patches.pixels,
+            ))
+            .map_err(|e| backend_err("pixels", e))?;
+            let positions =
+                Tensor::from_array(([1, lumen_image::MAX_PATCHES, 2], patches.positions))
+                    .map_err(|e| backend_err("positions", e))?;
+            let outputs = session
+                .run(ort::inputs!["pixel_values"=>pixels,"pixel_position_ids"=>positions])
+                .map_err(|e| backend_err("vision inference", e))?;
+            let (_, values) = outputs[0]
+                .try_extract_tensor::<f32>()
+                .map_err(|e| backend_err("vision features", e))?;
+            if values.len() != patches.tokens * FEATURE_WIDTH {
+                return Err(EmbeddingError::OutputShape {
+                    expected: patches.tokens * FEATURE_WIDTH,
+                    actual: values.len(),
+                });
+            }
+            values.to_vec()
+        };
+        // CPU visual inference is deliberate: the GPU compatibility probe covers text only.
+        // Drop the bulk text session before retaining the visual backbone on GPU indexers.
+        if self.config.device != Device::Cpu {
+            self.unload(Modality::Text)?;
+        }
+        // CPU indexing can reuse its text backbone; retaining a second copy adds
+        // a full model session with no benefit (T303 release memory evidence).
+        let backbone = if self.config.device == Device::Cpu {
+            &self.session
+        } else {
+            &self.image_model
+        };
+        let mut slot = backbone
+            .lock()
+            .map_err(|_| EmbeddingError::Backend("image model lock poisoned".into()))?;
+        if slot.is_none() {
+            *slot = Some(self.create_graph_session(self.config.onnx_path(), Device::Cpu, None)?);
+        }
+        // Tokenizer verifies the pinned special-token ids; image-only inputs have no prompt.
+        let block = format!("<|image>{}<image|>", "<|image|>".repeat(patches.tokens));
+        let (ids, mask, seq) = self.tokenize(&[&block])?;
+        if ids.iter().filter(|&&id| id == 258880).count() != patches.tokens {
+            return Err(EmbeddingError::InvalidProfile(
+                "image token contract mismatch".into(),
+            ));
+        }
+        let ids = Tensor::from_array(([1, seq], ids)).map_err(|e| backend_err("image ids", e))?;
+        let mask =
+            Tensor::from_array(([1, seq], mask)).map_err(|e| backend_err("image mask", e))?;
+        let features = Tensor::from_array(([patches.tokens, FEATURE_WIDTH], features))
+            .map_err(|e| backend_err("image features", e))?;
+        let empty = || {
+            Tensor::<f32>::from_array(([0_usize, FEATURE_WIDTH], Vec::new()))
+                .map_err(|e| backend_err("empty feature", e))
+        };
+        let session = slot
+            .as_mut()
+            .ok_or_else(|| EmbeddingError::Backend("image model unavailable".into()))?;
+        let outputs = session.run(ort::inputs!["input_ids"=>ids,"attention_mask"=>mask,"image_features"=>features,"video_features"=>empty()?,"audio_features"=>empty()?]).map_err(|e|backend_err("image backbone",e))?;
+        let (_, values) = outputs["sentence_embedding"]
+            .try_extract_tensor::<f32>()
+            .map_err(|e| backend_err("image embedding", e))?;
+        Ok(values.to_vec())
     }
 
     fn embed_text(&self, inputs: &[&str]) -> Result<Vec<f32>, EmbeddingError> {

@@ -39,6 +39,7 @@ crates/
   lumen-catalog/           app/file catalog: inventory -> items, Start-menu apps, CatalogProvider (ADR-021)
   lumen-search/            root-search Coordinator + latest-wins SearchService (ADR-025)
   lumen-extract/           text/code extraction + retrieval chunking (ADR-028)
+  lumen-image/             bounded image codecs/EXIF orientation/Gemma patch preparation (ADR-041)
   lumen-content/           content pass (extract -> chunks) + persistent embedding queue
                            (pause, duty cycle, interactive holds; ADR-029)
   lumen-semantic/          semantic lane: warm latest-wins QueryEmbedder that preempts
@@ -73,7 +74,7 @@ apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
                            device policy from power/memory/idle (ADR-029/038)
     src/gpu.rs            optional GPU preference, cached probe/quarantine, CPU fallback
     src/gpu_probe.rs      bounded synthetic subprocess mode, before Tauri/SQLite startup
-    src/provisioning.rs   consented model/CPU/DirectML runtime installation (ADR-034/038)
+    src/provisioning.rs   consented model/CPU/DirectML/vision installation (ADR-034/038/041)
     src/actions.rs         action executors behind the core policy (ADR-026)
     src/preview.rs         Quick Look metadata + bounded indexed/text excerpt (T105/T301)
     src/pdf_preview.rs     latest-wins PDF raster worker and memory cache (T302/ADR-040)
@@ -258,7 +259,7 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
   Content indexing shows progress and "Pause indexing"; tray → Indexed locations → a
   location → "Index file contents". `scripts/t202/run-windows-indexing.ps1 [-Launch]`.
 - Dedicated GPU indexing (T212, ADR-038): tray → Content indexing → "Use dedicated GPU
-  for faster indexing", off by default, saved in `indexing.gpu.enabled`. A synthetic
+  for text indexing", off by default, saved in `indexing.gpu.enabled`. A synthetic
   compatibility check selects the explicit discrete adapter; queries always use CPU.
   GPU batches may use available VRAM on AC; battery/memory policy and interactive holds
   remain. Switching devices preserves the generation and completed vectors, taking
@@ -267,13 +268,26 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
   selects that installed runtime; `LUMEN_ORT_DYLIB` overrides it. The DLL path is pinned
   for each process. A DirectML runtime already beside the exe enables switching without
   another restart. See `docs/benchmarks/t212/2026-10-09-joao-pc/README.md` for native checks.
+- Images (T303, ADR-041): tray → Semantic search → Download image search… installs the
+  optional 109 MB q4 vision component with explicit consent, verification and resume.
+  Enable "Index file contents" for the photo location. PNG/JPEG/WebP/BMP receive metadata
+  and one visual vector; use a description such as `gato type:image` after visual coverage
+  is indexed. Alt+Enter shows dimensions/format/orientation and indexed/pending/skip/failure
+  coverage; Enter opens the registered image viewer. Tray → Content indexing also shows
+  visual coverage separately. Remove image search… unloads/removes only its assets; vectors
+  stay. Image inference is CPU initially and waits on battery, with one image per call.
+  Existing optional GPU acceleration applies to text/code/PDF; query embedding stays CPU.
+  Development: `LUMEN_EMBED_VISION_DIR` points to a directory containing
+  `onnx/vision_encoder_q4.onnx` and its `.onnx_data`; otherwise the model directory or
+  installed component is used. Image capability requires `LUMEN_EMBED_VARIANT=q4`.
+  No OCR, raster image preview, Semantic Drop or Find Similar is added in T303.
 - Root search (T107, ADR-025): the UI calls `search(queryId, text)` per query change, on
   show and on `lumen:catalog-changed`; results stream as `lumen:results`. The catalog lives
   in the same `lumen.db`; the first sync starts 2 s after launch.
 - Query syntax (T208): ordinary root text accepts `type:`, `ext:`, `in:`, `before:` and
   `after:`, combined with AND; closed quotes require lexical phrases. Example:
   `contrato ext:pdf in:"D:\Mis documentos" after:2026-01-01`. Dates use mtime/UTC.
-  `type:image` describes inventory, without adding visual embeddings. Precise semantics
+  `type:image` restricts inventory; T303 adds optional local visual embeddings. Precise semantics
   and release synthetic benchmark: `docs/specs/T208-query-syntax.md`.
 - Window material (T004, ADR-024): transparent window + DWM system backdrop. Tray → "Window
   material" = Automatic (Acrylic) / Acrylic / Mica / Solid, saved as `appearance.material`;

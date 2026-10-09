@@ -5,6 +5,52 @@ import { formatSize } from "./format";
 import { PreviewPane } from "./PreviewPane";
 
 describe("PreviewPane", () => {
+  it("shows visual coverage and orientation on the same keyboard preview surface", () => {
+    const close = vi.fn();
+    const data = {
+      title: "0001.jpg",
+      kind: "image" as const,
+      location: null,
+      sizeBytes: 1000,
+      modifiedMs: null,
+      text: null,
+      truncated: false,
+      image: {
+        width: 1080,
+        height: 1920,
+        orientation: 6,
+        format: "JPEG",
+        visualState: "pending" as const,
+      },
+    };
+    const { rerender } = render(<PreviewPane docked data={data} onClose={close} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Waiting for visual indexing");
+    expect(screen.getByText(/1080 × 1920/)).toHaveTextContent("EXIF orientation 6");
+    fireEvent.keyDown(screen.getByLabelText("Preview of 0001.jpg"), { key: "Escape" });
+    expect(close).toHaveBeenCalledOnce();
+    rerender(
+      <PreviewPane docked data={{ ...data, image: { ...data.image, visualState: "indexed" } }} />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Visual meaning indexed");
+    rerender(
+      <PreviewPane
+        docked
+        data={{
+          ...data,
+          image: {
+            width: null,
+            height: null,
+            orientation: null,
+            format: null,
+            visualState: "skipped",
+            reason: "image:unsupported",
+          },
+        }}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("This image format is not supported");
+    expect(screen.queryByText(/1080 × 1920/)).not.toBeInTheDocument();
+  });
   it("keeps indexed text on rendering failure and Escape works from PDF controls", () => {
     const close = vi.fn();
     render(

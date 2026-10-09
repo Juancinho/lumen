@@ -64,7 +64,7 @@ pub fn to_result(item: &CatalogItem, score: Score) -> Option<ResultItem> {
             .map(|d| d.to_string_lossy().into_owned())
             .filter(|d| !d.is_empty())
     };
-    let result = match item.kind {
+    let mut result = match item.kind {
         ItemKind::Application => {
             let target = item
                 .launch_target
@@ -126,6 +126,45 @@ pub fn to_result(item: &CatalogItem, score: Score) -> Option<ResultItem> {
             payload: Payload::Path(decode(&item.path, item.raw_path.as_deref())),
         },
     };
+    if item.kind == ItemKind::File
+        && item
+            .extension
+            .as_deref()
+            .is_some_and(|ext| lumen_image::EXTENSIONS.contains(&ext))
+    {
+        result.kind = ResultKind::Image;
+        if let Some(image) = &item.image {
+            result.subtitle = Some(format!(
+                "{} · {} × {}",
+                image.format, image.width, image.height
+            ));
+        }
+        let image = item.image.as_ref();
+        let issue = match item.image_error.as_deref() {
+            Some("image:unsupported") => Some("image:unsupported"),
+            Some("image:source_limit") => Some("image:source_limit"),
+            Some("image:pixel_limit") => Some("image:pixel_limit"),
+            Some("image:decode") => Some("image:decode"),
+            Some("image:placeholder") => Some("image:placeholder"),
+            Some("image:io") => Some("image:io"),
+            _ => None,
+        };
+        result.payload = Payload::Image(Box::new(lumen_core::ImageTarget {
+            path: decode(&item.path, item.raw_path.as_deref()),
+            width: image.map(|m| m.width),
+            height: image.map(|m| m.height),
+            orientation: image.map(|m| m.orientation),
+            format: image.map(|m| m.format.clone()),
+            issue,
+            visual_state: match item.image_state.as_str() {
+                "indexed" => lumen_core::ImageState::Indexed,
+                "failed" => lumen_core::ImageState::Failed,
+                "skipped" => lumen_core::ImageState::Skipped,
+                "not-indexed" => lumen_core::ImageState::NotIndexed,
+                _ => lumen_core::ImageState::Pending,
+            },
+        }));
+    }
     Some(result)
 }
 

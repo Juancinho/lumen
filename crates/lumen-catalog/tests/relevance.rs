@@ -124,10 +124,7 @@ fn catalog_relevance_set() {
             .iter()
             .position(|r| match expect.strip_prefix("app:") {
                 Some(app) => r.kind == ResultKind::Application && r.title == *app,
-                None => match &r.payload {
-                    lumen_core::Payload::Path(p) => p == &root.join(expect),
-                    _ => false,
-                },
+                None => r.payload.local_path() == Some(root.join(expect).as_path()),
             });
         match rank {
             Some(r) => {

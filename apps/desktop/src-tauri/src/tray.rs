@@ -32,6 +32,8 @@ const INDEX_GPU: &str = "index-gpu";
 const SEM_DOWNLOAD: &str = "semantic-download";
 const SEM_CANCEL: &str = "semantic-cancel";
 const SEM_REMOVE: &str = "semantic-remove";
+const VISION_DOWNLOAD: &str = "vision-download";
+const VISION_REMOVE: &str = "vision-remove";
 
 /// The semantic-search submenu's live entries (T210).
 struct SemanticItems<R: Runtime> {
@@ -39,11 +41,15 @@ struct SemanticItems<R: Runtime> {
     download: MenuItem<R>,
     cancel: MenuItem<R>,
     remove: MenuItem<R>,
+    vision_status: MenuItem<R>,
+    vision_download: MenuItem<R>,
+    vision_remove: MenuItem<R>,
 }
 
 /// The content-indexing submenu's live entries.
 struct IndexingItems<R: Runtime> {
     status: MenuItem<R>,
+    images: MenuItem<R>,
     pause: CheckMenuItem<R>,
     gpu: CheckMenuItem<R>,
     gpu_status: MenuItem<R>,
@@ -170,6 +176,7 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
         .collect();
     let materials = Submenu::with_items(app, "Window material", true, &refs)?;
     let index_status = MenuItem::new(app, "Content indexing", false, None::<&str>)?;
+    let image_status = MenuItem::new(app, "Image indexing", false, None::<&str>)?;
     let index_pause = CheckMenuItem::with_id(
         app,
         INDEX_PAUSE,
@@ -181,7 +188,7 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
     let index_gpu = CheckMenuItem::with_id(
         app,
         INDEX_GPU,
-        "Use dedicated GPU for faster indexing",
+        "Use dedicated GPU for text indexing",
         false,
         false,
         None::<&str>,
@@ -191,17 +198,46 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
         app,
         "Content indexing",
         true,
-        &[&index_status, &index_pause, &index_gpu, &gpu_status],
+        &[
+            &index_status,
+            &image_status,
+            &index_pause,
+            &index_gpu,
+            &gpu_status,
+        ],
     )?;
     let sem_status = MenuItem::new(app, "Semantic search", false, None::<&str>)?;
     let sem_download = MenuItem::with_id(app, SEM_DOWNLOAD, "Download…", true, None::<&str>)?;
     let sem_cancel = MenuItem::with_id(app, SEM_CANCEL, "Cancel download", false, None::<&str>)?;
     let sem_remove = MenuItem::with_id(app, SEM_REMOVE, "Remove…", false, None::<&str>)?;
+    let vision_status = MenuItem::new(app, "Image search not installed", false, None::<&str>)?;
+    let vision_download = MenuItem::with_id(
+        app,
+        VISION_DOWNLOAD,
+        "Download image search…",
+        true,
+        None::<&str>,
+    )?;
+    let vision_remove = MenuItem::with_id(
+        app,
+        VISION_REMOVE,
+        "Remove image encoder…",
+        false,
+        None::<&str>,
+    )?;
     let semantic_menu = Submenu::with_items(
         app,
         "Semantic search",
         true,
-        &[&sem_status, &sem_download, &sem_cancel, &sem_remove],
+        &[
+            &sem_status,
+            &sem_download,
+            &sem_cancel,
+            &sem_remove,
+            &vision_status,
+            &vision_download,
+            &vision_remove,
+        ],
     )?;
     let locations = Submenu::new(app, "Indexed locations", true)?;
     let exclusions = Submenu::new(app, "Exclusions", true)?;
@@ -230,6 +266,7 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
     });
     app.manage(IndexingItems {
         status: index_status,
+        images: image_status,
         pause: index_pause,
         gpu: index_gpu,
         gpu_status,
@@ -239,6 +276,9 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
         download: sem_download,
         cancel: sem_cancel,
         remove: sem_remove,
+        vision_status,
+        vision_download,
+        vision_remove,
     });
 
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
@@ -256,6 +296,10 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
                 provisioning::cancel(app);
             } else if id == SEM_REMOVE {
                 provisioning::ask_remove(app);
+            } else if id == VISION_DOWNLOAD {
+                provisioning::ask_vision_download(app);
+            } else if id == VISION_REMOVE {
+                provisioning::ask_vision_remove(app);
             } else if id == INDEX_PAUSE {
                 let paused = app.state::<indexing::Indexing>().paused();
                 indexing::set_paused(app, !paused);
@@ -320,6 +364,19 @@ pub(crate) fn refresh_semantic<R: Runtime>(app: &AppHandle<R>) {
     let _ = items
         .remove
         .set_enabled(setup == Setup::Ready && provisioning::model_removable());
+    let vision = provisioning::vision_dir().is_some();
+    let _ = items.vision_status.set_text(if vision {
+        "Image search installed · CPU indexing"
+    } else {
+        "Image search not installed (109 MB download)"
+    });
+    let downloading = provisioning::busy(app);
+    let _ = items
+        .vision_download
+        .set_enabled(!vision && !downloading && setup != Setup::Unsupported);
+    let _ = items
+        .vision_remove
+        .set_enabled(vision && !downloading && provisioning::vision_removable());
 }
 
 /// Updates the content-indexing status line and pause check (no-op before the tray).
@@ -334,6 +391,9 @@ pub(crate) fn refresh_indexing<R: Runtime>(app: &AppHandle<R>) {
         .status
         .set_text(indexing::status_text(&state.status()));
     let _ = items.pause.set_checked(state.paused());
+    let _ = items
+        .images
+        .set_text(indexing::image_status_text(&state.status().images));
     if let Some(gpu) = app.try_state::<crate::gpu::Gpu>() {
         let status = gpu.status();
         let _ = items.gpu.set_checked(gpu.enabled());

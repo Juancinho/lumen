@@ -78,6 +78,9 @@ pub struct UpsertStats {
 /// A stored item as the catalog provider and action executors need it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogItem {
+    pub image: Option<crate::images::ImageMetadata>,
+    pub image_state: String,
+    pub image_error: Option<String>,
     pub id: i64,
     pub kind: ItemKind,
     pub source: Source,
@@ -106,12 +109,43 @@ const KEY_MAX: char = '\u{10FFFF}';
 
 pub(crate) const ITEM_COLUMNS: &str = "items.id, items.kind, items.source, items.canonical_path, \
      items.raw_path, items.display_name, items.name_key, items.name_parts, items.path_parts, \
-     items.extension, items.launch_target, items.attributes, items.modified_at";
+     items.extension, items.launch_target, items.attributes, items.modified_at, \
+     items.image_width, items.image_height, items.image_orientation, items.image_format, items.image_digest, \
+     CASE WHEN items.content_state='skipped' AND items.content_error LIKE 'image:%' THEN 'skipped' \
+       WHEN items.content_state='failed' AND items.content_error LIKE 'image:%' THEN 'failed' \
+       WHEN items.image_width IS NULL THEN 'not-indexed' \
+       WHEN EXISTS(SELECT 1 FROM chunks c JOIN chunk_vectors v ON v.chunk_id=c.id \
+       JOIN generations g ON g.id=v.generation AND g.state='active' \
+       WHERE c.item_id=items.id AND c.chunk_kind='image' AND v.vector IS NOT NULL) THEN 'indexed' \
+       WHEN EXISTS(SELECT 1 FROM chunks c JOIN chunk_vectors v ON v.chunk_id=c.id \
+       JOIN generations g ON g.id=v.generation AND g.state='active' \
+       WHERE c.item_id=items.id AND c.chunk_kind='image' AND v.error_code IS NOT NULL) THEN 'failed' \
+       ELSE 'pending' END, items.content_error";
 
 pub(crate) fn item_from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<CatalogItem> {
     let kind: String = r.get(1)?;
     let source: String = r.get(2)?;
     Ok(CatalogItem {
+        image_state: r.get(18)?,
+        image_error: r.get(19)?,
+        image: match (
+            r.get::<_, Option<u32>>(13)?,
+            r.get::<_, Option<u32>>(14)?,
+            r.get::<_, Option<u8>>(15)?,
+            r.get::<_, Option<String>>(16)?,
+            r.get::<_, Option<Vec<u8>>>(17)?,
+        ) {
+            (Some(width), Some(height), Some(orientation), Some(format), Some(digest)) => {
+                Some(crate::images::ImageMetadata {
+                    width,
+                    height,
+                    orientation,
+                    format,
+                    digest,
+                })
+            }
+            _ => None,
+        },
         id: r.get(0)?,
         kind: ItemKind::parse(&kind).unwrap_or(ItemKind::File),
         source: Source::parse(&source).unwrap_or(Source::Files),

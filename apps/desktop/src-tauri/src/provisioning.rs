@@ -21,7 +21,7 @@ use std::time::Instant;
 use lumen_core::CancellationToken;
 use lumen_provision::{
     Component, CurlFetch, EMBEDDING_MODEL, GPU_RUNTIME, INFERENCE_RUNTIME, InstallError, Progress,
-    State, install, remove,
+    State, VISION_MODEL, install, remove,
 };
 use tauri::{App, AppHandle, Manager, Runtime};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
@@ -30,6 +30,7 @@ use crate::{indexing, settings, tray};
 
 pub(crate) const ENV_MODEL_DIR: &str = "LUMEN_EMBED_MODEL_DIR";
 pub(crate) const ENV_ORT_DYLIB: &str = "LUMEN_ORT_DYLIB";
+pub(crate) const ENV_VISION_DIR: &str = "LUMEN_EMBED_VISION_DIR";
 
 /// The app-data folder (set once at start-up).
 static ROOT: OnceLock<PathBuf> = OnceLock::new();
@@ -82,6 +83,79 @@ pub(crate) fn model_dir() -> Option<PathBuf> {
     std::env::var_os(ENV_MODEL_DIR)
         .map(PathBuf::from)
         .or_else(|| installed(&EMBEDDING_MODEL))
+}
+
+pub(crate) fn vision_dir() -> Option<PathBuf> {
+    std::env::var_os(ENV_VISION_DIR)
+        .map(PathBuf::from)
+        .or_else(|| {
+            model_dir().filter(|d| {
+                d.join("onnx/vision_encoder_q4.onnx").is_file()
+                    && d.join("onnx/vision_encoder_q4.onnx_data").is_file()
+            })
+        })
+        .or_else(|| installed(&VISION_MODEL))
+}
+
+pub(crate) fn vision_removable() -> bool {
+    installed(&VISION_MODEL).is_some_and(|dir| vision_dir().as_ref() == Some(&dir))
+}
+
+pub(crate) fn ask_vision_download<R: Runtime>(app: &AppHandle<R>) {
+    if busy(app) {
+        return;
+    }
+    let Some((mut parts, _)) = missing() else {
+        return;
+    };
+    if vision_dir().is_none() {
+        parts.push(VISION_MODEL);
+    }
+    if parts.is_empty() {
+        return;
+    }
+    let bytes = parts.iter().map(Component::download_bytes).sum();
+    let handle = app.clone();
+    app.dialog().message(format!("{}\n\nImages in locations with Index file contents enabled will be analyzed locally. PNG, JPEG, WebP and BMP are supported. OCR is separate. Existing text vectors are kept.",consent_text(&parts,bytes)))
+        .title("Download image search?").kind(MessageDialogKind::Info)
+        .buttons(MessageDialogButtons::OkCancelCustom("Download".into(),"Not now".into()))
+        .show(move|ok|{if ok {start(&handle,parts);}});
+}
+
+pub(crate) fn ask_vision_remove<R: Runtime>(app: &AppHandle<R>) {
+    if !vision_removable() || busy(app) {
+        return;
+    }
+    let handle = app.clone();
+    app.dialog().message("Remove the image encoder? New visual indexing stops; text search and already computed image vectors stay. You can download it again later.")
+        .title("Remove image encoder?").kind(MessageDialogKind::Warning)
+        .buttons(MessageDialogButtons::OkCancelCustom("Remove".into(),"Keep".into()))
+        .show(move |ok| {
+            if ok {
+                let state = handle.state::<Provisioning>();
+                let mut running = state.running.lock().unwrap_or_else(PoisonError::into_inner);
+                if running.is_some() { return; }
+                *running = Some(CancellationToken::new());
+                drop(running);
+                // In-flight inference and mapped weight release belong on a worker.
+                let worker = handle.clone();
+                let spawned = std::thread::Builder::new().name("lumen-remove-vision".into()).spawn(move || {
+                    let handle = worker;
+                    indexing::on_model_removed(&handle);
+                    if let Some(root) = root()
+                        && let Err(error) = remove(root, &VISION_MODEL) {
+                        set(&handle, Setup::Failed(error.to_string()));
+                    }
+                    indexing::on_model_installed(&handle);
+                    *handle.state::<Provisioning>().running.lock().unwrap_or_else(PoisonError::into_inner) = None;
+                    tray::refresh_semantic(&handle);
+                });
+                if spawned.is_err() {
+                    *handle.state::<Provisioning>().running.lock().unwrap_or_else(PoisonError::into_inner) = None;
+                    set(&handle, Setup::Failed("could not remove the image encoder".into()));
+                }
+            }
+        });
 }
 
 /// The ONNX Runtime library, if any.
@@ -209,6 +283,15 @@ pub(crate) fn setup<R: Runtime>(app: &AppHandle<R>) -> Setup {
         })
 }
 
+pub(crate) fn busy<R: Runtime>(app: &AppHandle<R>) -> bool {
+    app.try_state::<Provisioning>().is_some_and(|p| {
+        p.running
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_some()
+    })
+}
+
 fn set<R: Runtime>(app: &AppHandle<R>, s: Setup) {
     if let Some(p) = app.try_state::<Provisioning>() {
         *p.setup.lock().unwrap_or_else(PoisonError::into_inner) = s;
@@ -304,7 +387,11 @@ fn start<R: Runtime>(app: &AppHandle<R>, parts: Vec<Component>) {
     };
     let token = CancellationToken::new();
     if let Some(p) = app.try_state::<Provisioning>() {
-        *p.running.lock().unwrap_or_else(PoisonError::into_inner) = Some(token.clone());
+        let mut running = p.running.lock().unwrap_or_else(PoisonError::into_inner);
+        if running.is_some() {
+            return;
+        }
+        *running = Some(token.clone());
     }
     let handle = app.clone();
     let total: u64 = parts.iter().map(Component::download_bytes).sum();
@@ -358,6 +445,9 @@ fn start<R: Runtime>(app: &AppHandle<R>, parts: Vec<Component>) {
             }
         });
     if spawned.is_err() {
+        if let Some(p) = app.try_state::<Provisioning>() {
+            *p.running.lock().unwrap_or_else(PoisonError::into_inner) = None;
+        }
         set(app, Setup::Failed("could not start the download".into()));
     }
 }

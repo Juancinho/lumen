@@ -1,0 +1,143 @@
+{
+  "cpu_threads": 2,
+  "image_inference_cold_then_warm_ms": [
+    8597.2372,
+    7761.261
+  ],
+  "interactive_during_image": {
+    "name_ms": {
+      "max_ms": 1.3240999999999998,
+      "mean_ms": 0.8698699999999999,
+      "min_ms": 0.7129000000000001,
+      "n": 30,
+      "p50_ms": 0.8357,
+      "p95_ms": 1.2468,
+      "p99_ms": 1.3240999999999998
+    },
+    "query_ms": {
+      "max_ms": 69.5046,
+      "mean_ms": 55.376436666666656,
+      "min_ms": 51.0377,
+      "n": 30,
+      "p50_ms": 53.76390000000001,
+      "p95_ms": 63.14319999999999,
+      "p99_ms": 69.5046
+    },
+    "samples_started_before_image_finished": 30
+  },
+  "machine": {
+    "arch": "x86_64",
+    "build_profile": "release",
+    "cpu": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "logical_cpus": 12,
+    "lumen_version": "0.1.0",
+    "os": "windows",
+    "unix_time_s": 1791580621
+  },
+  "memory_bytes": {
+    "after_query_and_pipeline": 986505216,
+    "before": 75300864,
+    "encoders_resident": 755068928,
+    "unloaded": 280965120
+  },
+  "name_latency": {
+    "max_ms": 0.7144999999999999,
+    "mean_ms": 0.4529300000000001,
+    "min_ms": 0.4204,
+    "n": 100,
+    "p50_ms": 0.43820000000000003,
+    "p95_ms": 0.5506000000000001,
+    "p99_ms": 0.6577
+  },
+  "pipeline": {
+    "elapsed_ms": 15878.5314,
+    "embedded": 2,
+    "failed": 0
+  },
+  "preparation": [
+    {
+      "decode_ms": 57.0205,
+      "fixture": "0001.jpg",
+      "height": 2736,
+      "preprocess_ms": 82.8085,
+      "tokens": 266,
+      "width": 3648
+    },
+    {
+      "decode_ms": 309.1606,
+      "fixture": "0002.jpg",
+      "height": 2095,
+      "preprocess_ms": 60.6404,
+      "tokens": 260,
+      "width": 3143
+    }
+  ],
+  "retrieval": [
+    {
+      "name_titles": [],
+      "query": "cat type:image",
+      "semantic_titles": [
+        "0001.jpg",
+        "0002.jpg"
+      ]
+    },
+    {
+      "name_titles": [],
+      "query": "playa type:image",
+      "semantic_titles": [
+        "0002.jpg",
+        "0001.jpg"
+      ]
+    },
+    {
+      "name_titles": [],
+      "query": "ocean ext:jpg",
+      "semantic_titles": [
+        "0002.jpg",
+        "0001.jpg"
+      ]
+    },
+    {
+      "name_titles": [
+        "0001.jpg"
+      ],
+      "query": "0001.jpg",
+      "semantic_titles": [
+        "0002.jpg",
+        "0001.jpg"
+      ]
+    }
+  ],
+  "scores": [
+    {
+      "cosines": [
+        0.7804375290870667,
+        0.570124089717865
+      ],
+      "query": "a cat wrapped in a towel"
+    },
+    {
+      "cosines": [
+        0.5744802355766296,
+        0.7275276184082031
+      ],
+      "query": "a sandy beach beside the ocean"
+    },
+    {
+      "cosines": [
+        0.7513967156410217,
+        0.5475653409957886
+      ],
+      "query": "un gato envuelto en una toalla"
+    },
+    {
+      "cosines": [
+        0.5659935474395752,
+        0.7060045003890991
+      ],
+      "query": "una playa de arena junto al mar"
+    }
+  ],
+  "space": "embeddinggemma-2@onnx-community-q4/pre1/embeddinggemma-retrieval@1/d256/l2",
+  "task": "T303"
+}

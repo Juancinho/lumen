@@ -18,6 +18,256 @@ use super::*;
 #[path = "../../../fixtures/pdf/mod.rs"]
 mod pdf_fixture;
 
+struct Visual {
+    inner: MockBackend,
+    caps: Capabilities,
+    calls: std::sync::Mutex<Vec<Modality>>,
+    edit: Option<PathBuf>,
+}
+impl Visual {
+    fn new(edit: Option<PathBuf>) -> Self {
+        let inner = MockBackend::new();
+        let mut caps = inner.capabilities().clone();
+        caps.model.modalities =
+            lumen_embedding::ModalitySet::of(&[Modality::Text, Modality::Image]);
+        Self {
+            inner,
+            caps,
+            calls: Default::default(),
+            edit,
+        }
+    }
+}
+impl EmbeddingBackend for Visual {
+    fn capabilities(&self) -> &Capabilities {
+        &self.caps
+    }
+    fn warm(&self, m: Modality) -> Result<(), EmbeddingError> {
+        self.inner.warm(m)
+    }
+    fn unload(&self, m: Modality) -> Result<(), EmbeddingError> {
+        self.inner.unload(m)
+    }
+    fn is_warm(&self, m: Modality) -> bool {
+        self.inner.is_warm(m)
+    }
+    fn embed_text(&self, inputs: &[&str]) -> Result<Vec<f32>, EmbeddingError> {
+        self.calls.lock().unwrap().push(Modality::Text);
+        self.inner.embed_text(inputs)
+    }
+    fn embed_images(
+        &self,
+        images: &[lumen_embedding::ImageInput<'_>],
+    ) -> Result<Vec<f32>, EmbeddingError> {
+        assert_eq!(images.len(), 1);
+        self.calls.lock().unwrap().push(Modality::Image);
+        if let Some(path) = &self.edit {
+            image::RgbImage::from_pixel(4, 3, image::Rgb([0, 255, 0]))
+                .save(path)
+                .unwrap();
+        }
+        let mut raw = vec![0.0; self.caps.model.native_dim];
+        raw[0] = 2.0;
+        Ok(raw)
+    }
+}
+
+fn image_pass(store: &mut Store) -> PassReport {
+    run_image_pass(store, &|_| true, &CancellationToken::new(), &|| 1).unwrap()
+}
+
+#[test]
+fn images_are_consent_bound_deferred_resumable_and_keep_text_vectors_and_actions() {
+    use lumen_core::{ImageState, Payload, Provider, ProviderQuery, QueryId, ResultKind};
+    let t = Temp::new("image-pipeline");
+    let path = t.files().join("0001.PNG");
+    image::RgbImage::from_pixel(4, 3, image::Rgb([255, 0, 0]))
+        .save(&path)
+        .unwrap();
+    std::fs::write(t.files().join("notes.txt"), "text contents").unwrap();
+    let mut store = t.store();
+    sync(&mut store, &t.files());
+    let r = run_image_pass(&mut store, &|_| false, &CancellationToken::new(), &|| 1).unwrap();
+    assert_eq!(r.files, 0);
+    assert_eq!(image_pass(&mut store).indexed, 1);
+    pass(&mut store, &PassConfig::default());
+    let text = embedder(Arc::new(MockBackend::new()));
+    let g = generation(&store, &text);
+    let r = queue(
+        &mut store,
+        &text,
+        g,
+        &Control::new(),
+        &QueueConfig::default(),
+    )
+    .unwrap();
+    assert_eq!((r.embedded, r.failed, r.stop), (1, 0, Stop::Drained));
+    let original = store.vectors(g, 0, 100).unwrap();
+    let pending = store.pending_chunks(g, 0, 100).unwrap();
+    assert_eq!(pending.len(), 1);
+    assert_eq!(
+        (pending[0].kind.as_str(), pending[0].text.as_str()),
+        ("image", "")
+    );
+    assert_eq!(store.image_counts(Some(g)).unwrap().pending, 1);
+    drop(store);
+    let mut store = t.store();
+    assert_eq!(image_pass(&mut store).files, 0);
+    assert_eq!(store.pending_chunks(g, 0, 100).unwrap(), pending);
+    let visual = embedder(Arc::new(Visual::new(None)));
+    assert_eq!(visual.space(), text.space());
+    assert_eq!(
+        queue(
+            &mut store,
+            &visual,
+            g,
+            &Control::new(),
+            &QueueConfig::default()
+        )
+        .unwrap()
+        .embedded,
+        1
+    );
+    store.promote_first(g, 2).unwrap();
+    assert_eq!(store.image_counts(Some(g)).unwrap().indexed, 1);
+    assert!(store.vectors(g, 0, 100).unwrap().contains(&original[0]));
+    store.checkpoint().unwrap();
+    let provider =
+        lumen_catalog::CatalogProvider::new(Store::open_reader(&t.0.join("lumen.db")).unwrap());
+    let result = provider
+        .search(
+            &ProviderQuery {
+                id: QueryId::new(1).unwrap(),
+                text: "0001 type:image",
+                typing: false,
+                limit: 10,
+            },
+            &CancellationToken::new(),
+        )
+        .unwrap()
+        .remove(0);
+    assert_eq!(result.kind, ResultKind::Image);
+    assert!(lumen_core::validate_result(&result, &lumen_core::builtin::DESCRIPTORS).is_empty());
+    assert!(
+        result.offers(&lumen_core::builtin::REVEAL)
+            && result.offers(&lumen_core::builtin::COPY_PATH)
+    );
+    let Payload::Image(target) = result.payload else {
+        panic!("missing image context");
+    };
+    assert_eq!(target.visual_state, ImageState::Indexed);
+    assert_eq!((target.width, target.height), (Some(4), Some(3)));
+    drop(provider);
+    // A notified unchanged rename retains vectors; an edit invalidates only that image.
+    let opts = incremental_opts(&t.files());
+    sync_files(&mut store, &opts, None).unwrap();
+    let before = store.vectors(g, 0, 100).unwrap();
+    let moved = t.files().join("0002.png");
+    std::fs::rename(&path, &moved).unwrap();
+    lumen_catalog::sync_changes(
+        &mut store,
+        &opts,
+        &hints(&[path, moved.clone()], true),
+        None,
+    )
+    .unwrap();
+    assert_eq!(store.vectors(g, 0, 100).unwrap(), before);
+    image::RgbImage::from_pixel(4, 3, image::Rgb([0, 0, 255]))
+        .save(&moved)
+        .unwrap();
+    lumen_catalog::sync_changes(
+        &mut store,
+        &opts,
+        &hints(std::slice::from_ref(&moved), true),
+        None,
+    )
+    .unwrap();
+    assert_eq!(store.vectors(g, 0, 100).unwrap(), original);
+    assert_eq!(image_pass(&mut store).indexed, 1);
+    assert_eq!(store.image_counts(Some(g)).unwrap().pending, 1);
+    // A metadata I/O failure retains a unit for retry, but coverage counts the file once.
+    let candidate = store
+        .content_candidates(0, &["png"], 2, 1)
+        .unwrap()
+        .remove(0);
+    store
+        .write_content(
+            &[lumen_storage::ContentWrite {
+                item_id: candidate.item_id,
+                fingerprint: &candidate.fingerprint(),
+                outcome: lumen_storage::ContentOutcome::Failed("image:io"),
+            }],
+            1,
+            3,
+        )
+        .unwrap();
+    let coverage = store.image_counts(Some(g)).unwrap();
+    assert_eq!(
+        (coverage.indexed, coverage.pending, coverage.failed),
+        (0, 0, 1)
+    );
+    std::fs::remove_file(&moved).unwrap();
+    lumen_catalog::sync_changes(&mut store, &opts, &hints(&[moved], true), None).unwrap();
+    assert_eq!(store.image_counts(Some(g)).unwrap(), Default::default());
+}
+
+#[test]
+fn images_prioritize_text_reject_stale_pixels_and_bound_failed_work() {
+    let t = Temp::new("image-stale");
+    let path = t.files().join("0001.png");
+    image::RgbImage::from_pixel(4, 3, image::Rgb([255, 0, 0]))
+        .save(&path)
+        .unwrap();
+    std::fs::write(t.files().join("notes.txt"), "document text").unwrap();
+    std::fs::write(t.files().join("bad.png"), b"broken").unwrap();
+    std::fs::write(t.files().join("unsupported.gif"), b"GIF89a").unwrap();
+    let mut store = t.store();
+    sync(&mut store, &t.files());
+    let r = image_pass(&mut store);
+    assert_eq!((r.indexed, r.skipped), (1, 2));
+    pass(&mut store, &PassConfig::default());
+    let backend = Arc::new(Visual::new(Some(path)));
+    let e = embedder(backend.clone());
+    let g = generation(&store, &e);
+    let r = queue(&mut store, &e, g, &Control::new(), &QueueConfig::default()).unwrap();
+    assert_eq!(
+        *backend.calls.lock().unwrap(),
+        [Modality::Text, Modality::Image]
+    );
+    assert_eq!((r.embedded, r.failed, r.stale_images), (1, 0, 1));
+    assert_eq!(store.image_counts(Some(g)).unwrap().indexed, 0);
+    assert_eq!(store.image_counts(Some(g)).unwrap().skipped, 2);
+    let bad_id = store
+        .item_id_by_path(&t.files().join("bad.png").to_string_lossy())
+        .unwrap()
+        .unwrap();
+    let row = lumen_catalog::provider::to_result(
+        &store.catalog_item(bad_id).unwrap().unwrap(),
+        lumen_core::Score::new(
+            lumen_core::Confidence::CERTAIN,
+            lumen_core::MatchKind::Exact,
+        ),
+    )
+    .unwrap();
+    let lumen_core::Payload::Image(image) = row.payload else {
+        panic!("skipped image should expose coverage");
+    };
+    assert_eq!(image.visual_state, lumen_core::ImageState::Skipped);
+    assert_eq!((image.width, image.height), (None, None));
+    assert_eq!(image.issue, Some("image:unsupported"));
+    assert_eq!(image_pass(&mut store).indexed, 1);
+    assert_eq!(store.pending_chunks(g, 0, 10).unwrap().len(), 1);
+    assert_eq!(image_pass(&mut store).files, 0);
+    let cancel = CancellationToken::new();
+    cancel.cancel();
+    assert!(
+        run_image_pass(&mut store, &|_| true, &cancel, &|| 2)
+            .unwrap()
+            .files
+            == 0
+    );
+}
+
 #[test]
 fn pdf_content_pages_queue_resume_scope_and_existing_vectors() {
     use lumen_core::{Payload, Provider, ProviderQuery, QueryId, ResultKind};

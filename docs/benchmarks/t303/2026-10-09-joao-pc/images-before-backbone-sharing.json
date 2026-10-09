@@ -1,0 +1,122 @@
+{
+  "cpu_threads": 2,
+  "image_inference_cold_then_warm_ms": [
+    12930.381300000001,
+    10776.534699999998
+  ],
+  "machine": {
+    "arch": "x86_64",
+    "build_profile": "release",
+    "cpu": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "logical_cpus": 12,
+    "lumen_version": "0.1.0",
+    "os": "windows",
+    "unix_time_s": 1791571359
+  },
+  "memory_bytes": {
+    "after_query_and_pipeline": 1098022912,
+    "before": 85811200,
+    "encoders_resident": 764903424,
+    "unloaded": 292507648
+  },
+  "name_latency": {
+    "max_ms": 1.0682999999999998,
+    "mean_ms": 0.5192119999999999,
+    "min_ms": 0.3772,
+    "n": 100,
+    "p50_ms": 0.54,
+    "p95_ms": 0.6541,
+    "p99_ms": 0.7552
+  },
+  "pipeline": {
+    "elapsed_ms": 22268.6465,
+    "embedded": 2,
+    "failed": 0
+  },
+  "preparation": [
+    {
+      "decode_ms": 56.6944,
+      "fixture": "0001.jpg",
+      "height": 2736,
+      "preprocess_ms": 86.3536,
+      "tokens": 266,
+      "width": 3648
+    },
+    {
+      "decode_ms": 277.689,
+      "fixture": "0002.jpg",
+      "height": 2095,
+      "preprocess_ms": 63.051300000000005,
+      "tokens": 260,
+      "width": 3143
+    }
+  ],
+  "retrieval": [
+    {
+      "name_titles": [],
+      "query": "cat type:image",
+      "semantic_titles": [
+        "0001.jpg",
+        "0002.jpg"
+      ]
+    },
+    {
+      "name_titles": [],
+      "query": "playa type:image",
+      "semantic_titles": [
+        "0002.jpg",
+        "0001.jpg"
+      ]
+    },
+    {
+      "name_titles": [],
+      "query": "ocean ext:jpg",
+      "semantic_titles": [
+        "0002.jpg",
+        "0001.jpg"
+      ]
+    },
+    {
+      "name_titles": [
+        "0001.jpg"
+      ],
+      "query": "0001.jpg",
+      "semantic_titles": [
+        "0002.jpg",
+        "0001.jpg"
+      ]
+    }
+  ],
+  "scores": [
+    {
+      "cosines": [
+        0.7804374098777771,
+        0.5701239705085754
+      ],
+      "query": "a cat wrapped in a towel"
+    },
+    {
+      "cosines": [
+        0.5744802951812744,
+        0.7275276184082031
+      ],
+      "query": "a sandy beach beside the ocean"
+    },
+    {
+      "cosines": [
+        0.7513965368270874,
+        0.5475654006004333
+      ],
+      "query": "un gato envuelto en una toalla"
+    },
+    {
+      "cosines": [
+        0.5659934282302856,
+        0.7060045599937439
+      ],
+      "query": "una playa de arena junto al mar"
+    }
+  ],
+  "space": "embeddinggemma-2@onnx-community-q4/pre1/embeddinggemma-retrieval@1/d256/l2",
+  "task": "T303"
+}

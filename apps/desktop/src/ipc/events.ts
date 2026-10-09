@@ -63,7 +63,49 @@ export const RESULTS = "lumen:results";
 /** Mirrors `catalog::EVENT_CHANGED` in `src-tauri/src/catalog.rs`. */
 export const CATALOG_CHANGED = "lumen:catalog-changed";
 
-const KINDS = new Set(["application", "file", "folder", "command", "code", "pdf-page"]);
+const KINDS = new Set(["application", "file", "folder", "command", "code", "pdf-page", "image"]);
+
+function toImageContext(raw: unknown): ResultView["image"] {
+  const image = raw as Partial<Record<keyof NonNullable<ResultView["image"]>, unknown>> | null;
+  const dimension = (n: unknown): n is number =>
+    typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 16384;
+  if (
+    !image ||
+    (image.format !== null && typeof image.format !== "string") ||
+    (image.width !== null && !dimension(image.width)) ||
+    (image.height !== null && !dimension(image.height)) ||
+    (image.width === null) !== (image.height === null) ||
+    (image.orientation !== null &&
+      (typeof image.orientation !== "number" ||
+        !Number.isInteger(image.orientation) ||
+        image.orientation < 1 ||
+        image.orientation > 8)) ||
+    (image.visualState !== "pending" &&
+      image.visualState !== "indexed" &&
+      image.visualState !== "failed" &&
+      image.visualState !== "skipped" &&
+      image.visualState !== "not-indexed")
+  )
+    return null;
+  return {
+    width: image.width,
+    height: image.height,
+    orientation: image.orientation,
+    format: image.format,
+    visualState: image.visualState,
+    ...(typeof image.reason === "string" &&
+    [
+      "image:unsupported",
+      "image:source_limit",
+      "image:pixel_limit",
+      "image:decode",
+      "image:placeholder",
+      "image:io",
+    ].includes(image.reason)
+      ? { reason: image.reason }
+      : {}),
+  };
+}
 
 function toCodeContext(raw: unknown): ResultView["code"] {
   const code = raw as { symbol?: unknown; language?: unknown; repository?: unknown } | null;
@@ -112,6 +154,7 @@ function toResult(raw: unknown): ResultView | null {
   const kind = typeof r.kind === "string" && KINDS.has(r.kind) ? r.kind : "file";
   const code = toCodeContext(r.code);
   const pdf = toPdfContext(r.pdf);
+  const image = toImageContext(r.image);
   return {
     id: r.id,
     kind: kind as ResultView["kind"],
@@ -121,6 +164,7 @@ function toResult(raw: unknown): ResultView | null {
     extension: typeof r.extension === "string" ? r.extension : null,
     ...(code ? { code } : {}),
     ...(pdf ? { pdf } : {}),
+    ...(image ? { image } : {}),
     primaryAction: typeof r.primaryAction === "string" ? r.primaryAction : "",
     diagnostics: toResultDiagnostics(r.diagnostics),
   };

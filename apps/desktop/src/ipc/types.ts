@@ -19,7 +19,7 @@ export interface Appearance {
 /** Mirrors `ResultDto`: one result as the UI renders it (T107). */
 export interface ResultView {
   id: string;
-  kind: "application" | "file" | "folder" | "command" | "code" | "pdf-page";
+  kind: "application" | "file" | "folder" | "command" | "code" | "pdf-page" | "image";
   title: string;
   detail: string | null;
   /** Passage that matched when found by contents or meaning (T206), else `null`. */
@@ -27,6 +27,7 @@ export interface ResultView {
   extension: string | null;
   code?: CodeContext | null;
   pdf?: { pageNumber: number } | null;
+  image?: ImageContext | null;
   /** Action id Enter runs (`lumen.open`, `lumen.launch`). */
   primaryAction: string;
   /** Development diagnostics (`LUMEN_DIAGNOSTICS=1`), otherwise `null`. */
@@ -38,6 +39,16 @@ export interface CodeContext {
   symbol: string | null;
   language: string;
   repository: string | null;
+}
+
+/** Local display metadata only; pixel buffers, hashes and action paths stay in Rust. */
+export interface ImageContext {
+  width: number | null;
+  height: number | null;
+  orientation: number | null;
+  format: string | null;
+  reason?: string | null;
+  visualState: "not-indexed" | "skipped" | "pending" | "indexed" | "failed";
 }
 
 /** Mirrors `ResultDiagnosticsDto` (T110). */
@@ -84,7 +95,7 @@ export interface Size {
 /** Mirrors `PreviewDto` (Quick Look, T105). */
 export interface Preview {
   title: string;
-  kind: "application" | "file" | "folder" | "command" | "code" | "pdf-page";
+  kind: "application" | "file" | "folder" | "command" | "code" | "pdf-page" | "image";
   location: string | null;
   sizeBytes: number | null;
   modifiedMs: number | null;
@@ -92,6 +103,7 @@ export interface Preview {
   text: string | null;
   truncated: boolean;
   pageNumber?: number | null;
+  image?: ImageContext | null;
 }
 
 export interface PdfPreview {

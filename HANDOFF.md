@@ -5,23 +5,96 @@
 
 ## Branch and exact continuation
 
-main on github.com/Juancinho/lumen. This session continues clean 374cfb0 (T301) with
-ordered T302 while the user's resident application stays running. Inspect git status/log
-for the coherent T302 commit. No push was requested/performed.
-T302 is REVIEW; no implementation task remains claimed. Native checks below remain.
-Next implementation is T303 image metadata + local vision embedding. Read the canonical
-list, SEARCH_AND_INDEXING §11/12, PRIVACY_SECURITY, PERFORMANCE and the actual embedding
-backend/model asset contracts, plus ADR-014/015/019/029/038/040. Claim T303 and define its
-bounded image/runtime/coverage/license spec before code. Preserve providers, generations,
-CPU queries/optional GPU indexing, existing completed vectors and the single writer.
-Do not infer current image-embedding support from the model name or chat. OCR is T304;
-Semantic Drop/Similar are T305/T306. Full T014 downloads/runtime matrix remain separate.
+main on github.com/Juancinho/lumen. Continued clean 60befce (T302); T303 is implemented
+and REVIEW. No active claim remains. No push requested. The user deferred manual reviews
+until later; preserve all checklists and the resident indexer. Next implementation is
+T304 optional Windows OCR. Read AGENTS.md's canonical list, SEARCH_AND_INDEXING §11/12,
+PRIVACY_SECURITY, PERFORMANCE and actual Windows OCR API/language/runtime contracts;
+claim T304 and define bounded optional OCR/FTS/coverage/privacy/license behavior before
+code. Preserve T303 metadata/image vectors, existing text/code/PDF vectors, CPU queries,
+text GPU acceleration and the single writer. No OCR presently exists. Semantic Drop/
+Similar are T305/T306; full T014 downloads/runtime matrix remain separate.
 
 Resident read-only checks still found PID 7404/start 2026-10-09 18:04:57 +02:00,
 target/t212-release/lumen.exe. The agent did not stop/restart it, change settings, write
-its live app-data DB or replace that executable. Synthetic temporary PDFs/data only.
+its live app-data DB or replace that executable. Temporary synthetic/public CC0 data only.
 A second launch addresses the running single-instance app until the user chooses Quit.
 Inspect current PIDs before acting; loaded DirectML DLLs alone do not prove GPU activity.
+
+## T303 — implementation and native review
+
+Read specs/T303-images.md and ADR-041. Files: new lumen-image, storage migration 0005 /
+images/catalog/content queue, content images/queue and catalog move verification;
+embedding ImageInput/Embedder and ORT vision/backbone sessions; provision VISION_MODEL;
+typed core/catalog/semantic/desktop DTO/Quick Look/UI and tray/indexing wiring.
+
+Content-enabled local PNG/JPEG/WebP/BMP produce bounded dimensions/format/EXIF orientation
+and a local SHA-256, one empty image chunk and one native visual vector. No filename or
+caption enters embedding/FTS, no EXIF GPS/pixels retained. Names-only locations stay
+inventory; unsupported/oversized/malformed files expose coverage without fake dimensions.
+Same file ID/Open/Reveal/Copy path, generation/256d space, text/code/PDF vectors and fusion.
+Absent vision defers images while text drains. Metadata resume and unchanged moves retain
+vectors; edit/delete and changes during inference invalidate only the affected image.
+
+Optional q4 vision component: 109,145,816 bytes including Apache model card, pinned to
+daa72c51243991dfcaf9f9137d2c573d8f7790c0, explicit native consent/resume/hash/atomic install.
+Tray → Semantic search → Download image search…; Remove image search… releases indexing
+sessions on the writer before deleting only visual assets. Text/queries and stored vectors
+remain. The release's normal provisioned q4 path supports images; q8/fp32 development
+overrides do not. Image inference is CPU initially. The T212 probe measured only text;
+its dedicated-GPU choice is not silently applied to the vision graph. The GPU menu now
+says text indexing. CPU indexing reuses its text backbone to reduce retained memory.
+One image/call; lazy load/unload, existing pause/duty/holds, wait on battery. Source limits
+16 MiB/32M pixels/16,384 side, decoder allocation 192 MiB. Native calls cannot be forcibly
+interrupted; holds/cancellation apply between images. No new WebView/hidden poll/process.
+
+Release evidence/reproduction: docs/benchmarks/t303/2026-10-09-joao-pc/README.md.
+Two public CC0 numeric-named photos rank correctly for English/Spanish cat/beach
+descriptions, using actual vision → q4 backbone and independent CPU query lane. Initial
+CPU run: 11.36 s cold / 9.32 s warm, two-image queue 18.20 s; resident snapshot 940 MiB
+with query session. These are small loaded-machine samples, not peak/private/whole-app
+memory, real-library ETA or general relevance guarantees. CPU backbone sharing avoids
+~107 MiB retained compared with the first sample. Runtime/query-under-image and 100k
+hot-name regressions are recorded separately in the README.
+Bundled-runtime CPU image sample: 8.60/7.76 s; 30 uncached independent queries during
+one image invocation p50/p95 53.76/63.14 ms. Native repeated-image and post-image text
+fidelity tests pass with the bundled runtime, cosine >0.99999.
+
+Browser component QA: actual ResultRow/PreviewPane at 1280×720 and 800×420, long names,
+metadata/EXIF, pending/indexed/unsupported state and unknown dimensions. Light theme
+observed; temporary fixture/server/tab/viewport override removed. No image raster preview
+or OCR/Drop/Similar implemented. Native checks after the user's chosen Quit/switch:
+
+1. Semantic search → Download image search…: consent names 109 MB/HF/Apache, cancel/resume,
+   install without restart; remove without deleting model/text vectors or corrupting jobs.
+   Unset LUMEN_EMBED_VISION_DIR to test the installed assets rather than development cache.
+2. Add a small known photo folder, enable Index file contents. Content indexing shows
+   image indexed/pending/skipped/failed separately. Alt+Enter distinguishes metadata
+   coverage from visual meaning; missing encoder leaves pending, names-only remains unread.
+3. After visual coverage is indexed, search a description (`gato type:image`, `playa`,
+   `ocean ext:jpg`) whose words do not occur in the filename. Name results still arrive
+   immediately; Ctrl+Enter/Reveal, Enter/viewer, Ctrl+K/Copy path, Alt+Enter and selection.
+4. Pause/resume/restart; rename unchanged, edit during inference, delete/unavailable/cloud
+   placeholders, malformed/oversized/unsupported formats. No stale visual result/vector,
+   no re-embedding unrelated text/code/PDF. Battery pauses visual work; AC resumes.
+5. Narrow/short monitors, light/dark/high contrast/100–150% DPI, photo-library soak and
+   concurrent searching. Image inference takes seconds and already-running native calls
+   finish cooperatively; no GPU-image acceleration or broad quality/throughput promise.
+
+Latest optimized custom-protocol bundle: target/t303-release/lumen.exe, 21,338,112 bytes,
+SHA-256 FFA2B737444662927E45E803DD27D99C41DE3E9492E118A60FBC653E25596F1B.
+Frontend index-DimVfZd4.js embedded. Beside-exe DirectML/runtime
+assets/notices match T212; PdfExtractorNotices.txt and ImageCodecNotices.txt included.
+Do not launch beside the resident process expecting an upgrade; single-instance targets it.
+After the user's chosen Quit, a cached-model development launch from repository root is:
+
+```powershell
+$env:LUMEN_EMBED_MODEL_DIR="$PWD\.cache\t006\embeddinggemma-2-ONNX"
+$env:LUMEN_EMBED_VISION_DIR="$PWD\.cache\t303\model"
+$env:LUMEN_ORT_DYLIB="$PWD\target\t303-release\onnxruntime.dll"
+$env:LUMEN_EMBED_VARIANT="q4"
+& .\target\t303-release\lumen.exe
+```
 
 ## T302 — implementation and native review
 
@@ -62,7 +135,7 @@ long names, navigation/Return to match, loading/unavailable matched text passed.
 Light theme observed; native material/DPI/dark/high contrast and real viewer checks remain.
 Screenshot is ignored target/t302-preview-qa.png; temporary fixture/server/tab removed.
 
-Native checklist after the user's chosen Quit/switch to the T302 bundle:
+Native checklist after the user's chosen Quit/switch to the latest bundle (includes T302):
 
 1. Real text PDF with a later match/blank page, search with ext:pdf → Alt+Enter shows the
    physical matched page; filename-only and scan PDFs preview page 1 without new indexing.
@@ -324,7 +397,7 @@ powershell -ExecutionPolicy Bypass -File scripts\t205\run-windows-eval.ps1
 
 ```powershell
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --locked -j 2 -- -D warnings
+cargo clippy --workspace --all-targets --features lumen-bench/directml --locked -j 2 -- -D warnings
 cargo xtask test --locked -j 2
 cargo xtask arch
 npm --prefix apps/desktop run format:check
@@ -337,12 +410,13 @@ cargo run --release -p lumen-bench --example pdf_preview --locked -j 2 -- target
 cargo test -p lumen-windows --test pdf_render --locked -j 2
 ```
 
-T302 ran the full Rust gate (357 passed, 2 network tests ignored; 36 shell tests included),
-workspace lint plus DirectML-feature lint, the 14-crate architecture guard and 80 frontend
-tests/build. PDF raster release measurements and browser component visual review passed;
-native overlay/real-PDF/viewer checks remain. T301/T212 evidence remains valid; no model/
-generation/indexing backend change. Logs are ignored target/t302-{tests-final,clippy-final,
-release-build}.log. T301 extraction reproduction: lumen-bench example pdf_text.
+T303 full Rust gate: 366 passed, 2 network tests deliberately ignored, including 37 shell
+tests; workspace/DirectML lint, 15-crate architecture guard, fmt, 82 frontend tests/check/
+build. Actual native CPU vision/text-space test, release image/retrieval/query regression
+and optimized custom-protocol desktop build recorded in the T303 evidence. Earlier PDF
+and GPU tests remain; native overlay/library/viewer/tray checks are deferred by the user.
+Logs are ignored .cache/t303/*.log. T301 extraction reproduction: example pdf_text;
+T302 renderer: example pdf_preview and lumen-windows --test pdf_render.
 T212 previously ran the optional local-wheel test with LUMEN_TEST_GPU_WHEEL_DIR=.cache/t212; normal
 tests skip it without a supplied wheel. Real network/model download tests remain ignored.
 See T212 README for native release probe/example commands and limitations.

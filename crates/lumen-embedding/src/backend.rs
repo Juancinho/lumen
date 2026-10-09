@@ -8,6 +8,8 @@ use crate::model::{Capabilities, Modality};
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum EmbeddingError {
+    /// Invalid oriented RGB image shape; no source data is included.
+    InvalidImage { index: usize },
     /// The backend/model does not support this modality.
     Unsupported(Modality),
     /// Input at `index` is empty or whitespace only.
@@ -30,6 +32,7 @@ pub enum EmbeddingError {
 impl fmt::Display for EmbeddingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidImage { index } => write!(f, "invalid image at {index}"),
             Self::Unsupported(m) => write!(f, "modality {m:?} is not supported by this backend"),
             Self::EmptyInput { index } => write!(f, "input {index} is empty"),
             Self::InvalidProfile(why) => write!(f, "invalid embedding profile: {why}"),
@@ -81,6 +84,18 @@ pub trait EmbeddingBackend: Send + Sync {
     /// `Backend` for runtime failures.
     fn embed_text(&self, inputs: &[&str]) -> Result<Vec<f32>, EmbeddingError>;
 
-    // Image/audio/video entry points arrive with T303/T701/T702 as provided methods
-    // returning `Unsupported`, so adding them is not a breaking change.
+    /// Raw native-dimension image vectors, in input order, without text prompts.
+    /// # Errors
+    /// Unsupported modality or runtime failure. Existing text-only backends defer images.
+    fn embed_images(&self, _inputs: &[ImageInput<'_>]) -> Result<Vec<f32>, EmbeddingError> {
+        Err(EmbeddingError::Unsupported(Modality::Image))
+    }
+}
+
+/// One decoded, EXIF-oriented RGB image. Decoding/resource admission belongs to the caller.
+#[derive(Debug, Clone, Copy)]
+pub struct ImageInput<'a> {
+    pub width: u32,
+    pub height: u32,
+    pub rgb: &'a [u8],
 }

@@ -8,7 +8,7 @@
 - The UI can only act on results Lumen produced: requests carry ids, payloads stay in Rust,
   the core policy checks every action (ADR-013/026). The opener plugin is used from Rust only;
   no file-system or shell permission is granted to the WebView (CSP + Tauri capabilities).
-- Benchmarks and scripts store counts and timings, never file/app names or queries; material
+- For user corpora, benchmarks/scripts store counts/timings, never names or queries; material
   screenshots stay in git-ignored `target/t004/`; diag logs are opt-in (`LUMEN_DIAG_LOG`).
 - Network: none, except the user-initiated, confirmed download of the embedding model and
   inference runtime (tray → Semantic search → Download…; pinned URLs on huggingface.co and
@@ -22,6 +22,13 @@
   it adds no indexed content or network path. Only a bounded OS-produced PNG reaches the
   WebView; raw PDF/viewer targets stay in Rust. Memory cache clears on hide/new query;
   offline/recall placeholders are refused before reading (ADR-040).
+- T303 reads image contents only in content-enabled locations after placeholder/admission
+  checks. Dimensions, format, orientation and local source digest persist; RGB/pixels,
+  EXIF GPS/camera history and generated captions do not. The UI receives only bounded
+  metadata and whitelisted coverage codes; paths/digests stay in Rust. Optional vision
+  weights use the same explicit download consent and pinned HF hashes (ADR-041). Queries
+  and image inference remain local/offline. T303 benchmark evidence contains only numeric
+  fixture names and public licensed photos/synthetic queries, identified in its README.
 
 ## 1. Default posture
 

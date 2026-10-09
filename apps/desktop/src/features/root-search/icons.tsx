@@ -85,6 +85,14 @@ export function KindGlyph({ kind }: { kind: ResultKind }) {
       return <FolderGlyph />;
     case "command":
       return <CommandGlyph />;
+    case "image":
+      return (
+        <svg {...common}>
+          <rect x="2.75" y="3.75" width="14.5" height="12.5" rx="1.5" />
+          <circle cx="6.5" cy="7.5" r="1.25" />
+          <path d="m3 14 4.5-4 3 2.5 3-4 3.5 5" />
+        </svg>
+      );
     case "file":
     case "code":
     case "pdf-page":

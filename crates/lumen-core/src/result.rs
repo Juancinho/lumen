@@ -23,6 +23,7 @@ pub enum ResultKind {
     Code,
     /// A text passage on a physical PDF page, retaining the file's entity identity.
     PdfPage,
+    Image,
     Folder,
     Application,
     /// A built-in or system command (Windows setting, system action).
@@ -144,6 +145,7 @@ pub enum Payload {
     /// File plus the matching code passage. Boxed to keep the hot result compact.
     Code(Box<CodeTarget>),
     Pdf(Box<PdfTarget>),
+    Image(Box<ImageTarget>),
     /// A textual value (calculation result, URL).
     Text(Box<str>),
     /// Opaque key the owning provider resolves itself (app user-model id, setting URI).
@@ -174,6 +176,27 @@ pub struct PdfTarget {
     pub passage: String,
 }
 
+/// Indexed image metadata; no pixels, EXIF location, caption or executable command.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImageTarget {
+    pub path: PathBuf,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub orientation: Option<u8>,
+    pub format: Option<String>,
+    /// Whitelisted coverage code only; never a decoder message/source path.
+    pub issue: Option<&'static str>,
+    pub visual_state: ImageState,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImageState {
+    NotIndexed,
+    Skipped,
+    Pending,
+    Indexed,
+    Failed,
+}
+
 impl Payload {
     #[must_use]
     pub fn local_path(&self) -> Option<&std::path::Path> {
@@ -181,6 +204,7 @@ impl Payload {
             Self::Path(path) => Some(path),
             Self::Code(code) => Some(&code.path),
             Self::Pdf(pdf) => Some(&pdf.path),
+            Self::Image(image) => Some(&image.path),
             _ => None,
         }
     }

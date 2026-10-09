@@ -30,6 +30,20 @@ its separate metadata backfill took 1.60 s with every vector preserved. Migratio
 a startup worker, and first show waits for schema readiness; this one-time cold-upgrade
 cost does not recur on normal launches. Existing budgets are unchanged.
 
+T303 Windows release CPU 1.30 q4 visual inference: two public CC0 photos, two threads, first
+11.36 s and subsequent 9.32 s; two-image persistent queue pass 18.20 s. One sample/photo,
+not p50/p95 or a fixed library ETA. Resident snapshots with a separate CPU query session
+reach 940 MiB (not private/peak/whole-app memory); sharing the CPU indexing backbone
+removed ~107 MiB retained in the initial sample. Vision unloads on drain/pause and waits
+on battery. Native calls finish before holds/cancellation take effect at the next image
+boundary; lexical results and the separate query session do not wait on that call.
+Bundled ORT 1.24.4 on CPU: first/next image 8.60/7.76 s, independent uncached query
+p50/p95 53.76/63.14 ms during an in-flight image call (30 samples). Loaded-machine
+samples do not establish a causal runtime speed comparison or native painted latency.
+Evidence, hot-name regression and runtime/query-under-image checks:
+`benchmarks/t303/2026-10-09-joao-pc/README.md`. Existing budgets are unchanged; whole-app
+private memory, long real-library soak and visual-GPU acceleration are not established.
+
 ## 1. Principle
 
 Performance is not a later optimization pass. Lumen's product value depends on invoking it reflexively. If opening or searching feels slower than opening Explorer, the product loses its reason to exist.

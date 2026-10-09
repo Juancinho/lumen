@@ -16,6 +16,7 @@ pub mod content;
 mod filters;
 mod fts;
 pub mod generations;
+pub mod images;
 pub mod migrations;
 mod settings;
 pub mod usage;

@@ -132,6 +132,38 @@ macro_rules! hf {
     };
 }
 
+/// Optional pinned q4 image encoder; the existing text backbone stays separate (ADR-041).
+pub const VISION_MODEL: Component = Component {
+    id: "models/embeddinggemma-2-vision-onnx",
+    version: "q4-daa72c5-pre1",
+    title: "EmbeddingGemma 2 image encoder (4-bit, ONNX)",
+    license: "Apache-2.0",
+    license_url: "https://huggingface.co/onnx-community/embeddinggemma-2-ONNX",
+    host: "huggingface.co",
+    files: &[
+        RemoteFile {
+            url: hf!("/onnx/vision_encoder_q4.onnx"),
+            size: 159_400,
+            sha256: "7ea284226d4938f0ad921ab091f1d80a9ca699aa802984ef5cd5eec4f4761d96",
+            install: Install::As("onnx/vision_encoder_q4.onnx"),
+        },
+        RemoteFile {
+            url: hf!("/onnx/vision_encoder_q4.onnx_data"),
+            size: 108_957_696,
+            sha256: "0a9d6c927334f152a33dd90874f65d6ea5228999abe6a450d3f7813677fa704c",
+            install: Install::As("onnx/vision_encoder_q4.onnx_data"),
+        },
+        RemoteFile {
+            url: hf!("/README.md"),
+            size: 28_720,
+            sha256: "4fe21bf1b86938ac62c7cd2d1511822e4ea6e8654e015e00b06a72676b5420e6",
+            install: Install::As("README.md"),
+        },
+    ],
+    notices: &["README.md"],
+    platform_ok: true,
+};
+
 /// EmbeddingGemma 2, ONNX export, 4-bit weights (ADR-015), text encoder only.
 pub const EMBEDDING_MODEL: Component = Component {
     id: "models/embeddinggemma-2-onnx",

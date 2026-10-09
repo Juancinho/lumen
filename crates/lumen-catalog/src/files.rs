@@ -435,6 +435,16 @@ fn matching_move_content(
         extract_indexed_file,
     };
     let path = decode(entry.path, entry.raw_path);
+    if entry
+        .extension
+        .is_some_and(|extension| lumen_image::EXTENSIONS.contains(&extension))
+    {
+        let Some(digest) = store.image_digest(id)? else {
+            return Ok(false);
+        };
+        return Ok(lumen_image::inspect(&path, &|| false)
+            .is_ok_and(|metadata| metadata.digest.as_slice() == digest));
+    }
     let Ok(indexed) = extract_indexed_file(
         &path,
         DEFAULT_MAX_BYTES,

@@ -10,6 +10,10 @@ publish.workspace = true
 name = "lumen-bench"
 path = "src/main.rs"
 
+[[example]]
+name = "images"
+required-features = ["ort"]
+
 [features]
 default = []
 # ONNX Runtime backend (`--backend ort`); runtime loaded from --ort-dylib at startup.
@@ -45,4 +49,5 @@ lumen-windows.workspace = true
 workspace = true
 
 [dev-dependencies]
+lumen-image.workspace = true
 lopdf.workspace = true

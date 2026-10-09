@@ -7,6 +7,31 @@ function formatDate(ms: number): string {
   return new Date(ms).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
+function imageCoverage(image: NonNullable<Preview["image"]>): string {
+  const reasons: Record<string, string> = {
+    "image:unsupported": "This image format is not supported for visual indexing",
+    "image:source_limit": "Image exceeds the 16 MiB source limit",
+    "image:pixel_limit": "Image exceeds the decoded pixel limit",
+    "image:decode": "Image could not be decoded",
+    "image:placeholder": "Image is an offline cloud placeholder",
+    "image:io": "Image could not be read",
+  };
+  const reason = image.reason ? reasons[image.reason] : undefined;
+  if (reason) return reason;
+  switch (image.visualState) {
+    case "indexed":
+      return "Visual meaning indexed";
+    case "failed":
+      return "Visual indexing failed";
+    case "skipped":
+      return "Image skipped for visual indexing";
+    case "not-indexed":
+      return "Image contents have not been indexed";
+    case "pending":
+      return "Waiting for visual indexing";
+  }
+}
+
 interface PreviewPaneProps {
   data: Preview | null;
   /** Two-pane layout (beside the list) or one pane over it (narrow monitors). */
@@ -118,6 +143,12 @@ export function PreviewPane({
     return <aside className={className} aria-label="Preview" aria-busy="true" />;
   }
   const meta = [
+    data.image?.format && data.image.width && data.image.height
+      ? `${data.image.format.toUpperCase()} · ${String(data.image.width)} × ${String(data.image.height)}`
+      : null,
+    data.image?.orientation && data.image.orientation !== 1
+      ? `EXIF orientation ${String(data.image.orientation)}`
+      : null,
     data.pageNumber ? `Page ${String(pageNumber ?? data.pageNumber)}` : null,
     data.sizeBytes !== null ? formatSize(data.sizeBytes) : null,
     data.modifiedMs !== null ? `Modified ${formatDate(data.modifiedMs)}` : null,
@@ -208,6 +239,11 @@ export function PreviewPane({
           {data.location}
         </p>
       )}
+      {data.image && (
+        <p className="preview__location" role="status">
+          {imageCoverage(data.image)}
+        </p>
+      )}
       {data.pageNumber && (
         <div className="preview__page" aria-busy={!pdf}>
           {pdf?.image ? (
@@ -232,7 +268,11 @@ export function PreviewPane({
         </pre>
       ) : !data.pageNumber ? (
         <p className="preview__empty">
-          {data.kind === "file" ? "No preview for this type of file" : "No preview"}
+          {data.kind === "image"
+            ? "Open image to view it"
+            : data.kind === "file"
+              ? "No preview for this type of file"
+              : "No preview"}
         </p>
       ) : null}
     </aside>

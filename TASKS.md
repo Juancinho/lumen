@@ -43,8 +43,11 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
     Windows release 100k synthetic timing measured, native root/keyboard checks in HANDOFF.
 16. ~~T301~~ PDF text/page extraction — REVIEW (ADR-039): real-PDF/keyboard checks in HANDOFF.
 17. ~~T302~~ PDF raster Quick Look/page navigation — REVIEW (ADR-040): native overlay/viewer
-    checks in HANDOFF. Next implementation is **T303** image metadata/vision; read the
-    image/domain/runtime specs and claim it first. The Windows REVIEW checks remain open.
+    checks in HANDOFF.
+18. ~~T303~~ image metadata/local visual embeddings — REVIEW (ADR-041): Windows CPU visual
+    retrieval measured; optional download, coverage and native library/keyboard checks in
+    HANDOFF. Next implementation is **T304** optional Windows OCR. Read its domain/OS
+    contracts and claim it first; all existing Windows REVIEW checks remain open.
 
 # M0 — technical spikes and foundation
 
@@ -106,7 +109,7 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 | ---- | ------ | ----- | ------------------------------------------------------------ | -------------- |
 | T301 | REVIEW | codex | PDF text/page extraction + page-level hits (ADR-039); native real-PDF/keyboard review pending | T201           |
 | T302 | REVIEW | codex | PDF raster Quick Look/page navigation + supported viewer action (ADR-040); native QA pending | T301,T105,T108 |
-| T303 | TODO   | —     | Image metadata + vision embedding                            | T006,T202      |
+| T303 | REVIEW | codex | Bounded image metadata + local q4 vision embedding; native review pending | T006,T202      |
 | T304 | TODO   | —     | Optional Windows OCR enrichment for screenshots/images       | T303           |
 | T305 | TODO   | —     | Semantic Drop: paste/drag image/file/text as query object    | T303,T205      |
 | T306 | TODO   | —     | `Find Similar` action for supported semantic items           | T205,T303,T108 |

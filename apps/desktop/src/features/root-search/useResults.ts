@@ -24,6 +24,7 @@ function toRow(view: ResultView): ResultRowModel {
     extension: view.extension,
     ...(view.code ? { code: view.code } : {}),
     ...(view.pdf ? { pdf: view.pdf } : {}),
+    ...(view.image ? { image: view.image } : {}),
     primaryAction: view.primaryAction,
     diagnostics: view.diagnostics
       ? `${view.diagnostics.provider} · ${view.diagnostics.matchKind} · ${view.diagnostics.confidence.toFixed(2)}`

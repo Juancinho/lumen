@@ -303,6 +303,9 @@ mod tests {
 
     fn item(name: &str, path: &str) -> CatalogItem {
         CatalogItem {
+            image: None,
+            image_state: "pending".into(),
+            image_error: None,
             id: 1,
             kind: ItemKind::File,
             source: Source::Files,

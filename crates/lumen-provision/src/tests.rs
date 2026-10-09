@@ -341,7 +341,7 @@ fn unsupported_platforms_and_pinned_manifests() {
         ),
         Err(InstallError::Unsupported)
     ));
-    for comp in [EMBEDDING_MODEL, INFERENCE_RUNTIME] {
+    for comp in [EMBEDDING_MODEL, VISION_MODEL, INFERENCE_RUNTIME] {
         for f in comp.files {
             assert!(f.url.starts_with("https://"));
             assert_eq!(f.sha256.len(), 64);
@@ -353,6 +353,7 @@ fn unsupported_platforms_and_pinned_manifests() {
         }
     }
     assert_eq!(EMBEDDING_MODEL.download_bytes(), 206_718_772);
+    assert_eq!(VISION_MODEL.download_bytes(), 109_145_816);
     assert_eq!(INFERENCE_RUNTIME.download_bytes(), 14_311_470);
     assert!(
         EMBEDDING_MODEL.files[2]

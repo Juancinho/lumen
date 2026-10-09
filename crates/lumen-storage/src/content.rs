@@ -74,6 +74,10 @@ pub struct GenerationSpec<'a> {
 /// A chunk waiting for its vector.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PendingChunk {
+    pub kind: String,
+    pub path: String,
+    pub raw_path: Option<Vec<u8>>,
+    pub image_digest: Option<Vec<u8>>,
     pub chunk_id: i64,
     pub item_id: i64,
     pub text: String,
@@ -411,19 +415,34 @@ impl Store {
         after_chunk_id: i64,
         limit: usize,
     ) -> Result<Vec<PendingChunk>> {
+        self.pending_chunks_with_images(generation, after_chunk_id, limit, true)
+    }
+
+    /// Eligible units; missing vision capability leaves image jobs pending instead of failed.
+    /// # Errors
+    /// SQLite failure.
+    pub fn pending_chunks_with_images(
+        &self,
+        generation: i64,
+        after_chunk_id: i64,
+        limit: usize,
+        images: bool,
+    ) -> Result<Vec<PendingChunk>> {
         let mut stmt = self.conn.prepare_cached(
-            "SELECT c.id, c.item_id, c.text, i.display_name
+            "SELECT c.id, c.item_id, c.text, i.display_name, c.chunk_kind, i.canonical_path, i.raw_path, i.image_digest
              FROM chunks c JOIN items i ON i.id = c.item_id
              WHERE c.id > ?2
+               AND (?4 OR c.chunk_kind <> 'image')
                AND NOT EXISTS (SELECT 1 FROM chunk_vectors v
                                WHERE v.generation = ?1 AND v.chunk_id = c.id)
-             ORDER BY c.id LIMIT ?3",
+            ORDER BY c.id LIMIT ?3",
         )?;
         let rows = stmt.query_map(
             params![
                 generation,
                 after_chunk_id,
-                i64::try_from(limit).unwrap_or(i64::MAX)
+                i64::try_from(limit).unwrap_or(i64::MAX),
+                images
             ],
             |r| {
                 Ok(PendingChunk {
@@ -431,6 +450,10 @@ impl Store {
                     item_id: r.get(1)?,
                     text: r.get(2)?,
                     title: r.get(3)?,
+                    kind: r.get(4)?,
+                    path: r.get(5)?,
+                    raw_path: r.get(6)?,
+                    image_digest: r.get(7)?,
                 })
             },
         )?;

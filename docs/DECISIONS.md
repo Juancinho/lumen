@@ -47,6 +47,7 @@
 | [ADR-038](adr/adr-038-optional-dedicated-gpu-indexing.md) | Opt-in dedicated-GPU indexing with CPU queries, isolated compatibility probes and CPU fallback | Accepted |
 | [ADR-039](adr/adr-039-pdf-text-page-context.md) | Bounded local PDF text extraction, physical-page context and unchanged vector generations | Accepted |
 | [ADR-040](adr/adr-040-windows-pdf-preview.md) | On-demand Windows PDF raster preview, bounded latest-wins worker and supported viewer page transport | Accepted |
+| [ADR-041](adr/adr-041-image-queue-and-vision-encoder.md) | Bounded image units in the persistent queue and optional CPU q4 vision encoder in the existing text space | Accepted |
 
 T208 implements the reserved root operators and quoted lexical requests from COMMAND_MODEL
 §7 using existing ADR-017/022/032 boundaries. Exact semantics, bounded filtered ANN retrieval

@@ -24,7 +24,8 @@ use std::time::{Duration, Instant};
 
 use lumen_catalog::IndexLocations;
 use lumen_content::{
-    Control, PassConfig, QueueConfig, QueueError, QueueJob, Stop, run_content_pass, run_queue,
+    Control, PassConfig, QueueConfig, QueueError, QueueJob, Stop, run_content_pass, run_image_pass,
+    run_queue,
 };
 use lumen_core::CancellationToken;
 use lumen_embedding::policy::{
@@ -78,6 +79,7 @@ pub(crate) enum Semantic {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Status {
+    pub(crate) images: lumen_storage::images::ImageCounts,
     pub(crate) files: u64,
     pub(crate) chunks: u64,
     pub(crate) embedded: u64,
@@ -98,6 +100,7 @@ pub(crate) enum Next {
 struct Loaded {
     threads: usize,
     device: lumen_embedding_ort::Device,
+    images: bool,
     embedder: Embedder,
     generation: Option<i64>,
 }
@@ -161,6 +164,7 @@ pub(crate) fn model_configured() -> bool {
 /// The download finished: semantic indexing can start now.
 pub(crate) fn on_model_installed<R: Runtime>(app: &AppHandle<R>) {
     let state = app.state::<Indexing>();
+    *state.loaded.lock().unwrap_or_else(PoisonError::into_inner) = None;
     *state.failed.lock().unwrap_or_else(PoisonError::into_inner) = false;
     state.set_semantic(if state.paused() {
         Semantic::PausedByUser
@@ -196,6 +200,7 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) {
     app.manage(Indexing {
         control,
         status: Mutex::new(Status {
+            images: Default::default(),
             files: 0,
             chunks: 0,
             embedded: 0,
@@ -274,10 +279,17 @@ pub(crate) fn content_pass<R: Runtime>(
         }
         Err(err) => eprintln!("lumen: content pass failed: {err}"),
     }
+    match run_image_pass(&mut store, &|path| model.indexes_content(path), token, &now) {
+        Ok(r) => crate::catalog::notify(app, r.files > 0),
+        Err(err) => eprintln!("lumen: image metadata pass failed: {err}"),
+    }
+    let state = app.state::<Indexing>();
+    let mut s = state.status.lock().unwrap_or_else(PoisonError::into_inner);
     if let Ok(c) = store.content_counts() {
-        let state = app.state::<Indexing>();
-        let mut s = state.status.lock().unwrap_or_else(PoisonError::into_inner);
         s.files = c.indexed;
+    }
+    if let Ok(c) = store.image_counts(store.active_generation().ok().flatten().map(|g| g.id)) {
+        s.images = c;
     }
 }
 
@@ -355,7 +367,7 @@ fn env_threads() -> Option<usize> {
 }
 
 pub(crate) fn build_embedder(threads: usize) -> Result<Embedder, String> {
-    build_device_embedder(threads, lumen_embedding_ort::Device::Cpu)
+    build_device_embedder(threads, lumen_embedding_ort::Device::Cpu, false)
 }
 
 pub(crate) fn model_variant() -> lumen_embedding_ort::ModelVariant {
@@ -369,6 +381,7 @@ pub(crate) fn model_variant() -> lumen_embedding_ort::ModelVariant {
 fn build_device_embedder(
     threads: usize,
     device: lumen_embedding_ort::Device,
+    images: bool,
 ) -> Result<Embedder, String> {
     use lumen_embedding_ort::{OrtBackend, OrtConfig, init_runtime};
     let dir = crate::provisioning::model_dir().ok_or("semantic search is not installed")?;
@@ -377,6 +390,9 @@ fn build_device_embedder(
     let mut cfg = OrtConfig::new(dir, model_variant(), device);
     cfg.threads = Some(threads);
     cfg.max_batch = QueueConfig::default().batch;
+    if images {
+        cfg.vision_dir = crate::provisioning::vision_dir();
+    }
     let backend = OrtBackend::new(cfg).map_err(|e| e.to_string())?;
     Embedder::new(Arc::new(backend), EmbeddingProfile::DEFAULT).map_err(|e| e.to_string())
 }
@@ -426,17 +442,20 @@ pub(crate) fn embed_slice<R: Runtime>(
         ),
     };
 
+    // Expensive media work pauses on battery (PERFORMANCE §10); text keeps its policy.
+    let images = !matches!(current_system_state().power, PowerSource::Battery { .. });
     let mut loaded = state.loaded.lock().unwrap_or_else(PoisonError::into_inner);
     if loaded
         .as_ref()
-        .is_none_or(|l| l.threads != threads || l.device != device)
+        .is_none_or(|l| l.threads != threads || l.device != device || l.images != images)
     {
         *loaded = None;
-        match build_device_embedder(threads, device) {
+        match build_device_embedder(threads, device, images) {
             Ok(embedder) => {
                 *loaded = Some(Loaded {
                     threads,
                     device,
+                    images,
                     embedder,
                     generation: None,
                 });
@@ -518,6 +537,9 @@ pub(crate) fn embed_slice<R: Runtime>(
     let result = run_queue(&mut store, &job, &now, &mut |_| {});
     drop(loaded);
     refresh_counts(&state, &store, generation);
+    if result.as_ref().is_ok_and(|r| r.stale_images > 0) {
+        crate::catalog::request_work(app);
+    }
     if result.as_ref().is_ok_and(|r| r.embedded > 0) {
         maintain_ann(&state, &mut store, db, generation, token);
         crate::catalog::notify(app, true);
@@ -538,9 +560,18 @@ pub(crate) fn embed_slice<R: Runtime>(
                     Next::Idle
                 }
                 Stop::Drained => {
-                    state.set_semantic(Semantic::Idle);
+                    let battery_images = !images && state.status().images.pending > 0;
+                    state.set_semantic(if battery_images {
+                        Semantic::Waiting(PauseReason::OnBattery)
+                    } else {
+                        Semantic::Idle
+                    });
                     unload(&state);
-                    Next::Idle
+                    if battery_images {
+                        Next::RetryIn(POLICY_RETRY)
+                    } else {
+                        Next::Idle
+                    }
                 }
             }
         }
@@ -698,6 +729,20 @@ fn refresh_counts(state: &Indexing, store: &Store, generation: i64) {
         s.chunks = c.chunks;
         s.embedded = c.embedded;
     }
+    if let Ok(c) = store.image_counts(Some(generation)) {
+        state
+            .status
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .images = c;
+    }
+}
+
+pub(crate) fn image_status_text(c: &lumen_storage::images::ImageCounts) -> String {
+    format!(
+        "Images: {} visual, {} pending, {} failed, {} skipped · CPU",
+        c.indexed, c.pending, c.failed, c.skipped
+    )
 }
 
 /// Frees the model's memory (the queue drained or cannot run).
@@ -709,6 +754,7 @@ fn unload(state: &Indexing) {
         .as_ref()
     {
         let _ = l.embedder.backend().unload(Modality::Text);
+        let _ = l.embedder.backend().unload(Modality::Image);
     }
 }
 
@@ -747,7 +793,7 @@ pub(crate) fn status_text(s: &Status) -> String {
                     s.embedded, s.chunks
                 );
                 if s.semantic == Semantic::RunningGpu {
-                    format!("{progress} · GPU")
+                    format!("{progress} · GPU text")
                 } else {
                     progress
                 }
@@ -792,6 +838,7 @@ mod tests {
     #[test]
     fn status_lines() {
         let mut s = Status {
+            images: Default::default(),
             files: 0,
             chunks: 0,
             embedded: 0,

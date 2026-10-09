@@ -39,6 +39,8 @@ pub(crate) struct PreviewDto {
     pub(crate) truncated: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) page_number: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) image: Option<ImageContextDto>,
 }
 
 /// Mirrors `Size` in `src/ipc/types.ts`: logical px.
@@ -99,6 +101,8 @@ pub(crate) struct ResultDto {
     pub(crate) code: Option<CodeContextDto>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) pdf: Option<PdfContextDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) image: Option<ImageContextDto>,
     /// Action that Enter runs (`lumen.open`, `lumen.launch`).
     pub(crate) primary_action: String,
     /// Development diagnostics (T110, `LUMEN_DIAGNOSTICS=1` only): never in normal UI.
@@ -118,6 +122,37 @@ pub(crate) struct CodeContextDto {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PdfContextDto {
     pub(crate) page_number: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ImageContextDto {
+    pub(crate) width: Option<u32>,
+    pub(crate) height: Option<u32>,
+    pub(crate) orientation: Option<u8>,
+    pub(crate) format: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) reason: Option<&'static str>,
+    pub(crate) visual_state: &'static str,
+}
+
+impl From<&lumen_core::ImageTarget> for ImageContextDto {
+    fn from(image: &lumen_core::ImageTarget) -> Self {
+        Self {
+            width: image.width,
+            height: image.height,
+            orientation: image.orientation,
+            format: image.format.clone(),
+            reason: image.issue,
+            visual_state: match image.visual_state {
+                lumen_core::ImageState::Indexed => "indexed",
+                lumen_core::ImageState::Failed => "failed",
+                lumen_core::ImageState::Pending => "pending",
+                lumen_core::ImageState::Skipped => "skipped",
+                lumen_core::ImageState::NotIndexed => "not-indexed",
+            },
+        }
+    }
 }
 
 /// Mirrors `ResultDiagnostics` in `src/ipc/types.ts`.
@@ -152,11 +187,13 @@ impl From<&lumen_core::ResultItem> for ResultDto {
                 ResultKind::Command => "command",
                 ResultKind::Code => "code",
                 ResultKind::PdfPage => "pdf-page",
+                ResultKind::Image => "image",
                 _ => "file",
             },
             title: item.title.clone(),
             detail: item.detail.clone().or_else(|| item.subtitle.clone()),
             snippet: match (item.kind, item.score.match_kind) {
+                (ResultKind::Image, _) => None,
                 (ResultKind::Code | ResultKind::PdfPage, _) => item.subtitle.clone(),
                 (_, MatchKind::FullText | MatchKind::Semantic) => item.subtitle.clone(),
                 _ => None,
@@ -182,6 +219,10 @@ impl From<&lumen_core::ResultItem> for ResultDto {
                 Payload::Pdf(pdf) => Some(PdfContextDto {
                     page_number: pdf.page_number.get(),
                 }),
+                _ => None,
+            },
+            image: match &item.payload {
+                Payload::Image(image) => Some(ImageContextDto::from(image.as_ref())),
                 _ => None,
             },
             diagnostics: None,
@@ -252,6 +293,24 @@ impl ResultsDto {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn image_context_serializes_coverage_without_exposing_source_or_digest() {
+        use lumen_core::{ImageState, ImageTarget};
+        let context = ImageContextDto::from(&ImageTarget {
+            path: "C:\\private.bmp".into(),
+            width: None,
+            height: None,
+            orientation: None,
+            format: None,
+            issue: Some("image:unsupported"),
+            visual_state: ImageState::Skipped,
+        });
+        assert_eq!(
+            serde_json::to_value(context).unwrap(),
+            serde_json::json!({"width":null,"height":null,"orientation":null,"format":null,"visualState":"skipped","reason":"image:unsupported"})
+        );
+    }
 
     #[test]
     fn maps_core_info() {

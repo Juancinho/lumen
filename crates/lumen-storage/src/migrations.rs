@@ -38,6 +38,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "code_context",
         sql: include_str!("../migrations/0004_code_context.sql"),
     },
+    Migration {
+        version: 5,
+        name: "image_metadata",
+        sql: include_str!("../migrations/0005_image_metadata.sql"),
+    },
 ];
 
 /// Schema version this binary produces.
@@ -81,6 +86,30 @@ pub(crate) fn apply(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v4_images_upgrade_keeps_text_vectors_and_invalidation_clears_metadata() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        apply(&mut conn, &MIGRATIONS[..4]).unwrap();
+        conn.execute_batch("INSERT INTO items(kind,canonical_path,display_name,content_state) VALUES('file','/a','a','indexed');
+            INSERT INTO chunks(item_id,ordinal,chunk_kind,text) VALUES(1,0,'text','existing text');
+            INSERT INTO generations(space_key,chunker_version,dim,scalar,created_at,state) VALUES('k',1,2,'f16',0,'active');
+            INSERT INTO chunk_vectors(chunk_id,generation,vector,embedded_at,seq) VALUES(1,1,x'0000003c',0,7);").unwrap();
+        assert_eq!(apply(&mut conn, MIGRATIONS).unwrap(), (4, 5));
+        let before: (Vec<u8>, i64, String) = conn
+            .query_row(
+                "SELECT vector,seq,text FROM chunk_vectors JOIN chunks ON chunks.id=chunk_id",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(before, (vec![0, 0, 0, 60], 7, "existing text".into()));
+        conn.execute_batch("UPDATE items SET image_width=4,image_height=3,image_format='PNG',image_version=1,image_digest=x'00';
+            UPDATE items SET content_state=NULL;").unwrap();
+        let cleared:i64 = conn.query_row("SELECT count(*) FROM items WHERE image_width IS NULL AND image_digest IS NULL AND image_version IS NULL",[],|r|r.get(0)).unwrap();
+        assert_eq!(cleared, 1);
+    }
 
     #[test]
     fn versions_are_contiguous_from_one() {
@@ -219,7 +248,7 @@ mod tests {
              VALUES (1, 1, x'0000003c', 0, 7);",
         )
         .unwrap();
-        assert_eq!(apply(&mut conn, MIGRATIONS).unwrap(), (3, 4));
+        assert_eq!(apply(&mut conn, MIGRATIONS).unwrap(), (3, latest_version()));
         let count = |q: &str| {
             conn.query_row(
                 "SELECT count(*) FROM chunks_fts WHERE chunks_fts MATCH ?1",

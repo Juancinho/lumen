@@ -37,6 +37,16 @@ base64 0.22.1 and futures-channel 0.3.34 were already locked transitive MIT/Apac
 ADR-040 records the API/license scope and native proof; broad distribution still requires
 the whole-product notice/signing audit.
 
+T303 codecs: pinned `image 0.25.10` (MIT/Apache-2.0), default features disabled, only
+JPEG/PNG/WebP/BMP. Eight new locked Rust packages have scoped notices in
+`docs/licenses/image-codec-notices.txt`, regenerated offline by
+`scripts/t303/image-notices.ps1`; ship as ImageCodecNotices.txt. No codec DLL/Python
+production runtime is required. Optional vision graph/data and Apache-2.0 model card use
+the existing pinned EmbeddingGemma 2 revision, separate consented 109 MB installation
+and removal. ADR-041 records the processor/runtime contract. Public CC0 photo fixtures
+are development cache only; attribution/hashes are in the benchmark README, no photo
+assets are packaged. This scoped review does not replace the whole-product audit.
+
 ## Model
 
 Record exact model/runtime version and license in third-party notices. Keep model download/version migration explicit.

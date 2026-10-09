@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/lumen-core", "crates/lumen-embedding", "crates/lumen-embedding-ort", "crates/lumen-vector", "crates/lumen-storage", "crates/lumen-indexer", "crates/lumen-windows", "crates/lumen-catalog", "crates/lumen-search", "crates/lumen-extract", "crates/lumen-content", "crates/lumen-semantic", "crates/lumen-provision", "crates/lumen-bench", "apps/desktop/src-tauri", "xtask"]
+members = ["crates/lumen-core", "crates/lumen-embedding", "crates/lumen-embedding-ort", "crates/lumen-image", "crates/lumen-vector", "crates/lumen-storage", "crates/lumen-indexer", "crates/lumen-windows", "crates/lumen-catalog", "crates/lumen-search", "crates/lumen-extract", "crates/lumen-content", "crates/lumen-semantic", "crates/lumen-provision", "crates/lumen-bench", "apps/desktop/src-tauri", "xtask"]
 
 [workspace.package]
 version = "0.1.0"
@@ -14,6 +14,9 @@ notify = "8.2.0"
 lumen-core = { path = "crates/lumen-core" }
 lumen-embedding = { path = "crates/lumen-embedding" }
 lumen-embedding-ort = { path = "crates/lumen-embedding-ort" }
+lumen-image = { path = "crates/lumen-image" }
+image = { version = "=0.25.10", default-features = false, features = ["jpeg", "png", "webp", "bmp"] }
+sha2 = "=0.10.9"
 lumen-vector = { path = "crates/lumen-vector" }
 lumen-storage = { path = "crates/lumen-storage" }
 lumen-indexer = { path = "crates/lumen-indexer" }

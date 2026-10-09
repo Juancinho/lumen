@@ -23,6 +23,7 @@ pub use install::{
 };
 pub use manifest::{
     Component, EMBEDDING_MODEL, GPU_RUNTIME, INFERENCE_RUNTIME, Install, Member, RemoteFile,
+    VISION_MODEL,
 };
 
 #[cfg(test)]

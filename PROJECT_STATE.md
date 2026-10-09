@@ -147,6 +147,7 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
   same model/index, names p95 13 ms on synthetic 100k; native root/keyboard review pending.
 - **T301 REVIEW (ADR-039):** bounded PDF page text/FTS/semantic hits, existing vectors retained; native review pending.
 - **T302 REVIEW (ADR-040):** local PDF raster Quick Look/page navigation and supported viewer action; native review pending.
+- **T303 REVIEW (ADR-041):** bounded image metadata/visual q4 queue, optional vision download, CPU images/queries; native review pending.
 - **T111 REVIEW (ADR-027):** indexed locations + exclusions in one versioned setting; tray
   → Indexed locations / Exclusions (native folder picker), per-location state, developer
   noise and marker-based build folders excluded by default (visible, toggleable), Action
@@ -155,13 +156,12 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
 - **T110 REVIEW:** `LUMEN_DIAGNOSTICS=1` shows provider/match kind/confidence per row and
   logs per-query timings; absent from the wire otherwise.
 - **T105 REVIEW:** Alt+Enter Quick Look beside results (over them on narrow monitors):
-  metadata/text excerpt, 16 KB read/4,000 chars; T302 adds PDF pages. Icons/images/pin/open-with remain future.
+  metadata/text excerpt, 16 KB read/4,000 chars; T302 PDF pages/T303 image metadata. Raster images/pin/open-with remain future.
 
 ## Immediate objective
 
 1. Close M1 Windows REVIEW checklists in `HANDOFF.md`: search, keys, actions, Quick Look/material.
-2. Finish M2 reviews/runtime verdict (T014); T301/T302 PDF text/previews are implemented.
-   Next is T303 image metadata/vision in `TASKS.md` → **Next**; Windows reviews remain open.
+2. M2/M3 reviews remain; next implementation is T304 Windows OCR in `TASKS.md` → **Next**.
 
 ## M1 gate (instant launcher)
 

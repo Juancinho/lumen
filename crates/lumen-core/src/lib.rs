@@ -47,5 +47,6 @@ pub use ids::{ActionId, IdError, ProviderId, QueryId, ResultId};
 pub use provider::{LatencyClass, Provider, ProviderError, ProviderQuery};
 pub use query::{QueryFilter, QueryFilters, QueryType, SearchQuery};
 pub use result::{
-    CodeTarget, Confidence, IconRef, MatchKind, Payload, PdfTarget, ResultItem, ResultKind, Score,
+    CodeTarget, Confidence, IconRef, ImageState, ImageTarget, MatchKind, Payload, PdfTarget,
+    ResultItem, ResultKind, Score,
 };

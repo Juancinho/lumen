@@ -114,6 +114,7 @@ fn kind_name(kind: ResultKind) -> &'static str {
         ResultKind::Command => "command",
         ResultKind::Code => "code",
         ResultKind::PdfPage => "pdf-page",
+        ResultKind::Image => "image",
         _ => "file",
     }
 }
@@ -129,6 +130,10 @@ pub(crate) fn preview(item: &ResultItem) -> PreviewDto {
         text: None,
         truncated: false,
         page_number: None,
+        image: match &item.payload {
+            Payload::Image(image) => Some(crate::dto::ImageContextDto::from(image.as_ref())),
+            _ => None,
+        },
     };
     if let Payload::Code(code) = &item.payload {
         dto.text = Some(code.passage.clone());

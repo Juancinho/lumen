@@ -31,7 +31,7 @@ mod prompt;
 mod space;
 mod vector;
 
-pub use backend::{EmbeddingBackend, EmbeddingError};
+pub use backend::{EmbeddingBackend, EmbeddingError, ImageInput};
 pub use embedder::Embedder;
 pub use mock::{MockBackend, MockLatency};
 pub use model::{Capabilities, ExecutionTarget, Modality, ModalitySet, ModelInfo};

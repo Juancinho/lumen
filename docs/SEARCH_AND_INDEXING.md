@@ -32,7 +32,12 @@
 - **PDF text (built, T301):** physical-page chunks, FTS and the existing semantic queue;
   matched-page labels and indexed text Quick Look, unchanged generation/vectors (ADR-039).
   Consent-scoped, bounded Rust parser; scans/encryption/limits have explicit skip codes.
-  T302 adds on-demand rendered pages/navigation; images/OCR remain T303/T304.
+  T302 adds on-demand rendered pages/navigation; scanned PDF indexing remains future.
+- **Images (built, T303):** bounded PNG/JPEG/WebP/BMP metadata and native q4 visual
+  embeddings in the existing queue/generation (ADR-041). Optional consented 109 MB vision
+  download, CPU image inference, CPU queries; text GPU indexing unchanged. Root meaning
+  queries, `type:image`, file actions and metadata/coverage Quick Look work on the same ID.
+  OCR/Drop/Similar and image raster previews remain separate. Native review is pending.
 
 ## 1. Retrieval philosophy
 
@@ -202,7 +207,7 @@ hints coalesce at 4,096 paths, with 300 ms quiet / 2 s storm deadline; loss/over
 a 5 s delayed recovery inventory. Events preempt embedding at its existing batch boundary.
 Only scoped paths are pruned, after upserts and availability checks. Same-metadata writes,
 replacement identities, hard links, case-only renames and marker exclusions are covered.
-Ambiguous rename/write hints compare bounded indexed text chunks within content consent;
+Ambiguous rename/write hints compare bounded indexed text or T303 image digests within content consent;
 unchanged moves retain vectors. No every-file body hash or USN journal is introduced.
 
 For each item track enough metadata to avoid unnecessary extraction:
@@ -289,15 +294,28 @@ Result opens directly at matched page when the target viewer supports it; otherw
 
 ## 11. Image indexing
 
-For each image:
+T303 implementation: `lumen-image` performs local bounded headers/digest, EXIF orientation,
+RGB decode and pinned Gemma patch preprocessing. Only content-enabled locations are read;
+names-only/offline placeholders remain inventory. Supported codecs: PNG/JPEG/WebP/BMP.
+Admission: 16 MiB compressed, 32M pixels, 16,384 px/side, 192 MiB decoder allocation.
+Other formats/malformed/oversized files have explicit skip coverage. Only dimensions,
+format, orientation and local SHA-256 persist; no EXIF GPS, camera history or pixels.
 
-- vision embedding;
-- EXIF/basic metadata where available;
-- optional OCR text;
-- dimensions;
-- perceptual hash optional for duplicate detection.
+One empty `image` chunk has no caption/name/OCR FTS text. The optional pinned vision q4
+encoder feeds the existing text q4 backbone and normalized 256d space. Missing assets
+defer image vectors while text drains. One image at a time, below text priority; CPU
+sessions load lazily, share the CPU indexing backbone, unload when drained/paused, and
+visual work waits on battery. Holds apply at image boundaries; native calls cannot be
+hard-interrupted. Source changes during inference cannot publish a stale vector. Schema
+v5 and watcher updates preserve unchanged text/code/PDF and unchanged moved image vectors.
 
-Do not generate captions merely to make semantic search work; EmbeddingGemma 2 already supports cross-modal retrieval.
+Ordinary descriptions (optionally `type:image`/`ext:jpg`) use the settled meaning lane;
+filename results remain first and never wait for inference. Enter/Open, Ctrl+Enter/Reveal,
+Ctrl+K/Copy path and Alt+Enter metadata/visual coverage use the existing file identity.
+No image raster preview is added. See `specs/T303-images.md` and release evidence in
+`benchmarks/t303/2026-10-09-joao-pc/`: roughly 9–11 s/image on this loaded CPU, two public
+photos correctly ranked from English/Spanish descriptions. This is not broad relevance
+or library-throughput evidence. OCR text is T304; perceptual duplicate hashes are future.
 
 OCR is complementary for exact visible text such as screenshots.
 
@@ -305,7 +323,8 @@ OCR is complementary for exact visible text such as screenshots.
 
 Screenshots are a high-value category.
 
-Index:
+T303 provides visual embeddings for supported screenshot formats. T304 OCR is not built.
+The remaining target is:
 
 - image semantic embedding;
 - OCR text;

@@ -149,6 +149,57 @@ describe("results", () => {
 });
 
 describe("diagnostics", () => {
+  it("projects bounded image context without hashes, pixels or action targets", () => {
+    const image = {
+      width: 1920,
+      height: 1080,
+      orientation: 6,
+      format: "JPEG",
+      visualState: "indexed",
+      digest: "private",
+      path: "private",
+      rgb: [1],
+    };
+    const result = (context: unknown) =>
+      toResultsUpdate({
+        queryId: 1,
+        results: [{ id: "item:1", title: "0001.jpg", kind: "image", image: context }],
+      })?.results[0];
+    expect(result(image)?.kind).toBe("image");
+    expect(result(image)?.image).toEqual({
+      width: 1920,
+      height: 1080,
+      orientation: 6,
+      format: "JPEG",
+      visualState: "indexed",
+    });
+    for (const invalid of [
+      { width: 0 },
+      { height: Infinity },
+      { orientation: 9 },
+      { visualState: "ready" },
+    ]) {
+      expect(result({ ...image, ...invalid })?.image).toBeUndefined();
+    }
+    expect(
+      result({
+        width: null,
+        height: null,
+        orientation: null,
+        format: null,
+        visualState: "skipped",
+        reason: "image:unsupported",
+        path: "private",
+      })?.image,
+    ).toEqual({
+      width: null,
+      height: null,
+      orientation: null,
+      format: null,
+      visualState: "skipped",
+      reason: "image:unsupported",
+    });
+  });
   it("passes development diagnostics through when present", () => {
     const u = toResultsUpdate({
       queryId: 1,
