@@ -8,18 +8,19 @@ use std::time::{Duration, Instant};
 
 use lumen_core::CancellationToken;
 use lumen_extract::{
-    ChunkConfig, DEFAULT_MAX_BYTES, EXTRACTOR_VERSION, ExtractError, Skip, TEXT_EXTENSIONS,
-    TokenCount, chunk, extract_file,
+    ChunkConfig, DEFAULT_MAX_BYTES, EXTRACTOR_VERSION, ExtractError, IndexError, IndexedDocument,
+    PdfError, PdfLimits, Skip, TEXT_EXTENSIONS, TokenCount, extract_indexed_file,
 };
 use lumen_storage::{ContentOutcome, ContentWrite, NewChunk, StorageError, Store};
 
 #[derive(Debug, Clone, Copy)]
 pub struct PassConfig {
-    /// Files above this size are skipped (`too_large`).
+    /// Text/code files above this size are skipped (`too_large`); PDFs have separate limits.
     pub max_bytes: u64,
     /// Files per write transaction.
     pub batch_files: usize,
     pub chunk: ChunkConfig,
+    pub pdf: PdfLimits,
 }
 
 impl Default for PassConfig {
@@ -28,6 +29,7 @@ impl Default for PassConfig {
             max_bytes: DEFAULT_MAX_BYTES,
             batch_files: 32,
             chunk: ChunkConfig::default(),
+            pdf: PdfLimits::default(),
         }
     }
 }
@@ -65,10 +67,11 @@ pub fn run_content_pass(
     let started = Instant::now();
     let mut report = PassReport::default();
     let mut cursor = 0;
+    let extensions: Vec<_> = TEXT_EXTENSIONS.iter().copied().chain(["pdf"]).collect();
     loop {
         let candidates = store.content_candidates(
             cursor,
-            TEXT_EXTENSIONS,
+            &extensions,
             EXTRACTOR_VERSION,
             cfg.batch_files.max(1),
         )?;
@@ -84,10 +87,14 @@ pub fn run_content_pass(
                 break;
             }
             let path = lumen_catalog::path::decode(&c.path, c.raw_path.as_deref());
-            let result = extract_file(&path, cfg.max_bytes).map(|doc| {
-                let chunks = chunk(&doc, &cfg.chunk, counter);
-                (doc, chunks)
-            });
+            let result =
+                extract_indexed_file(&path, cfg.max_bytes, &cfg.pdf, &cfg.chunk, counter, &|| {
+                    cancel.is_cancelled()
+                });
+            // Cancellation leaves this PDF pending; never commit a partial/failed extraction.
+            if matches!(result, Err(IndexError::Pdf(PdfError::Cancelled))) {
+                break;
+            }
             extracted.push((c.item_id, c.fingerprint(), result));
         }
         let writes: Vec<ContentWrite<'_>> = extracted
@@ -105,13 +112,15 @@ pub fn run_content_pass(
         for (_, _, result) in &extracted {
             report.files += 1;
             match result {
-                Ok((doc, chunks)) => {
+                Ok(IndexedDocument { doc, chunks }) => {
                     report.indexed += 1;
                     report.chunks += chunks.len() as u64;
                     report.text_bytes += doc.text.len() as u64;
                 }
-                Err(ExtractError::Skipped(_)) => report.skipped += 1,
-                Err(ExtractError::Io(_)) => report.failed += 1,
+                Err(IndexError::Text(ExtractError::Io(_)) | IndexError::Pdf(PdfError::Io(_))) => {
+                    report.failed += 1
+                }
+                Err(_) => report.skipped += 1,
             }
         }
         report.elapsed = started.elapsed();
@@ -129,30 +138,42 @@ pub fn run_content_pass(
     Ok(report)
 }
 
-type Extraction = Result<(lumen_extract::Extracted, Vec<lumen_extract::Chunk>), ExtractError>;
+type Extraction = Result<IndexedDocument, IndexError>;
 
 fn outcome(result: &Extraction) -> ContentOutcome<'_> {
     match result {
-        Ok((doc, chunks)) => ContentOutcome::Indexed(
+        Ok(IndexedDocument { doc, chunks }) => ContentOutcome::Indexed(
             chunks
                 .iter()
-                .map(|c| NewChunk {
-                    item_id: 0,
-                    ordinal: i64::from(c.ordinal),
-                    chunk_kind: c.kind.as_str(),
-                    text: c.text(&doc.text),
-                    symbol_name: c.symbol.as_deref(),
-                    page_number: None,
-                    start_offset: i64::try_from(c.start).ok(),
-                    end_offset: i64::try_from(c.end).ok(),
+                .map(|indexed| {
+                    let c = &indexed.chunk;
+                    NewChunk {
+                        item_id: 0,
+                        ordinal: i64::from(c.ordinal),
+                        chunk_kind: c.kind.as_str(),
+                        text: c.text(&doc.text),
+                        symbol_name: c.symbol.as_deref(),
+                        page_number: indexed.page_number.map(i64::from),
+                        start_offset: i64::try_from(c.start).ok(),
+                        end_offset: i64::try_from(c.end).ok(),
+                    }
                 })
                 .collect(),
         ),
-        Err(ExtractError::Skipped(Skip::Binary)) => ContentOutcome::Skipped("binary"),
-        Err(ExtractError::Skipped(Skip::TooLarge(_))) => ContentOutcome::Skipped("too_large"),
+        Err(IndexError::Text(ExtractError::Skipped(Skip::Binary))) => {
+            ContentOutcome::Skipped("binary")
+        }
+        Err(IndexError::Text(ExtractError::Skipped(Skip::TooLarge(_)))) => {
+            ContentOutcome::Skipped("too_large")
+        }
         // Candidates are filtered by extension, so this only happens if the lists diverge.
-        Err(ExtractError::Skipped(Skip::Unsupported)) => ContentOutcome::Skipped("unsupported"),
-        Err(ExtractError::Io(kind)) => ContentOutcome::Failed(io_code(*kind)),
+        Err(IndexError::Text(ExtractError::Skipped(Skip::Unsupported))) => {
+            ContentOutcome::Skipped("unsupported")
+        }
+        Err(IndexError::Text(ExtractError::Io(kind)) | IndexError::Pdf(PdfError::Io(kind))) => {
+            ContentOutcome::Failed(io_code(*kind))
+        }
+        Err(IndexError::Pdf(err)) => ContentOutcome::Skipped(err.code()),
     }
 }
 

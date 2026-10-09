@@ -468,6 +468,39 @@ describe("App overlay", () => {
       expect(previewResult).toHaveBeenCalledTimes(2);
     });
 
+    it("refreshes PDF page context without changing the selected file or query", async () => {
+      results = {
+        rows: [{ ...file("item:1"), kind: "pdf-page", pdf: { pageNumber: 2 } }],
+        status: "searching",
+        queryId: 7,
+      };
+      const { rerender } = render(<App />);
+      await userEvent.keyboard("{Alt>}{Enter}{/Alt}");
+      expect(await screen.findByText(/hola/)).toBeInTheDocument();
+      vi.mocked(previewResult).mockResolvedValueOnce({
+        title: "guide.pdf",
+        kind: "pdf-page",
+        location: null,
+        sizeBytes: null,
+        modifiedMs: null,
+        text: "coastal habitat",
+        truncated: true,
+        pageNumber: 7,
+      });
+      results = {
+        rows: [{ ...file("item:1"), kind: "pdf-page", pdf: { pageNumber: 7 } }],
+        status: "done",
+        queryId: 7,
+      };
+      rerender(<App />);
+      expect(
+        await within(screen.getByRole("complementary")).findByText(/coastal habitat/),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("complementary")).toHaveTextContent("Page 7");
+      expect(screen.getByRole("option")).toHaveAttribute("aria-selected", "true");
+      expect(previewResult).toHaveBeenCalledTimes(2);
+    });
+
     it("covers the list when the monitor is too narrow for two panes", async () => {
       vi.mocked(resizeOverlay).mockImplementation((_w, height) =>
         Promise.resolve({ width: 1000, height }),

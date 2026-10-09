@@ -29,6 +29,10 @@
 - **Query syntax (built, T208):** root `type/ext/in/before/after` hard filters across all
   lanes, metadata-only queries and required quoted lexical phrases. Same model/index and
   unfiltered ranking; bounded semantic overfetch. See `specs/T208-query-syntax.md`.
+- **PDF text (built, T301):** physical-page chunks, FTS and the existing semantic queue;
+  matched-page labels and indexed text Quick Look, unchanged generation/vectors (ADR-039).
+  Consent-scoped, bounded Rust parser; scans/encryption/limits have explicit skip codes.
+  Rendered previews/page jumps remain T302, images/OCR T303/T304.
 
 ## 1. Retrieval philosophy
 
@@ -260,6 +264,12 @@ indexing; moves clear stale metadata immediately, then the background pass redis
 No editor CLI is guessed and offsets are not treated as raw-file line numbers.
 
 ## 10. PDF indexing
+
+Built text path (T301): see `specs/T301-pdf-text.md` and ADR-039. Text-bearing PDF pages
+are independently chunked, including physical numbering through blank pages. Existing
+FTS/semantic providers retain one file row with its best matched page. Alt+Enter shows
+the indexed passage and page; Enter opens the registered PDF file handler. The rendering
+and direct-page-navigation portions below remain T302; scans need future OCR/vision.
 
 Two complementary representations:
 

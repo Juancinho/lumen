@@ -26,6 +26,8 @@ lumen-semantic = { path = "crates/lumen-semantic" }
 lumen-provision = { path = "crates/lumen-provision" }
 unicode-normalization = "0.1.24"
 memory-stats = "1.2.0"
+# PDF text parsing, with bounded stream decoding and no parallel parser pool (ADR-039).
+lopdf = { version = "=0.45.0", default-features = false }
 # SQLite canonical store (ADR-003). Bundled: same SQLite (with FTS5) on every machine.
 rusqlite = { version = "0.40.2", features = ["bundled", "hooks"] }
 # Stable file identity: volume serial + NTFS file id (Windows), dev + inode (Unix).

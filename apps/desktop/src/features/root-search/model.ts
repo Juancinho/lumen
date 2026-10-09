@@ -2,7 +2,7 @@
  * What a result row shows (T103). UI-side view model: T107 maps the shell's result DTOs
  * into it, tests and previews build it directly. Never carries scores (DESIGN_SYSTEM §10).
  */
-export type ResultKind = "application" | "file" | "folder" | "command" | "code";
+export type ResultKind = "application" | "file" | "folder" | "command" | "code" | "pdf-page";
 
 export interface ResultRowModel {
   /** Stable result id (`item:42`); React key and selection identity. */
@@ -19,6 +19,7 @@ export interface ResultRowModel {
   /** Lowercase file extension without the dot, for the file glyph badge. */
   extension: string | null;
   code?: { symbol: string | null; language: string; repository: string | null } | null;
+  pdf?: { pageNumber: number } | null;
   /** Action id Enter runs. */
   primaryAction: string;
   /** Development diagnostics line (T110), e.g. `lumen.catalog · prefix · 0.82`. */
@@ -36,6 +37,8 @@ export function kindLabel(row: Pick<ResultRowModel, "kind" | "extension">): stri
       return "Command";
     case "code":
       return row.extension ? row.extension.toUpperCase() : "Code";
+    case "pdf-page":
+      return "PDF";
     case "file":
       return row.extension ? row.extension.toUpperCase() : "File";
   }

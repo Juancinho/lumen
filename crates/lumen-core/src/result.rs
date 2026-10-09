@@ -21,6 +21,8 @@ pub enum ResultKind {
     File,
     /// A matching code passage, retaining the file's entity identity.
     Code,
+    /// A text passage on a physical PDF page, retaining the file's entity identity.
+    PdfPage,
     Folder,
     Application,
     /// A built-in or system command (Windows setting, system action).
@@ -141,6 +143,7 @@ pub enum Payload {
     Path(PathBuf),
     /// File plus the matching code passage. Boxed to keep the hot result compact.
     Code(Box<CodeTarget>),
+    Pdf(Box<PdfTarget>),
     /// A textual value (calculation result, URL).
     Text(Box<str>),
     /// Opaque key the owning provider resolves itself (app user-model id, setting URI).
@@ -162,12 +165,22 @@ pub struct CodeTarget {
     pub passage: String,
 }
 
+/// Trusted page context from the indexed PDF text layer. Opening still uses the file
+/// handler; rendering and viewer-specific page navigation belong to T302.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PdfTarget {
+    pub path: PathBuf,
+    pub page_number: std::num::NonZeroU32,
+    pub passage: String,
+}
+
 impl Payload {
     #[must_use]
     pub fn local_path(&self) -> Option<&std::path::Path> {
         match self {
             Self::Path(path) => Some(path),
             Self::Code(code) => Some(&code.path),
+            Self::Pdf(pdf) => Some(&pdf.path),
             _ => None,
         }
     }

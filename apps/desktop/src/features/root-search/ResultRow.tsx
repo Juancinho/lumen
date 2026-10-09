@@ -38,7 +38,11 @@ export function ResultRow({
   onActivate,
 }: ResultRowProps) {
   const title =
-    row.kind === "code" && row.code?.symbol ? `${row.code.symbol} · ${row.title}` : row.title;
+    row.kind === "code" && row.code?.symbol
+      ? `${row.code.symbol} · ${row.title}`
+      : row.kind === "pdf-page" && row.pdf
+        ? `Page ${String(row.pdf.pageNumber)} · ${row.title}`
+        : row.title;
   return (
     // Keyboard selection/activation is owned by the combobox input (focus never moves
     // into the list), so the option only needs pointer handlers.

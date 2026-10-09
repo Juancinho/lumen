@@ -5,20 +5,80 @@
 
 ## Branch and exact continuation
 
-main on github.com/Juancinho/lumen. This session continues cc416de (T212) with T208,
-the next ordered implementation while the user's resident application indexes.
-Inspect git status/log for the coherent T208 commit. No push was requested/performed.
-T208 is REVIEW; no implementation task remains claimed. Native checks below remain.
-Next implementation is T301 PDF text/page extraction, per TASKS → Next and its T201
-dependency. Read SEARCH_AND_INDEXING (PDF/extraction), RELEASE_AND_LICENSING and touched
-ADRs after the canonical reading order, then claim T301. Do not skip to productivity/
-workflows or silently add image/OCR scope. Preserve current model/index/ranking architecture.
+main on github.com/Juancinho/lumen. This session continues d2b9f55 (T208) with the
+next ordered T301 while the user's resident application indexes. Inspect git status/log
+for the coherent T301 commit. No push was requested/performed.
+T301 is REVIEW; no implementation task remains claimed. Native checks below remain.
+Next implementation is T302 PDF thumbnails/Quick Look and page navigation. Follow the
+canonical reading order, then SEARCH_AND_INDEXING §10, RELEASE_AND_LICENSING,
+specs/T301-pdf-text.md and ADR-039/036/032/025. Claim T302 before implementation, define
+its bounded rendering/viewer contract and license evidence, and reuse current PDF targets,
+actions, preview lifecycle and index. Do not add image/OCR/productivity/workflow scope.
 
-Resident process inspected read-only: PID 7404/start 2026-10-09 18:04:57 +02:00,
-target/t212-release/lumen.exe, loading its beside-exe onnxruntime.dll and DirectML.dll.
+Resident inspected read-only: PID 7404/start 2026-10-09 18:04:57 +02:00,
+target/t212-release/lumen.exe. Previous native module inspection found its beside-exe
+onnxruntime.dll and DirectML.dll. Do not infer current GPU use solely from loaded DLLs.
 The agent did not stop/restart it, alter its settings or write its live app-data DB.
 All validation writes used synthetic temporary databases. Inspect current PIDs before
-acting; a stale second launch only addresses the existing single-instance process.
+acting; a second launch addresses the existing single-instance process until it quits.
+
+## T301 — implementation and native review
+
+Read specs/T301-pdf-text.md and ADR-039. Files: lumen-extract indexed/pdf, content pass,
+shared move verification, ChunkRef.page_number, core PdfTarget/Payload/ResultKind,
+catalog/semantic projection and fusion; desktop DTO/preview and typed frontend rows.
+The frontend event decoder also required a fix: it discarded code metadata/kinds and
+would discard PDF context. Real-event tests now cover both and strip extra payload fields.
+
+Pinned lopdf 0.45.0 without default features extracts text only on the existing writer
+thread, per physical page, preserving blank-page numbering. Limits: 16 MiB file,
+512 pages, 4 MiB per load/page/font stream and combined text, cooperative 5 s deadline.
+No hard parser-call interrupt/total heap sandbox; uncommon font/column reading order can
+be imperfect. Cancellation leaves the PDF pending without partial chunks; immutable
+scan/encrypted/malformed/limit failures have stable pdf:* coverage skip codes. I/O retries.
+
+Existing page_number column is used: no schema migration, EXTRACTOR_VERSION/model/
+generation/fusion-weight change. Text/code vectors remain. PDFs use the same resumable
+embedding queue, selected CPU/GPU indexing backend and CPU queries; new PDF chunks must
+be embedded before meaning retrieval. Name/lexical search works offline without a model.
+One row per file has its best page/passage paired through fusion; exact filename rows
+retain file presentation. Page prefix stays visible for long names. Enter opens the file,
+Ctrl+Enter reveals, Ctrl+K uses existing file actions, Alt+Enter shows indexed page text.
+Rendered thumbnails/page previews and direct page navigation remain T302; scans need
+future OCR/vision. Consent locations, exclusions/placeholders and OS paths stay unchanged.
+
+Windows release evidence: docs/benchmarks/t301/2026-10-09-joao-pc/README.md and pdf-text.json.
+128-page synthetic extraction p95 14.848 ms; 100 PDFs/600 chunks content pass 54.166 ms;
+settled FTS p95 4.002 ms with 30 page-3 hits; unchanged resume processes 0 files.
+Simple standard-font warm corpus, no model/GPU work, not a real-library ETA or peak heap
+measurement. Browser component visual review at 1280x720 passed with page 7/123,
+long titles, text preview and accessible selected row; native window checks remain.
+
+Native checklist after the user's chosen quit/switch to the new bundle:
+
+1. A location with Index file contents enabled: a real text PDF with a unique term on
+   a later page and a blank page before it. Search that term with ext:pdf, check Page N
+   matches the physical page. type:document and quoted phrases obey current filters.
+2. With installed model, wait for those chunks to embed; a meaning query with ext:pdf
+   must show the same kind of page/text context. Lexical works offline/model absent.
+3. Arrows/PageDown before refinement, Alt+Enter followed by another query: preserve focus,
+   selected identity and matching page. Enter opens the file (not yet at Page N),
+   Ctrl+Enter reveals, Ctrl+K/Copy path and Escape work. Check IME and narrow preview.
+4. Rename a PDF, edit its text, then restart: unchanged completed vectors survive;
+   changed passages refresh. Names-only location must not extract the PDF.
+5. Scan-only/encrypted/broken/oversized PDFs remain findable by filename and increment
+   coverage skips; they do not acquire invented semantic/OCR text. No page images yet.
+
+Ship docs/licenses/pdf-extractor-notices.txt with existing model/runtime notices;
+scripts/t301/pdf-notices.ps1 regenerates all 28 added pinned package notices offline.
+alloc-stdlib's omitted root license is checked in and tied to its exact VCS commit.
+
+Delivered target/t301-release/lumen.exe (custom-protocol optimized build), SHA-256
+8E1C1938CC541A2DDFF20AC29C16677FF922A7DF637F62AB00810C8903E1EFDA.
+Latest frontend index-yOz2oRLU.js is embedded. Beside-exe DirectML/runtime/notices match
+the verified T212 bundle hashes; PdfExtractorNotices.txt is also included. The running
+T212 executable was left untouched. Use the exact launch under T212 below only after
+the user's chosen Quit Lumen; installed model assets need no development overrides.
 
 ## T208 — implementation and native review
 
@@ -76,14 +136,14 @@ A GPU runtime already beside the exe supports toggling without another restart.
 Development downloaded this fixed runtime wheel for hash/extraction validation; cached
 models were reused. No indexed content/files/queries went into probes or left the device.
 
-Usable optimized T208 output, including T212 and verified DLLs/notices:
-target/t208-release/lumen.exe. Keep the current process indexing. After the user chooses
+Usable optimized T301 output, including T208/T212 and verified DLLs/notices:
+target/t301-release/lumen.exe. Keep the current process indexing. After the user chooses
 Quit Lumen in the current tray, run from repository root:
 
 ```powershell
 $env:LUMEN_EMBED_MODEL_DIR = "$PWD\.cache\t006\embeddinggemma-2-ONNX"
-$env:LUMEN_ORT_DYLIB = "$PWD\target\t208-release\onnxruntime.dll"
-.\target\t208-release\lumen.exe
+$env:LUMEN_ORT_DYLIB = "$PWD\target\t301-release\onnxruntime.dll"
+.\target\t301-release\lumen.exe
 ```
 
 Installed model/runtime assets need no development overrides. A stale CPU override masks
@@ -209,12 +269,13 @@ npm --prefix apps/desktop run typecheck
 npm --prefix apps/desktop run test -- --maxWorkers 1
 npm --prefix apps/desktop run build
 cargo build --release -p lumen-desktop --bin lumen --features tauri/custom-protocol --locked -j 2
-cargo run --release -p lumen-bench --example query_syntax --locked -j 2 -- target/t208-timing.json
+cargo run --release -p lumen-bench --example pdf_text --locked -j 2 -- target/t301-timing.json
 ```
 
-T208 ran the full Rust gate, workspace lint, architecture guard and 71 frontend tests/build.
-The new query-syntax example measured a synthetic release catalog; no UI layout changed
-and no visible native inspection was claimed. T212's DirectML/runtime checks remain valid.
+T301 ran the full Rust gate (349 passed, 2 network tests ignored; 34 shell tests included),
+workspace lint plus DirectML-feature lint, the 14-crate architecture guard and 76 frontend
+tests/build. PDF extraction/FTS release measurements and browser component visual review
+passed; native overlay/real-PDF checks remain. T212's DirectML/runtime checks remain valid.
 T212 previously ran the optional local-wheel test with LUMEN_TEST_GPU_WHEEL_DIR=.cache/t212; normal
 tests skip it without a supplied wheel. Real network/model download tests remain ignored.
 See T212 README for native release probe/example commands and limitations.

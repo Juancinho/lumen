@@ -431,24 +431,35 @@ fn matching_move_content(
     entry: &CatalogEntry<'_>,
 ) -> Result<bool, StorageError> {
     use lumen_extract::{
-        ChunkConfig, DEFAULT_MAX_BYTES, EXTRACTOR_VERSION, EstimateTokens, chunk, extract_file,
+        ChunkConfig, DEFAULT_MAX_BYTES, EXTRACTOR_VERSION, EstimateTokens, PdfLimits,
+        extract_indexed_file,
     };
     let path = decode(entry.path, entry.raw_path);
-    let Ok(doc) = extract_file(&path, DEFAULT_MAX_BYTES) else {
+    let Ok(indexed) = extract_indexed_file(
+        &path,
+        DEFAULT_MAX_BYTES,
+        &PdfLimits::default(),
+        &ChunkConfig::default(),
+        &EstimateTokens,
+        &|| false,
+    ) else {
         return Ok(false);
     };
-    let chunks = chunk(&doc, &ChunkConfig::default(), &EstimateTokens);
-    let expected: Vec<_> = chunks
+    let expected: Vec<_> = indexed
+        .chunks
         .iter()
-        .map(|c| lumen_storage::NewChunk {
-            item_id: id,
-            ordinal: i64::from(c.ordinal),
-            chunk_kind: c.kind.as_str(),
-            text: c.text(&doc.text),
-            symbol_name: c.symbol.as_deref(),
-            page_number: None,
-            start_offset: i64::try_from(c.start).ok(),
-            end_offset: i64::try_from(c.end).ok(),
+        .map(|piece| {
+            let c = &piece.chunk;
+            lumen_storage::NewChunk {
+                item_id: id,
+                ordinal: i64::from(c.ordinal),
+                chunk_kind: c.kind.as_str(),
+                text: c.text(&indexed.doc.text),
+                symbol_name: c.symbol.as_deref(),
+                page_number: piece.page_number.map(i64::from),
+                start_offset: i64::try_from(c.start).ok(),
+                end_offset: i64::try_from(c.end).ok(),
+            }
         })
         .collect();
     store.content_matches(id, &expected, EXTRACTOR_VERSION)

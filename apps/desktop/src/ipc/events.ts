@@ -59,7 +59,29 @@ export const RESULTS = "lumen:results";
 /** Mirrors `catalog::EVENT_CHANGED` in `src-tauri/src/catalog.rs`. */
 export const CATALOG_CHANGED = "lumen:catalog-changed";
 
-const KINDS = new Set(["application", "file", "folder", "command"]);
+const KINDS = new Set(["application", "file", "folder", "command", "code", "pdf-page"]);
+
+function toCodeContext(raw: unknown): ResultView["code"] {
+  const code = raw as { symbol?: unknown; language?: unknown; repository?: unknown } | null;
+  if (typeof code?.language !== "string") return null;
+  return {
+    symbol: typeof code.symbol === "string" ? code.symbol : null,
+    language: code.language,
+    repository: typeof code.repository === "string" ? code.repository : null,
+  };
+}
+
+function toPdfContext(raw: unknown): ResultView["pdf"] {
+  const pdf = raw as { pageNumber?: unknown } | null;
+  if (
+    typeof pdf?.pageNumber !== "number" ||
+    !Number.isInteger(pdf.pageNumber) ||
+    pdf.pageNumber < 1 ||
+    pdf.pageNumber > 0xffffffff
+  )
+    return null;
+  return { pageNumber: pdf.pageNumber };
+}
 
 function toResultDiagnostics(raw: unknown): ResultDiagnostics | null {
   const d = raw as Partial<Record<keyof ResultDiagnostics, unknown>> | null | undefined;
@@ -84,6 +106,8 @@ function toResult(raw: unknown): ResultView | null {
   const r = raw as Partial<Record<keyof ResultView, unknown>> | null;
   if (typeof r?.id !== "string" || typeof r.title !== "string") return null;
   const kind = typeof r.kind === "string" && KINDS.has(r.kind) ? r.kind : "file";
+  const code = toCodeContext(r.code);
+  const pdf = toPdfContext(r.pdf);
   return {
     id: r.id,
     kind: kind as ResultView["kind"],
@@ -91,6 +115,8 @@ function toResult(raw: unknown): ResultView | null {
     detail: typeof r.detail === "string" ? r.detail : null,
     snippet: typeof r.snippet === "string" ? r.snippet : null,
     extension: typeof r.extension === "string" ? r.extension : null,
+    ...(code ? { code } : {}),
+    ...(pdf ? { pdf } : {}),
     primaryAction: typeof r.primaryAction === "string" ? r.primaryAction : "",
     diagnostics: toResultDiagnostics(r.diagnostics),
   };

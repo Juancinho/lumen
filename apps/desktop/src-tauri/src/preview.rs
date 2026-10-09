@@ -113,6 +113,7 @@ fn kind_name(kind: ResultKind) -> &'static str {
         ResultKind::Folder => "folder",
         ResultKind::Command => "command",
         ResultKind::Code => "code",
+        ResultKind::PdfPage => "pdf-page",
         _ => "file",
     }
 }
@@ -127,10 +128,16 @@ pub(crate) fn preview(item: &ResultItem) -> PreviewDto {
         modified_ms: None,
         text: None,
         truncated: false,
+        page_number: None,
     };
     if let Payload::Code(code) = &item.payload {
         dto.text = Some(code.passage.clone());
         // It is the indexed matching passage, rather than the complete file.
+        dto.truncated = true;
+    }
+    if let Payload::Pdf(pdf) = &item.payload {
+        dto.text = Some(pdf.passage.clone());
+        dto.page_number = Some(pdf.page_number.get());
         dto.truncated = true;
     }
     let Some(path) = item.payload.local_path() else {
@@ -259,6 +266,21 @@ mod tests {
             "Quick Look shows the matching passage even beyond its file-read budget"
         );
         assert!(p.truncated);
+        let mut pdf = code;
+        pdf.kind = ResultKind::PdfPage;
+        pdf.payload = Payload::Pdf(Box::new(lumen_core::PdfTarget {
+            path: dir.join("missing.pdf"),
+            page_number: std::num::NonZeroU32::new(7).unwrap(),
+            passage: "matching page seven".into(),
+        }));
+        let p = preview(&pdf);
+        assert_eq!(p.kind, "pdf-page");
+        assert_eq!(p.page_number, Some(7));
+        assert_eq!(p.text.as_deref(), Some("matching page seven"));
+        assert!(
+            p.truncated,
+            "preview uses the indexed passage without parsing the PDF again"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

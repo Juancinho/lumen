@@ -233,6 +233,11 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
   indexed passage. Enter keeps the registered file handler. Migration 0004 preserves all
   vectors; the background content pass backfills metadata, so no model download/re-embedding
   is required for lexical code search.
+- PDF text hits (T301, ADR-039): enable "Index file contents" for a location, then search
+  words/meaning with `ext:pdf`. Text pages enter the existing FTS/embedding queue; a hit
+  shows its physical page and Alt+Enter displays the indexed passage. Enter still opens
+  the PDF file handler. Rendering/direct page jumps are T302; scanned PDFs need future
+  OCR/vision. No migration/re-embedding of unchanged text/code or model download is added.
 - On every show the shell emits `lumen:overlay-shown`; the UI focuses and selects the query.
 - Diagnostics mode (T110): `LUMEN_DIAGNOSTICS=1` adds provider · match kind · confidence
   under every result row and logs per-query timing/failed providers to the WebView console

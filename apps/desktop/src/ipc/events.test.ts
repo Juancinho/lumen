@@ -63,6 +63,48 @@ describe("appearance", () => {
 });
 
 describe("results", () => {
+  it("keeps typed PDF/code context through the actual event decoder", () => {
+    const update = toResultsUpdate({
+      queryId: 7,
+      done: true,
+      results: [
+        {
+          id: "item:1",
+          kind: "pdf-page",
+          title: "guide.pdf",
+          pdf: { pageNumber: 7, path: "untrusted" },
+        },
+        {
+          id: "item:2",
+          kind: "code",
+          title: "client.py",
+          code: { symbol: "retry", language: "python", repository: "lumen", path: "untrusted" },
+        },
+        { id: "item:3", kind: "file", title: "exact.pdf", pdf: { pageNumber: 3 } },
+      ],
+    });
+    expect(update?.results[0]).toMatchObject({ kind: "pdf-page", pdf: { pageNumber: 7 } });
+    expect(update?.results[0]?.pdf).toEqual({ pageNumber: 7 });
+    expect(update?.results[1]).toMatchObject({
+      kind: "code",
+      code: { symbol: "retry", language: "python", repository: "lumen" },
+    });
+    expect(update?.results[1]?.code).toEqual({
+      symbol: "retry",
+      language: "python",
+      repository: "lumen",
+    });
+    expect(update?.results[2]).toMatchObject({ kind: "file", pdf: { pageNumber: 3 } });
+  });
+  it("rejects invalid physical PDF page metadata", () => {
+    for (const pageNumber of [0, -1, 1.5, "7", NaN, Infinity, 0x100000000, null]) {
+      const update = toResultsUpdate({
+        queryId: 7,
+        results: [{ id: "item:1", kind: "pdf-page", title: "guide.pdf", pdf: { pageNumber } }],
+      });
+      expect(update?.results[0]?.pdf).toBeUndefined();
+    }
+  });
   it("validates updates and drops malformed rows", () => {
     expect(toResultsUpdate(null)).toBeNull();
     expect(toResultsUpdate({ queryId: "1", results: [] })).toBeNull();

@@ -145,6 +145,7 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
   same-generation fallback; release queue 6.80 chunks/s, CPU query p95 65 ms; native tray review pending.
 - **T208 REVIEW:** root type/ext/path/date hard filters and quoted lexical phrases;
   same model/index, names p95 13 ms on synthetic 100k; native root/keyboard review pending.
+- **T301 REVIEW (ADR-039):** bounded PDF page text/FTS/semantic hits, existing vectors retained; native review pending.
 - **T111 REVIEW (ADR-027):** indexed locations + exclusions in one versioned setting; tray
   → Indexed locations / Exclusions (native folder picker), per-location state, developer
   noise and marker-based build folders excluded by default (visible, toggleable), Action
@@ -152,16 +153,15 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
   keystroke p95 7.1 ms.
 - **T110 REVIEW:** `LUMEN_DIAGNOSTICS=1` shows provider/match kind/confidence per row and
   logs per-query timings; absent from the wire otherwise.
-- **T105 REVIEW:** Quick Look (Alt+Enter): window widens right, preview beside the list
-  (or over it on narrow monitors) with metadata and a bounded text excerpt (16 KB read,
-  4,000 chars, text extensions only, binaries rejected).
+- **T105 REVIEW:** Alt+Enter Quick Look beside results (over them on narrow monitors):
+  metadata/text excerpt, 16 KB read/4,000 chars; text-only, binaries rejected.
 - Not yet: real icons, rich previews (images/PDF), pin/open-with UI.
 
 ## Immediate objective
 
 1. Close M1 Windows REVIEW checklists in `HANDOFF.md`: search, keys, actions, Quick Look/material.
-2. Finish M2 reviews/runtime verdict (T014); T208 is implemented. Next milestone task is
-   T301 PDF extraction, ordered in `TASKS.md` → **Next**; Windows reviews remain open.
+2. Finish M2 reviews/runtime verdict (T014); T301 PDF text is implemented. Next task is
+   T302 rendered PDF previews/page navigation in `TASKS.md` → **Next**; Windows reviews remain open.
 
 ## M1 gate (instant launcher)
 

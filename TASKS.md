@@ -41,7 +41,8 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
     queue and compatibility measured; native tray/persistence/download checks in HANDOFF.
 15. ~~T208~~ query syntax — REVIEW: hard filters and quoted lexical phrases implemented;
     Windows release 100k synthetic timing measured, native root/keyboard checks in HANDOFF.
-    Next implementation is **T301** PDF extraction; read its domain spec and claim it
+16. ~~T301~~ PDF text/page extraction — REVIEW (ADR-039): real-PDF/keyboard checks in HANDOFF.
+    Next implementation is **T302** PDF thumbnails/Quick Look + page navigation; read its domain spec and claim it
     before implementation. The Windows REVIEW checks above remain open.
 
 # M0 — technical spikes and foundation
@@ -102,7 +103,7 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 
 | ID   | Status | Owner | Task                                                         | Depends on     |
 | ---- | ------ | ----- | ------------------------------------------------------------ | -------------- |
-| T301 | TODO   | —     | PDF text/page extraction + page-level hits                   | T201           |
+| T301 | REVIEW | codex | PDF text/page extraction + page-level hits (ADR-039); native real-PDF/keyboard review pending | T201           |
 | T302 | TODO   | —     | PDF thumbnails/Quick Look + jump/open-page action            | T301,T105,T108 |
 | T303 | TODO   | —     | Image metadata + vision embedding                            | T006,T202      |
 | T304 | TODO   | —     | Optional Windows OCR enrichment for screenshots/images       | T303           |

@@ -21,13 +21,13 @@ export function usePreview(queryId: number | null, row: ResultRowModel | undefin
   const [answer, setAnswer] = useState<{
     queryId: number;
     rowId: string;
-    context: ResultRowModel["code"];
+    context: ResultRowModel["code"] | ResultRowModel["pdf"];
     data: Preview;
   } | null>(null);
   const rowId = row?.id ?? null;
   // Each streamed context is a fresh projection, even when exact filename rows hide
   // their passage snippet and the symbol/language labels remain unchanged.
-  const context = row?.code ?? null;
+  const context = row?.code ?? row?.pdf ?? null;
 
   useEffect(() => {
     if (!open || rowId === null || queryId === null) return;

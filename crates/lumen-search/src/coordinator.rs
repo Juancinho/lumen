@@ -190,7 +190,7 @@ pub fn fuse(lists: &[(usize, Vec<ResultItem>)], weights: &[f32], limit: usize) -
         intent: bool,
         confidence: Confidence,
         subtitle: Option<&'a String>,
-        code: Option<(&'a ResultItem, f32)>,
+        passage: Option<(&'a ResultItem, f32)>,
     }
     let mut entries: Vec<Entry<'_>> = Vec::new();
     let mut by_id: HashMap<&ResultId, usize> = HashMap::new();
@@ -214,10 +214,12 @@ pub fn fuse(lists: &[(usize, Vec<ResultItem>)], weights: &[f32], limit: usize) -
                     if e.subtitle.is_none() {
                         e.subtitle = item.subtitle.as_ref();
                     }
-                    if matches!(item.payload, lumen_core::Payload::Code(_))
-                        && e.code.is_none_or(|(_, best)| contribution > best)
+                    if matches!(
+                        item.payload,
+                        lumen_core::Payload::Code(_) | lumen_core::Payload::Pdf(_)
+                    ) && e.passage.is_none_or(|(_, best)| contribution > best)
                     {
-                        e.code = Some((item, contribution));
+                        e.passage = Some((item, contribution));
                     }
                     if contribution > e.best || (contribution == e.best && key < e.best_key) {
                         e.best = contribution;
@@ -235,8 +237,11 @@ pub fn fuse(lists: &[(usize, Vec<ResultItem>)], weights: &[f32], limit: usize) -
                         intent,
                         confidence: item.score.confidence,
                         subtitle: item.subtitle.as_ref(),
-                        code: matches!(item.payload, lumen_core::Payload::Code(_))
-                            .then_some((item, contribution)),
+                        passage: matches!(
+                            item.payload,
+                            lumen_core::Payload::Code(_) | lumen_core::Payload::Pdf(_)
+                        )
+                        .then_some((item, contribution)),
                     });
                 }
             }
@@ -258,14 +263,14 @@ pub fn fuse(lists: &[(usize, Vec<ResultItem>)], weights: &[f32], limit: usize) -
                 item.subtitle = e.subtitle.cloned();
             }
             // Keep contextual actions even if the name lane's copy wins a tie. The
-            // passage and its payload must come from the same code hit.
-            if let Some((code, _)) = e.code {
-                item.payload = code.payload.clone();
-                item.capabilities = code.capabilities;
-                item.secondary_actions = code.secondary_actions.clone();
+            // passage and its payload must come from the same code/PDF hit.
+            if let Some((passage, _)) = e.passage {
+                item.payload = passage.payload.clone();
+                item.capabilities = passage.capabilities;
+                item.secondary_actions = passage.secondary_actions.clone();
                 if !matches!(item.score.match_kind, MatchKind::Exact | MatchKind::Intent) {
-                    item.kind = code.kind;
-                    item.subtitle = code.subtitle.clone();
+                    item.kind = passage.kind;
+                    item.subtitle = passage.subtitle.clone();
                 }
             }
             item
@@ -481,6 +486,55 @@ pub(crate) mod tests {
         );
         assert!(exact.offers(&builtin::COPY_SYMBOL));
         assert_eq!(exact.score.match_kind, MatchKind::Exact);
+    }
+
+    #[test]
+    fn pdf_page_and_passage_stay_paired_when_file_identity_is_fused() {
+        use lumen_core::{Capability, PdfTarget, builtin, validate_result};
+        let name = ProviderId::new("test.name").unwrap();
+        let mut file = item("item:7", &name, 0.9);
+        file.kind = ResultKind::File;
+        file.payload = Payload::Path("/docs/guide.pdf".into());
+        file.capabilities = CapabilitySet::of(&[Capability::LocalPath]);
+        let page = |n, text: &str| {
+            let mut result = file.clone();
+            result.kind = ResultKind::PdfPage;
+            result.score.match_kind = MatchKind::FullText;
+            result.subtitle = Some(text.into());
+            result.payload = Payload::Pdf(Box::new(PdfTarget {
+                path: "/docs/guide.pdf".into(),
+                page_number: std::num::NonZeroU32::new(n).unwrap(),
+                passage: text.into(),
+            }));
+            result
+        };
+        let lexical = page(2, "solar panels");
+        let semantic = page(7, "ocean conservation");
+        let results = fuse(
+            &[
+                (0, vec![file.clone()]),
+                (1, vec![lexical]),
+                (2, vec![semantic.clone()]),
+            ],
+            &[1.0, 0.7, 0.85],
+            10,
+        );
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].id, file.id);
+        assert_eq!(results[0].subtitle, semantic.subtitle);
+        assert_eq!(results[0].payload, semantic.payload);
+        assert_eq!(results[0].kind, ResultKind::PdfPage);
+        assert!(validate_result(&results[0], &builtin::DESCRIPTORS).is_empty());
+        file.score.match_kind = MatchKind::Exact;
+        let exact = fuse(
+            &[(0, vec![file]), (2, vec![semantic.clone()])],
+            &[1.0, 0.7, 0.85],
+            10,
+        )
+        .remove(0);
+        assert_eq!(exact.kind, ResultKind::File);
+        assert_eq!(exact.score.match_kind, MatchKind::Exact);
+        assert_eq!(exact.payload, semantic.payload);
     }
 
     #[test]

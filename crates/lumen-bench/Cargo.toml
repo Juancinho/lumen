@@ -43,3 +43,6 @@ lumen-windows.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+lopdf.workspace = true

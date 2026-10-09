@@ -64,6 +64,22 @@ function renderSearch(
 }
 
 describe("RootSearch", () => {
+  it("shows the matched PDF page in the selected accessible file row", () => {
+    const pdf: ResultRowModel = {
+      ...nth(rows, 1),
+      kind: "pdf-page",
+      title: "guide.pdf",
+      extension: "pdf",
+      snippet: "Protect coastal habitat",
+      pdf: { pageNumber: 7 },
+    };
+    renderSearch("ocean conservation ext:pdf", { rows: [pdf], status: "done" });
+    const option = screen.getByRole("option");
+    expect(option).toHaveAccessibleName(/Page 7 · guide.pdf/);
+    expect(option).toHaveTextContent("Protect coastal habitat");
+    expect(option).toHaveTextContent("Open");
+    expect(screen.getByRole("combobox")).toHaveAttribute("aria-activedescendant", option.id);
+  });
   it("shows the code symbol and file in one accessible row with repository context", () => {
     const code: ResultRowModel = {
       ...nth(rows, 1),

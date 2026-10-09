@@ -110,6 +110,8 @@ pub struct ChunkRef {
     pub chunk_id: i64,
     pub item_id: i64,
     pub excerpt: String,
+    /// One-based physical PDF page; None for text/code.
+    pub page_number: Option<i64>,
     pub kind: String,
     pub symbol: Option<String>,
     pub language: Option<String>,
@@ -499,7 +501,7 @@ impl Store {
     pub fn chunk_refs(&self, chunk_ids: &[i64], excerpt_chars: usize) -> Result<Vec<ChunkRef>> {
         let mut stmt = self.conn.prepare_cached(
             "SELECT c.item_id, substr(c.text, 1, ?2), c.chunk_kind, c.symbol_name,
-                    i.code_language, i.repository_path, c.start_offset, c.end_offset
+                    i.code_language, i.repository_path, c.start_offset, c.end_offset, c.page_number
              FROM chunks c JOIN items i ON i.id = c.item_id WHERE c.id = ?1",
         )?;
         let n = i64::try_from(excerpt_chars).unwrap_or(i64::MAX);
@@ -517,6 +519,7 @@ impl Store {
                         repository: r.get(5)?,
                         start_offset: r.get(6)?,
                         end_offset: r.get(7)?,
+                        page_number: r.get(8)?,
                     })
                 })
                 .optional()?

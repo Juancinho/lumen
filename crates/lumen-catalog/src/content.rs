@@ -138,6 +138,7 @@ impl Provider for ContentProvider {
                 result.subtitle = Some(plain(&hit.snippet));
                 if let Some(reference) = refs.get(&hit.chunk_id) {
                     crate::code::enrich(&mut result, reference, item.extension.as_deref());
+                    crate::pdf::enrich(&mut result, reference, item.extension.as_deref());
                 }
                 out.push(result);
             }

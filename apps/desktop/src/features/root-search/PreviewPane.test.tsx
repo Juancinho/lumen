@@ -5,6 +5,25 @@ import { formatSize } from "./format";
 import { PreviewPane } from "./PreviewPane";
 
 describe("PreviewPane", () => {
+  it("labels the physical PDF page beside its indexed text passage", () => {
+    render(
+      <PreviewPane
+        docked
+        data={{
+          title: "guide.pdf",
+          kind: "pdf-page",
+          location: null,
+          sizeBytes: 1000,
+          modifiedMs: null,
+          text: "Protect coastal habitat",
+          truncated: true,
+          pageNumber: 7,
+        }}
+      />,
+    );
+    expect(screen.getByRole("complementary")).toHaveTextContent("Page 7");
+    expect(screen.getByText(/Protect coastal habitat/)).toBeInTheDocument();
+  });
   it("formats sizes", () => {
     expect(formatSize(512)).toBe("512 B");
     expect(formatSize(1536)).toBe("1.5 KB");

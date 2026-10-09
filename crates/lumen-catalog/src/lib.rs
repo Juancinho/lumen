@@ -10,6 +10,7 @@ pub mod content;
 pub mod files;
 pub mod locations;
 pub mod path;
+pub mod pdf;
 pub mod provider;
 pub mod rank;
 pub mod text;

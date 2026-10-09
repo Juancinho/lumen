@@ -45,6 +45,7 @@
 | [ADR-036](adr/adr-036-code-context-file-identity-and-local-actions.md) | Code context on the file row, lexical metadata without re-embedding, capability-based local actions | Accepted |
 | [ADR-037](adr/adr-037-native-watch-hints-scoped-reconciliation.md) | Bounded native watch hints, scoped reconciliation and safe content invalidation on the existing writer | Accepted |
 | [ADR-038](adr/adr-038-optional-dedicated-gpu-indexing.md) | Opt-in dedicated-GPU indexing with CPU queries, isolated compatibility probes and CPU fallback | Accepted |
+| [ADR-039](adr/adr-039-pdf-text-page-context.md) | Bounded local PDF text extraction, physical-page context and unchanged vector generations | Accepted |
 
 T208 implements the reserved root operators and quoted lexical requests from COMMAND_MODEL
 §7 using existing ADR-017/022/032 boundaries. Exact semantics, bounded filtered ANN retrieval

@@ -596,6 +596,51 @@ mod provider {
         assert_eq!(target.language, "python");
         assert_eq!(target.start_offset, Some(9000));
         assert_eq!(target.passage, "def retry(): pass");
+        let pdf_id = store
+            .insert_item(&NewItem::file("/docs/guide.pdf", "guide.pdf"))
+            .unwrap();
+        let pdf_chunk = store
+            .insert_chunks(&[NewChunk {
+                item_id: pdf_id,
+                ordinal: 0,
+                chunk_kind: "text",
+                text: "Protect coastal habitat",
+                symbol_name: None,
+                page_number: Some(7),
+                start_offset: Some(900),
+                end_offset: Some(922),
+            }])
+            .unwrap()[0];
+        let vector = embedder.embed("ocean conservation", &never).unwrap();
+        store
+            .write_vectors(
+                generation,
+                &[VectorWrite {
+                    chunk_id: pdf_chunk,
+                    result: Ok(&vector),
+                }],
+                0,
+            )
+            .unwrap();
+        shared
+            .write()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .refresh(&store)
+            .unwrap();
+        let pdf = p
+            .search(&query("ocean conservation ext:pdf", false), &never)
+            .unwrap()
+            .remove(0);
+        assert_eq!(pdf.kind, lumen_core::ResultKind::PdfPage);
+        assert!(lumen_core::validate_result(&pdf, &lumen_core::builtin::DESCRIPTORS).is_empty());
+        let lumen_core::Payload::Pdf(target) = &pdf.payload else {
+            panic!("missing PDF target");
+        };
+        assert_eq!(target.page_number.get(), 7);
+        assert_eq!(target.passage, "Protect coastal habitat");
+        assert_eq!(target.path, std::path::Path::new("/docs/guide.pdf"));
         drop(p);
         let _ = std::fs::remove_dir_all(&dir);
     }

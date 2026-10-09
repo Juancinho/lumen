@@ -22,6 +22,7 @@ export function PreviewPane({ data, docked }: PreviewPaneProps) {
     return <aside className={className} aria-label="Preview" aria-busy="true" />;
   }
   const meta = [
+    data.pageNumber ? `Page ${String(data.pageNumber)}` : null,
     data.sizeBytes !== null ? formatSize(data.sizeBytes) : null,
     data.modifiedMs !== null ? `Modified ${formatDate(data.modifiedMs)}` : null,
   ].filter((m): m is string => m !== null);

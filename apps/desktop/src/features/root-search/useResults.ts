@@ -23,6 +23,7 @@ function toRow(view: ResultView): ResultRowModel {
     snippet: view.snippet,
     extension: view.extension,
     ...(view.code ? { code: view.code } : {}),
+    ...(view.pdf ? { pdf: view.pdf } : {}),
     primaryAction: view.primaryAction,
     diagnostics: view.diagnostics
       ? `${view.diagnostics.provider} · ${view.diagnostics.matchKind} · ${view.diagnostics.confidence.toFixed(2)}`

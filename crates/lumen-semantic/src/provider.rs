@@ -233,6 +233,7 @@ impl Provider for SemanticProvider {
                 let excerpt: String = r.excerpt.chars().take(EXCERPT_CHARS).collect();
                 result.subtitle = Some(one_line(&excerpt));
                 lumen_catalog::code::enrich(&mut result, r, item.extension.as_deref());
+                lumen_catalog::pdf::enrich(&mut result, r, item.extension.as_deref());
                 out.push(result);
             }
         }

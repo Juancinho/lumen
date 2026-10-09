@@ -15,6 +15,175 @@ use lumen_storage::{GenerationSpec, Store};
 
 use super::*;
 
+#[path = "../../../fixtures/pdf/mod.rs"]
+mod pdf_fixture;
+
+#[test]
+fn pdf_content_pages_queue_resume_scope_and_existing_vectors() {
+    use lumen_core::{Payload, Provider, ProviderQuery, QueryId, ResultKind};
+    let t = Temp::new("pdf-pipeline");
+    let mut store = seeded(&t);
+    pass(&mut store, &PassConfig::default());
+    let generation = vectors_for_all_chunks(&mut store);
+    let original = store.vectors(generation, 0, 100).unwrap();
+    let path = t.files().join("ocean.PDF");
+    pdf_fixture::document(&[
+        b"solar panel energy",
+        b"",
+        b"coral ocean habitat protection",
+    ])
+    .save(&path)
+    .unwrap();
+    sync(&mut store, &t.files());
+    // Names-only consent leaves the PDF pending, and no file is read.
+    let r = run_content_pass(
+        &mut store,
+        &PassConfig::default(),
+        &EstimateTokens,
+        &|_| false,
+        &CancellationToken::new(),
+        &|| 1,
+        &mut |_| {},
+    )
+    .unwrap();
+    assert_eq!(r.files, 0);
+    assert_eq!(pass(&mut store, &PassConfig::default()).indexed, 1);
+    assert_eq!(store.vectors(generation, 0, 100).unwrap(), original);
+    let pending = store.pending_chunks(generation, 0, 100).unwrap();
+    assert_eq!(pending.len(), 2);
+    let refs = store
+        .chunk_refs(
+            &pending.iter().map(|c| c.chunk_id).collect::<Vec<_>>(),
+            4000,
+        )
+        .unwrap();
+    assert_eq!(
+        refs.iter().map(|r| r.page_number).collect::<Vec<_>>(),
+        [Some(1), Some(3)]
+    );
+    assert_eq!(refs[1].excerpt.trim(), "coral ocean habitat protection");
+    let query = ProviderQuery {
+        id: QueryId::new(1).unwrap(),
+        text: "habitat ext:pdf",
+        typing: false,
+        limit: 10,
+    };
+    store.checkpoint().unwrap();
+    let provider =
+        lumen_catalog::ContentProvider::new(Store::open_reader(&t.0.join("lumen.db")).unwrap());
+    let result = provider
+        .search(&query, &CancellationToken::new())
+        .unwrap()
+        .remove(0);
+    assert_eq!(result.kind, ResultKind::PdfPage);
+    assert!(lumen_core::validate_result(&result, &lumen_core::builtin::DESCRIPTORS).is_empty());
+    assert_eq!(result.primary_action, lumen_core::builtin::OPEN);
+    assert!(
+        result.offers(&lumen_core::builtin::REVEAL)
+            && result.offers(&lumen_core::builtin::COPY_PATH)
+    );
+    let Payload::Pdf(pdf) = result.payload else {
+        panic!("missing PDF target");
+    };
+    assert_eq!(pdf.page_number.get(), 3);
+    assert_eq!(pdf.path, path);
+    assert!(pdf.passage.contains("habitat"));
+    drop(provider);
+    drop(store);
+    let mut store = t.store();
+    assert_eq!(pass(&mut store, &PassConfig::default()).files, 0);
+    assert_eq!(store.pending_chunks(generation, 0, 100).unwrap(), pending);
+    let vectors: Vec<_> = pending
+        .iter()
+        .map(|p| lumen_storage::VectorWrite {
+            chunk_id: p.chunk_id,
+            result: Ok(&[1.0, 0.0]),
+        })
+        .collect();
+    store.write_vectors(generation, &vectors, 2).unwrap();
+    assert_eq!(store.queue_counts(generation).unwrap().pending(), 0);
+    let opts = incremental_opts(&t.files());
+    sync_files(&mut store, &opts, None).unwrap();
+    let before = store.vectors(generation, 0, 100).unwrap();
+    let moved = t.files().join("marine.pdf");
+    std::fs::rename(&path, &moved).unwrap();
+    lumen_catalog::sync_changes(
+        &mut store,
+        &opts,
+        &hints(&[path, moved.clone()], true),
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        store.vectors(generation, 0, 100).unwrap(),
+        before,
+        "unchanged PDF rename preserves vectors"
+    );
+    assert_eq!(pass(&mut store, &PassConfig::default()).files, 0);
+    // A notified edit removes stale PDF content/vectors and re-queues its new text.
+    pdf_fixture::document(&[b"new replacement text"])
+        .save(&moved)
+        .unwrap();
+    lumen_catalog::sync_changes(&mut store, &opts, &hints(&[moved], true), None).unwrap();
+    assert_eq!(store.vectors(generation, 0, 100).unwrap(), original);
+    assert_eq!(pass(&mut store, &PassConfig::default()).indexed, 1);
+    assert_eq!(store.pending_chunks(generation, 0, 100).unwrap().len(), 1);
+}
+
+#[test]
+fn pdf_failures_are_visible_and_cancellation_never_commits_partial_pages() {
+    let t = Temp::new("pdf-skips");
+    pdf_fixture::document(&[b""])
+        .save(t.files().join("scan.pdf"))
+        .unwrap();
+    std::fs::write(t.files().join("broken.pdf"), b"%PDF-1.7\ninvalid").unwrap();
+    let mut store = t.store();
+    sync(&mut store, &t.files());
+    let r = pass(&mut store, &PassConfig::default());
+    assert_eq!((r.files, r.skipped, r.chunks), (2, 2, 0));
+    let errors: Vec<String> = store
+        .connection()
+        .prepare("SELECT content_error FROM items WHERE kind = 'file' ORDER BY content_error")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(errors, ["pdf:malformed", "pdf:no_text"]);
+    assert_eq!(
+        pass(&mut store, &PassConfig::default()).files,
+        0,
+        "unchanged unsupported PDFs do not retry forever"
+    );
+    pdf_fixture::document(&[b"first page", b"second page"])
+        .save(t.files().join("cancel.pdf"))
+        .unwrap();
+    sync(&mut store, &t.files());
+    let cancel = CancellationToken::new();
+    struct Cancelling<'a>(&'a CancellationToken);
+    impl lumen_extract::TokenCount for Cancelling<'_> {
+        fn count(&self, text: &str) -> usize {
+            self.0.cancel();
+            EstimateTokens.count(text)
+        }
+    }
+    let r = run_content_pass(
+        &mut store,
+        &PassConfig::default(),
+        &Cancelling(&cancel),
+        &|_| true,
+        &cancel,
+        &|| 1,
+        &mut |_| {},
+    )
+    .unwrap();
+    assert!(r.cancelled);
+    assert_eq!((r.files, r.indexed, r.skipped), (0, 0, 0));
+    assert_eq!(store.queue_counts(0).unwrap().chunks, 0);
+    assert_eq!(pass(&mut store, &PassConfig::default()).indexed, 1);
+    assert_eq!(store.queue_counts(0).unwrap().chunks, 2);
+}
+
 struct Temp(PathBuf);
 
 impl Temp {

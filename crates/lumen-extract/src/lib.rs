@@ -16,11 +16,15 @@
 
 mod chunk;
 mod decode;
+mod indexed;
 mod kinds;
+mod pdf;
 
 pub use chunk::{Chunk, ChunkConfig, ChunkKind, EstimateTokens, TokenCount, chunk};
 pub use decode::{DEFAULT_MAX_BYTES, ExtractError, Extracted, Skip, decode, extract_file};
+pub use indexed::{IndexError, IndexedChunk, IndexedDocument, extract_indexed_file};
 pub use kinds::{DocKind, Language, TEXT_EXTENSIONS, kind_for_extension};
+pub use pdf::{PdfError, PdfLimits, extract_pdf};
 
 /// Version of what extraction + chunking produce for a file. Bump it whenever the chunks of
 /// an unchanged file would differ: the content pass then re-reads every file (stored as

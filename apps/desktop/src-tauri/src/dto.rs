@@ -37,6 +37,8 @@ pub(crate) struct PreviewDto {
     pub(crate) text: Option<String>,
     /// `text` is only the beginning of the file.
     pub(crate) truncated: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) page_number: Option<u32>,
 }
 
 /// Mirrors `Size` in `src/ipc/types.ts`: logical px.
@@ -82,6 +84,8 @@ pub(crate) struct ResultDto {
     /// Display context only; trusted action targets and passage offsets stay in Rust.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) code: Option<CodeContextDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) pdf: Option<PdfContextDto>,
     /// Action that Enter runs (`lumen.open`, `lumen.launch`).
     pub(crate) primary_action: String,
     /// Development diagnostics (T110, `LUMEN_DIAGNOSTICS=1` only): never in normal UI.
@@ -95,6 +99,12 @@ pub(crate) struct CodeContextDto {
     pub(crate) symbol: Option<String>,
     pub(crate) language: String,
     pub(crate) repository: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PdfContextDto {
+    pub(crate) page_number: u32,
 }
 
 /// Mirrors `ResultDiagnostics` in `src/ipc/types.ts`.
@@ -128,12 +138,13 @@ impl From<&lumen_core::ResultItem> for ResultDto {
                 ResultKind::Folder => "folder",
                 ResultKind::Command => "command",
                 ResultKind::Code => "code",
+                ResultKind::PdfPage => "pdf-page",
                 _ => "file",
             },
             title: item.title.clone(),
             detail: item.detail.clone().or_else(|| item.subtitle.clone()),
             snippet: match (item.kind, item.score.match_kind) {
-                (ResultKind::Code, _) => item.subtitle.clone(),
+                (ResultKind::Code | ResultKind::PdfPage, _) => item.subtitle.clone(),
                 (_, MatchKind::FullText | MatchKind::Semantic) => item.subtitle.clone(),
                 _ => None,
             },
@@ -154,6 +165,12 @@ impl From<&lumen_core::ResultItem> for ResultDto {
                 _ => None,
             },
             primary_action: item.primary_action.as_str().to_owned(),
+            pdf: match &item.payload {
+                Payload::Pdf(pdf) => Some(PdfContextDto {
+                    page_number: pdf.page_number.get(),
+                }),
+                _ => None,
+            },
             diagnostics: None,
         }
     }
@@ -338,6 +355,20 @@ mod tests {
             serde_json::json!({"symbol": "retry", "language": "python", "repository": "repo"})
         );
         assert!(code.get("payload").is_none() && code.get("startOffset").is_none());
+        by_content.kind = ResultKind::PdfPage;
+        by_content.payload = Payload::Pdf(Box::new(lumen_core::PdfTarget {
+            path: "C:\\private\\guide.pdf".into(),
+            page_number: std::num::NonZeroU32::new(7).unwrap(),
+            passage: "private indexed passage".into(),
+        }));
+        let pdf = serde_json::to_value(ResultDto::from(&by_content)).unwrap();
+        assert_eq!(pdf["kind"], "pdf-page");
+        assert_eq!(pdf["pdf"], serde_json::json!({ "pageNumber": 7 }));
+        assert!(
+            pdf.get("payload").is_none()
+                && pdf.get("path").is_none()
+                && pdf.get("passage").is_none()
+        );
     }
 
     #[test]

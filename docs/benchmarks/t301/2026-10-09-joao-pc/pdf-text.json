@@ -1,0 +1,84 @@
+{
+  "backend": "lopdf 0.45.0 single thread; EstimateTokens; no embedding/model",
+  "content_pass": {
+    "chunks": 600,
+    "elapsed_ms": 54.1655,
+    "files": 100,
+    "indexed": 100,
+    "memory_after": {
+      "resident_mib": 10.8828125,
+      "virtual_mib": 3.8515625
+    },
+    "memory_before": {
+      "resident_mib": 10.0,
+      "virtual_mib": 2.4921875
+    },
+    "text_bytes": 236600,
+    "unchanged_resume_files": 0
+  },
+  "extraction_by_page_count": {
+    "128": {
+      "chunks": 640,
+      "file_bytes": 43767,
+      "latency": {
+        "max_ms": 16.0804,
+        "mean_ms": 13.191084999999998,
+        "min_ms": 11.998999999999999,
+        "n": 20,
+        "p50_ms": 12.7001,
+        "p95_ms": 14.8482,
+        "p99_ms": 16.0804
+      }
+    },
+    "3": {
+      "chunks": 15,
+      "file_bytes": 1437,
+      "latency": {
+        "max_ms": 0.4922,
+        "mean_ms": 0.43959000000000004,
+        "min_ms": 0.4008,
+        "n": 20,
+        "p50_ms": 0.42969999999999997,
+        "p95_ms": 0.484,
+        "p99_ms": 0.4922
+      }
+    },
+    "32": {
+      "chunks": 160,
+      "file_bytes": 11184,
+      "latency": {
+        "max_ms": 4.0587,
+        "mean_ms": 3.126105,
+        "min_ms": 2.4711999999999996,
+        "n": 20,
+        "p50_ms": 3.0848,
+        "p95_ms": 3.8893,
+        "p99_ms": 4.0587
+      }
+    }
+  },
+  "machine": {
+    "arch": "x86_64",
+    "build_profile": "release",
+    "cpu": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "logical_cpus": 12,
+    "lumen_version": "0.1.0",
+    "os": "windows",
+    "unix_time_s": 1791565377
+  },
+  "settled_fts": {
+    "hits": 30,
+    "latency": {
+      "max_ms": 5.4639,
+      "mean_ms": 3.004753,
+      "min_ms": 2.5965,
+      "n": 100,
+      "p50_ms": 2.8244,
+      "p95_ms": 4.0016,
+      "p99_ms": 4.3676
+    },
+    "matched_page": 3
+  },
+  "synthetic_only": true,
+  "task": "T301"
+}
