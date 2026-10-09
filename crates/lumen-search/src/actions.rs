@@ -78,7 +78,7 @@ mod tests {
     use super::*;
     use crate::coordinator::tests::item;
 
-    static REGISTRY: [ActionDescriptor; 8] = DESCRIPTORS;
+    static REGISTRY: [ActionDescriptor; 10] = DESCRIPTORS;
 
     fn file() -> ResultItem {
         let mut it = item("item:1", &ProviderId::new("test.p").unwrap(), 0.5);
@@ -146,6 +146,48 @@ mod tests {
             .err(),
             Some(ActionError::UnknownAction)
         );
+    }
+
+    #[test]
+    fn exclusion_requires_an_offered_local_path_and_panel_invocation() {
+        use lumen_core::builtin::{EXCLUDE_EXTENSION, EXCLUDE_FILE};
+        for action in [EXCLUDE_FILE, EXCLUDE_EXTENSION] {
+            let mut item = file();
+            assert!(
+                prepare(
+                    request(action.clone(), Invocation::ActionPanel),
+                    &item,
+                    &DESCRIPTORS
+                )
+                .is_err()
+            );
+            item.secondary_actions.push(action.clone());
+            assert!(
+                prepare(
+                    request(action.clone(), Invocation::ActionPanel),
+                    &item,
+                    &DESCRIPTORS
+                )
+                .is_ok()
+            );
+            assert!(
+                prepare(
+                    request(action.clone(), Invocation::Primary),
+                    &item,
+                    &DESCRIPTORS
+                )
+                .is_err()
+            );
+            item.capabilities = CapabilitySet::of(&[]);
+            assert!(
+                prepare(
+                    request(action, Invocation::ActionPanel),
+                    &item,
+                    &DESCRIPTORS
+                )
+                .is_err()
+            );
+        }
     }
 
     #[test]

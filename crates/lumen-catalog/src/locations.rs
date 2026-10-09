@@ -14,9 +14,9 @@ use serde_json::{Map, Value};
 /// Settings key in `lumen.db`.
 pub const SETTING_KEY: &str = "index.locations";
 
-/// Schema version this build reads and writes. v2 (T202): `content` is meaningful; v1
-/// values (where `names` was the only possible value) upgrade to [`CONTENT_FULL`].
-pub const VERSION: u32 = 2;
+/// v3 (T112): literal extension exclusions. v2 (T202): `content` is meaningful;
+/// v1 values (where `names` was the only possible value) upgrade to [`CONTENT_FULL`].
+pub const VERSION: u32 = 3;
 
 /// `Location::content`: catalogue names only.
 pub const CONTENT_NAMES: &str = "names";
@@ -83,6 +83,8 @@ pub struct IndexLocations {
     #[serde(default)]
     pub exclude_names: Vec<String>,
     #[serde(default)]
+    pub exclude_extensions: Vec<String>,
+    #[serde(default)]
     pub default_rules: DefaultRules,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
@@ -145,6 +147,7 @@ impl IndexLocations {
             locations: Vec::new(),
             exclude_paths: Vec::new(),
             exclude_names: Vec::new(),
+            exclude_extensions: Vec::new(),
             default_rules: DefaultRules::default(),
             extra: Map::new(),
         };
@@ -176,8 +179,17 @@ impl IndexLocations {
             for l in &mut me.locations {
                 l.content = full();
             }
-            me.version = VERSION;
         }
+        me.version = VERSION;
+        let mut extensions = Vec::new();
+        for extension in &me.exclude_extensions {
+            let normalized = lumen_indexer::scan::normalize_extension(extension)
+                .ok_or_else(|| LocationsError::Invalid("invalid excluded extension".into()))?;
+            if !extensions.contains(&normalized) {
+                extensions.push(normalized);
+            }
+        }
+        me.exclude_extensions = extensions;
         Ok(me)
     }
 
@@ -226,6 +238,7 @@ impl IndexLocations {
                 system_defaults: true,
                 user_paths: self.exclude_paths.iter().map(PathBuf::from).collect(),
                 user_names: self.exclude_names.clone(),
+                user_extensions: self.exclude_extensions.clone(),
                 default_names: self.active_default_names(),
                 build_dirs_next_to_markers: self.build_dirs_excluded(),
             },
@@ -259,7 +272,7 @@ impl IndexLocations {
         self.locations.len() != before
     }
 
-    /// Excludes a folder subtree. Returns `false` if it was already excluded.
+    /// Excludes an exact file path or a folder subtree. False if already excluded.
     pub fn exclude_path(&mut self, path: &Path) -> bool {
         let text = path.to_string_lossy().into_owned();
         if self.exclude_paths.iter().any(|p| same(p, &text)) {
@@ -273,6 +286,53 @@ impl IndexLocations {
         let before = self.exclude_paths.len();
         self.exclude_paths.retain(|p| !same(p, path));
         self.exclude_paths.len() != before
+    }
+
+    /// Toggle one literal extension; false for invalid input or an unchanged rule.
+    pub fn set_extension_excluded(&mut self, extension: &str, excluded: bool) -> bool {
+        let Some(extension) = lumen_indexer::scan::normalize_extension(extension) else {
+            return false;
+        };
+        let has = self.exclude_extensions.contains(&extension);
+        if has == excluded {
+            return false;
+        }
+        if excluded {
+            self.exclude_extensions.push(extension);
+        } else {
+            self.exclude_extensions.retain(|e| e != &extension);
+        }
+        true
+    }
+
+    /// User rules against known catalog metadata; no disk reads or default-rule probing.
+    #[must_use]
+    pub fn user_excludes(&self, path: &Path, is_dir: bool) -> bool {
+        self.exclude_paths
+            .iter()
+            .any(|e| within(&path.to_string_lossy(), e))
+            || (!self.exclude_names.is_empty()
+                && path
+                    .ancestors()
+                    .take_while(|p| {
+                        // Full inventory only visits the selected root and its descendants.
+                        self.locations
+                            .iter()
+                            .any(|l| within(&p.to_string_lossy(), &l.path))
+                    })
+                    .any(|p| {
+                        p.file_name().is_some_and(|n| {
+                            self.exclude_names
+                                .iter()
+                                .any(|e| n.to_string_lossy().to_lowercase() == e.to_lowercase())
+                        })
+                    }))
+            || (!is_dir
+                && path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .and_then(lumen_indexer::scan::normalize_extension)
+                    .is_some_and(|e| self.exclude_extensions.contains(&e)))
     }
 
     /// Switches one default rule (a [`DEV_NOISE_NAMES`] entry or [`BUILD_DIRS_RULE`]).
@@ -298,6 +358,7 @@ impl IndexLocations {
     #[must_use]
     pub fn indexes_content(&self, path: &str) -> bool {
         self.covers(path)
+            && !self.user_excludes(Path::new(path), false)
             && self
                 .locations
                 .iter()
@@ -391,8 +452,8 @@ mod tests {
     #[test]
     fn newer_or_broken_values_are_refused() {
         assert_eq!(
-            IndexLocations::parse(r#"{"version":3,"locations":[]}"#),
-            Err(LocationsError::NewerVersion(3))
+            IndexLocations::parse(r#"{"version":4,"locations":[]}"#),
+            Err(LocationsError::NewerVersion(4))
         );
         assert!(matches!(
             IndexLocations::parse("not json"),
@@ -405,7 +466,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             (l.version, l.locations[0].content.as_str()),
-            (2, CONTENT_FULL)
+            (VERSION, CONTENT_FULL)
         );
         assert!(l.default_rules.dev_noise);
         // v2 keeps a names-only choice.
@@ -447,6 +508,43 @@ mod tests {
         assert!(!l.indexes_content("/other/x.md"));
         l.exclude_path(Path::new("/d/private"));
         assert!(!l.indexes_content("/d/private/a.md"));
+    }
+
+    #[test]
+    fn v2_extensions_upgrade_and_manual_rules_are_reversible() {
+        let mut l = IndexLocations::parse(
+            r#"{"version":2,"locations":[{"path":"/d","content":"names"}],"future":true,"exclude_extensions":[".JS","js","LOG"]}"#,
+        ).unwrap();
+        assert_eq!(l.version, VERSION);
+        assert_eq!(l.locations[0].content, CONTENT_NAMES);
+        assert_eq!(l.exclude_extensions, ["js", "log"]);
+        assert_eq!(l.extra["future"], Value::Bool(true));
+        assert!(l.set_content("/d", true));
+        assert!(!l.set_extension_excluded(".Js", true));
+        assert!(!l.set_extension_excluded("*.json", true));
+        assert!(l.user_excludes(Path::new("/d/app.JS"), false));
+        assert!(!l.user_excludes(Path::new("/d/folder.js"), true));
+        assert!(!l.user_excludes(Path::new("/d/app.jsx"), false));
+        assert!(!l.indexes_content("/d/app.js"));
+        assert!(l.set_extension_excluded("JS", false));
+        assert!(l.indexes_content("/d/app.js"));
+        l.exclude_path(Path::new("/d/one.json"));
+        assert!(l.user_excludes(Path::new("/d/one.json"), false));
+        assert!(!l.user_excludes(Path::new("/d/one.jsonl"), false));
+        l.exclude_names.push("private".into());
+        assert!(l.user_excludes(Path::new("/d/Private/old.md"), false));
+        let mut nested = IndexLocations::standard(&[PathBuf::from("/d/Private/docs")], 0);
+        nested.exclude_names.push("private".into());
+        assert!(
+            !nested.user_excludes(Path::new("/d/Private/docs/old.md"), false),
+            "ancestor above an explicit root is not visited by inventory"
+        );
+        assert!(nested.user_excludes(Path::new("/d/Private/docs/Private/old.md"), false));
+        assert_eq!(IndexLocations::parse(&l.to_json()).unwrap(), l);
+        assert!(matches!(
+            IndexLocations::parse(r#"{"version":3,"locations":[],"exclude_extensions":["../js"]}"#),
+            Err(LocationsError::Invalid(_))
+        ));
     }
 
     #[test]

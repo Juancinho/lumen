@@ -515,6 +515,13 @@ fn pass<R: Runtime>(app: &AppHandle<R>, db: &Path, token: &CancellationToken) {
 
     let model = app.state::<Catalog>().locations();
     let opts = model.scan_options(true);
+    match lumen_catalog::exclusions::prune_user_exclusions(&mut store, &model, token) {
+        Ok(removed) => notify(app, removed > 0),
+        Err(err) => eprintln!("lumen: exclusion cleanup failed: {err}"),
+    }
+    if token.is_cancelled() {
+        return;
+    }
     let mut last_emit = Instant::now();
     let mut last_new = 0;
     let mut progress = |w: &lumen_storage::UpsertStats| {
@@ -606,6 +613,14 @@ pub(crate) fn exclude_path<R: Runtime>(app: &AppHandle<R>, path: &Path) -> bool 
 
 pub(crate) fn unexclude_path<R: Runtime>(app: &AppHandle<R>, path: &str) -> bool {
     edit(app, |m| m.unexclude_path(path))
+}
+
+pub(crate) fn set_extension<R: Runtime>(
+    app: &AppHandle<R>,
+    extension: &str,
+    excluded: bool,
+) -> bool {
+    edit(app, |m| m.set_extension_excluded(extension, excluded))
 }
 
 /// Tray toggle: index the contents of one location, or only its names.

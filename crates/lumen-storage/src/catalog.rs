@@ -11,6 +11,15 @@ use std::collections::HashSet;
 
 use crate::{ItemKind, Result, SearchBudget, Store};
 
+/// Minimal bounded inventory projection for explicit exclusion cleanup on the writer.
+#[derive(Debug)]
+pub struct FilePathRow {
+    pub id: i64,
+    pub path: String,
+    pub raw_path: Option<Vec<u8>>,
+    pub kind: ItemKind,
+}
+
 /// Where an item comes from (`items.source`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Source {
@@ -657,6 +666,26 @@ impl Store {
             .prepare_cached("SELECT count(*) FROM items WHERE source = ?1")?
             .query_row([source.as_str()], |r| r.get(0))?;
         Ok(u64::try_from(n).unwrap_or(0))
+    }
+
+    /// Keyset page of file-source paths, without chunks/embeddings or filesystem reads.
+    /// # Errors
+    /// SQLite failure.
+    pub fn file_paths_page(&self, after: i64, limit: usize) -> Result<Vec<FilePathRow>> {
+        let mut stmt = self.conn.prepare_cached("SELECT id,canonical_path,raw_path,kind FROM items WHERE source='files' AND id>?1 ORDER BY id LIMIT ?2")?;
+        let rows = stmt.query_map(
+            params![after, i64::try_from(limit.min(512)).unwrap_or(512)],
+            |r| {
+                let kind: String = r.get(3)?;
+                Ok(FilePathRow {
+                    id: r.get(0)?,
+                    path: r.get(1)?,
+                    raw_path: r.get(2)?,
+                    kind: ItemKind::parse(&kind).unwrap_or(ItemKind::File),
+                })
+            },
+        )?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
     }
 }
 

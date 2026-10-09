@@ -5,11 +5,11 @@
 
 ## Branch and exact continuation
 
-T213 continues main 2328f1e in managed worktree
+T213 integrates main d07023a (T112, continuing T303) in managed worktree
 `C:\Users\tj14o\.codex\worktrees\t213-indexing-progress\lumen`, branch
 `codex/t213-indexing-progress`. The user explicitly requested repairing zero image work,
-using GPU where measured faster and showing phase/counts/percentages. Separate T112
-manual exclusions are active in the primary checkout; do not overwrite that claim/work.
+using GPU where measured faster and showing phase/counts/percentages. T112's committed
+file/type exclusions and locations JSON v3 are included; preserve both implementations.
 No push requested. Older REVIEW checklists below remain. Next roadmap implementation
 after this user repair is T304 optional Windows OCR. Read SEARCH_AND_INDEXING §11/12,
 PRIVACY_SECURITY, PERFORMANCE and actual Windows OCR API/language/runtime contracts;
@@ -38,6 +38,68 @@ optimized bundle and live native checks are in progress; record final outcomes b
 Build target is `D:\Proyectos\lumen\target\t213-build`, isolated from T112/main artifacts.
 Do not copy workspace fingerprints from a different checkout: Cargo can reuse stale
 workspace dependencies and produce misleading field errors.
+
+## T112 — manual exclusions and native review
+
+Read specs/T112-manual-exclusions.md and ADR-027's dated amendment. Reuses core descriptors,
+catalog provider/actions/locations, indexer full+watcher rules, native shell tray/pickers.
+Locations JSON v3 adds exclude_extensions; v1 content upgrade and v2 explicit names-only
+choices survive, unknown fields preserved and future versions remain read-only. No SQLite
+migration, model/index generation, query parser, ranking or new presentation surface.
+
+Root file/code/PDF/image → Ctrl+K offers Exclude this file and Exclude all .ext files;
+trusted result payload determines the path/type, UI sends ids. Tray → Exclusions → File
+types offers .js/.json/.log checks plus custom types, an example-file picker to add another,
+and Exclude files… for multiple exact paths. Types default off. Uncheck / Include again
+undo. Literal suffixes exclude non-directories only; .json does not match .jsonl.
+
+Before full inventory, explicit-user cleanup on the existing writer pages at most 512
+file-source path rows/transaction, including offline entries. Cascades remove their chunks,
+FTS/vectors/usage/pins; application inventory and unrelated vectors stay. Disk files are
+untouched. Including again queues only affected files when available. Already-running
+native inference must finish before cancellation/cleanup; no synchronous menu-thread scan.
+
+Automated tests: full/watch scan + undo, settings normalization/v1/v2/future compatibility,
+multi-page offline cleanup/cancel/idempotence/vector and application preservation,
+exact-file disk safety/restoration, capability/id policy and Ctrl+K/arrow/Enter routing.
+Browser actual RootSearch/ActionPanel at 1280×720 and 800×420: long JSON filename, both
+new action labels and selected state, query retains focus; light theme observed. Temporary
+fixture/server/tab/viewport removed. Native tray/pickers/DPI remain pending:
+
+1. On a synthetic folder with .js/.json/.log/.jsx/.jsonl and folder.js/notes.md, toggle
+   File types → .js/.json/.log; old name/content/meaning/suggestion hits disappear after
+   writer cleanup. folder.js/notes.md, .jsx/.jsonl and application results remain.
+2. Ctrl+K a file/code/PDF/image hit → exclude this file, then Include again in Exclusions;
+   repeat all .ext files. Extensionless file offers exact exclusion only. Enter opens;
+   Ctrl+Enter reveals, Alt+Enter previews and keyboard selection remains valid.
+3. Exclude files… selects several exact files; Include again restores each. Exclude another
+   file type… picks an example .txt; check appears; uncheck restores. Cancel picker and
+   choose extensionless file; no rule added. Verify persistence after a user-chosen restart.
+4. Disconnect an indexed test location, exclude a known type, verify stale excluded hits
+   vanish; unrelated offline entries remain. Reconnect/undo restores affected files only.
+   Pause and indexing under load stay responsive; deleting on-disk user data is never involved.
+
+Release evidence: docs/benchmarks/t112/2026-10-10-joao-pc/README.md.
+Final 100k synthetic cleanup removes 75k files in 16.47 s; 641 concurrent retained-name
+queries p95 32.99 ms, maximum 55.95 ms; 25k items/vectors and active generation retained.
+Loaded machine/crowded numeric names, not whole-app or real-library ETA.
+New bundle is
+target/t112-release/lumen.exe; use it after the user's chosen Quit, not while expecting
+single-instance to replace the resident app. Cached-model development launch from repo:
+
+Optimized custom-protocol exe: 21,407,744 bytes, SHA-256
+494F838DC5C3495C52B4559CA7D190E92824C2E209145F4C18BF26A762F4A38A.
+Embedded index-DimVfZd4.js and exclusion action/menu ids verified. Runtime/DirectML,
+licenses, PDF and image codec notices hash-match T303. Resident PID 6344 remained intact
+at the final 2026-10-10 00:29 check. Launch only after the user's chosen Quit:
+
+```powershell
+$env:LUMEN_EMBED_MODEL_DIR="$PWD\.cache\t006\embeddinggemma-2-ONNX"
+$env:LUMEN_EMBED_VISION_DIR="$PWD\.cache\t303\model"
+$env:LUMEN_ORT_DYLIB="$PWD\target\t112-release\onnxruntime.dll"
+$env:LUMEN_EMBED_VARIANT="q4"
+& .\target\t112-release\lumen.exe
+```
 
 ## T303 — implementation and native review
 
@@ -99,7 +161,7 @@ or OCR/Drop/Similar implemented. Native checks after the user's chosen Quit/swit
    concurrent searching. Image inference takes seconds and already-running native calls
    finish cooperatively; no GPU-image acceleration or broad quality/throughput promise.
 
-Latest optimized custom-protocol bundle: target/t303-release/lumen.exe, 21,338,112 bytes,
+T303 optimized custom-protocol bundle: target/t303-release/lumen.exe, 21,338,112 bytes,
 SHA-256 FFA2B737444662927E45E803DD27D99C41DE3E9492E118A60FBC653E25596F1B.
 Frontend index-DimVfZd4.js embedded. Beside-exe DirectML/runtime
 assets/notices match T212; PdfExtractorNotices.txt and ImageCodecNotices.txt included.
@@ -427,6 +489,16 @@ cargo build --release -p lumen-desktop --bin lumen --features tauri/custom-proto
 cargo run --release -p lumen-bench --example pdf_preview --locked -j 2 -- target/t302-pdf-preview.json
 cargo test -p lumen-windows --test pdf_render --locked -j 2
 ```
+
+T112 gate: 371 Rust tests passed (including 37 shell), 2 network tests deliberately
+ignored; fmt, workspace/DirectML clippy and 15-crate architecture guard. Frontend full
+check and build passed, 83 tests. Release build/benchmark use --target-dir target/t112-build.
+Final selected-root name-rule boundary regression also passes: 44 release catalog tests,
+release catalog/example lint and repeated final-source benchmark. Reproduce cleanup with
+`cargo run --release --locked --target-dir target/t112-build -p
+lumen-bench --example exclusions -- target/t112-exclusions.json`. Build with `cargo build
+--release --locked --target-dir target/t112-build -p lumen-desktop --bin lumen --features
+tauri/custom-protocol -j 2`; never overwrite a running bundle. Logs: target/t112-*.log.
 
 T303 full Rust gate: 366 passed, 2 network tests deliberately ignored, including 37 shell
 tests; workspace/DirectML lint, 15-crate architecture guard, fmt, 82 frontend tests/check/

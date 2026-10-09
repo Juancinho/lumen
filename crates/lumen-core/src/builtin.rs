@@ -17,6 +17,8 @@ pub const REVEAL: ActionId = ActionId::from_static("lumen.reveal");
 pub const COPY_PATH: ActionId = ActionId::from_static("lumen.copy-path");
 /// Leave a folder out of Lumen's locations (T111); undone from the exclusions list.
 pub const EXCLUDE_FOLDER: ActionId = ActionId::from_static("lumen.exclude-folder");
+pub const EXCLUDE_FILE: ActionId = ActionId::from_static("lumen.exclude-file");
+pub const EXCLUDE_EXTENSION: ActionId = ActionId::from_static("lumen.exclude-extension");
 pub const COPY_SYMBOL: ActionId = ActionId::from_static("lumen.copy-symbol");
 pub const REVEAL_REPOSITORY: ActionId = ActionId::from_static("lumen.reveal-repository");
 pub const OPEN_PDF_PAGE: ActionId = ActionId::from_static("lumen.open-pdf-page");
@@ -25,7 +27,7 @@ const LOCAL_PATH: CapabilitySet = CapabilitySet::of(&[Capability::LocalPath]);
 const LAUNCHABLE: CapabilitySet = CapabilitySet::of(&[Capability::Launchable]);
 
 /// Descriptors of the built-in actions, in panel order.
-pub const DESCRIPTORS: [ActionDescriptor; 8] = [
+pub const DESCRIPTORS: [ActionDescriptor; 10] = [
     ActionDescriptor::new_static(
         OPEN,
         "Open",
@@ -78,6 +80,20 @@ pub const DESCRIPTORS: [ActionDescriptor; 8] = [
     ActionDescriptor::new_static(
         EXCLUDE_FOLDER,
         "Exclude folder from Lumen",
+        ActionSafety::SafeReversible,
+        ActionGroup::Advanced,
+        LOCAL_PATH,
+    ),
+    ActionDescriptor::new_static(
+        EXCLUDE_FILE,
+        "Exclude this file from Lumen",
+        ActionSafety::SafeReversible,
+        ActionGroup::Advanced,
+        LOCAL_PATH,
+    ),
+    ActionDescriptor::new_static(
+        EXCLUDE_EXTENSION,
+        "Exclude this file type from Lumen",
         ActionSafety::SafeReversible,
         ActionGroup::Advanced,
         LOCAL_PATH,

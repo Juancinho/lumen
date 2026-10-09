@@ -357,6 +357,40 @@ describe("App overlay", () => {
       expect(screen.queryByRole("listbox", { name: "Actions" })).not.toBeInTheDocument();
     });
 
+    it("excludes the selected file type by keyboard using only trusted result/action ids", async () => {
+      results = {
+        rows: [{ ...file("item:1"), title: "app.js", extension: "js" }, file("item:2")],
+        status: "done",
+        queryId: 7,
+      };
+      vi.mocked(listActions).mockResolvedValue([
+        { id: "lumen.open", title: "Open", group: "primary", shortcut: "Enter" },
+        {
+          id: "lumen.exclude-file",
+          title: "Exclude this file from Lumen",
+          group: "advanced",
+          shortcut: null,
+        },
+        {
+          id: "lumen.exclude-extension",
+          title: "Exclude all .js files",
+          group: "advanced",
+          shortcut: null,
+        },
+      ]);
+      render(<App />);
+      await userEvent.keyboard("{Control>}k{/Control}");
+      await screen.findByRole("listbox", { name: "Actions" });
+      await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+      expect(screen.getByRole("option", { name: "Exclude all .js files" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      await userEvent.keyboard("{Enter}");
+      expect(runAction).toHaveBeenLastCalledWith(7, "item:1", "lumen.exclude-extension", "panel");
+      expect(screen.queryByRole("listbox", { name: "Actions" })).not.toBeInTheDocument();
+    });
+
     it("Escape closes the panel first, then dismisses", async () => {
       render(<App />);
       await userEvent.keyboard("{Control>}k{/Control}");

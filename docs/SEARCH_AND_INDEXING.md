@@ -23,6 +23,9 @@
 - **Change tracking (built, T207):** bounded native watch hints and scoped reconciliation
   on the existing writer (ADR-037), safe file/folder moves and atomic content invalidation;
   periodic recovery remains. Native overlay/reconnect review is pending.
+- **Manual exclusions (built, T112):** root file actions/native tray exclude exact files
+  and literal extensions. Bounded writer cleanup also removes offline indexed entries;
+  undo restores only affected files. ADR-027 amendment; `specs/T112-manual-exclusions.md`.
 - **Optional GPU indexing (built, T212):** persisted native tray option, dedicated adapter
   only, synthetic compatibility probe, same-generation queue and CPU fallback (ADR-038).
   Queries stay on CPU. Native tray/keyboard and long driver soak review remains.

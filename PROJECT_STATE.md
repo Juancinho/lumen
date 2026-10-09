@@ -148,11 +148,10 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
 - **T301 REVIEW (ADR-039):** bounded PDF page text/FTS/semantic hits, existing vectors retained; native review pending.
 - **T302 REVIEW (ADR-040):** local PDF raster Quick Look/page navigation and supported viewer action; native review pending.
 - **T303 REVIEW (ADR-041):** bounded image metadata/visual q4 queue, optional vision download, CPU images/queries; native review pending.
-- **T111 REVIEW (ADR-027):** indexed locations + exclusions in one versioned setting; tray
-  → Indexed locations / Exclusions (native folder picker), per-location state, developer
-  noise and marker-based build folders excluded by default (visible, toggleable), Action
-  Panel "Exclude folder from Lumen"; edits restart the pass. Sandbox whole-FS: 309k entries,
-  keystroke p95 7.1 ms.
+- **T111 REVIEW (ADR-027):** locations/exclusions, visible default noise/build rules, native
+  tray/folder action; edits restart the pass. Sandbox 309k entries, keystroke p95 7.1 ms.
+- **T112 REVIEW (ADR-027 amendment):** manual exact-file/extension exclusions in tray/Ctrl+K;
+  bounded cleanup includes offline catalog rows, undo restores affected files; native review pending.
 - **T110 REVIEW:** `LUMEN_DIAGNOSTICS=1` shows provider/match kind/confidence per row and
   logs per-query timings; absent from the wire otherwise.
 - **T105 REVIEW:** Alt+Enter Quick Look beside results (over them on narrow monitors):

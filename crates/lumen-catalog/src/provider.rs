@@ -7,7 +7,9 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use lumen_core::builtin::{COPY_PATH, EXCLUDE_FOLDER, LAUNCH, OPEN, REVEAL};
+use lumen_core::builtin::{
+    COPY_PATH, EXCLUDE_EXTENSION, EXCLUDE_FILE, EXCLUDE_FOLDER, LAUNCH, OPEN, REVEAL,
+};
 use lumen_core::{
     CancellationToken, Capability, CapabilitySet, Confidence, IconRef, LatencyClass, MatchKind,
     Payload, Provider, ProviderError, ProviderId, ProviderQuery, ResultId, ResultItem, ResultKind,
@@ -121,7 +123,16 @@ pub fn to_result(item: &CatalogItem, score: Score) -> Option<ResultItem> {
             secondary_actions: if item.kind == ItemKind::Folder {
                 vec![REVEAL, COPY_PATH, EXCLUDE_FOLDER]
             } else {
-                vec![REVEAL, COPY_PATH]
+                let mut actions = vec![REVEAL, COPY_PATH, EXCLUDE_FILE];
+                if item
+                    .extension
+                    .as_deref()
+                    .and_then(lumen_indexer::scan::normalize_extension)
+                    .is_some()
+                {
+                    actions.push(EXCLUDE_EXTENSION);
+                }
+                actions
             },
             payload: Payload::Path(decode(&item.path, item.raw_path.as_deref())),
         },
@@ -512,6 +523,9 @@ mod tests {
         assert_eq!(r.icon, IconRef::FileExtension("xlsx".into()));
         assert!(matches!(&r.payload, Payload::Path(p) if p.ends_with("Presupuesto Reunión.xlsx")));
         assert!(r.detail.is_some());
+        assert!(r.offers(&EXCLUDE_FILE));
+        assert!(r.offers(&EXCLUDE_EXTENSION));
+        assert!(!r.offers(&EXCLUDE_FOLDER));
         assert_eq!(r.id.as_str().split(':').next(), Some("item"));
     }
 

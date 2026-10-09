@@ -23,6 +23,9 @@ const MATERIAL_PREFIX: &str = "material:";
 const LOC_ADD: &str = "loc-add";
 const LOC_REMOVE: &str = "loc-remove:";
 const EX_ADD: &str = "ex-add";
+const EX_FILE_ADD: &str = "ex-file-add";
+const EX_EXTENSION_ADD: &str = "ex-extension-add";
+const EX_EXTENSION: &str = "ex-extension:";
 const EX_REMOVE: &str = "ex-remove:";
 const EX_NAME_REMOVE: &str = "ex-name-remove:";
 const EX_DEFAULT: &str = "ex-default:";
@@ -432,6 +435,55 @@ fn location_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
         pick_folder(app, "Add a folder or drive to Lumen", catalog::add_location);
     } else if id == EX_ADD {
         pick_folder(app, "Exclude a folder from Lumen", catalog::exclude_path);
+    } else if id == EX_FILE_ADD {
+        let handle = app.clone();
+        app.dialog()
+            .file()
+            .set_title("Exclude files from Lumen search and indexing")
+            .pick_files(move |picked| {
+                if let Some(picked) = picked {
+                    catalog::edit(&handle, |model| {
+                        let mut changed = false;
+                        for path in picked.iter().filter_map(|p| p.as_path()) {
+                            changed |= model.exclude_path(path);
+                        }
+                        changed
+                    });
+                }
+            });
+    } else if id == EX_EXTENSION_ADD {
+        let handle = app.clone();
+        app.dialog()
+            .file()
+            .set_title("Choose an example file: exclude all files of its type")
+            .pick_file(move |picked| {
+                if let Some(path) = picked.as_ref().and_then(|p| p.as_path()) {
+                    if let Some(extension) = path
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .and_then(lumen_indexer::scan::normalize_extension)
+                    {
+                        catalog::set_extension(&handle, &extension, true);
+                    } else {
+                        handle
+                            .dialog()
+                            .message(
+                                "Choose a file with a filename extension, such as .js or .log.",
+                            )
+                            .title("Exclude file type")
+                            .show(|_| {});
+                    }
+                }
+            });
+    } else if let Some(extension) = id.strip_prefix(EX_EXTENSION) {
+        let excluded = app
+            .state::<catalog::Catalog>()
+            .locations()
+            .exclude_extensions
+            .iter()
+            .any(|e| e == extension);
+        catalog::set_extension(app, extension, !excluded);
+        refresh_locations(app);
     } else if let Some(path) = id.strip_prefix(LOC_REMOVE) {
         catalog::remove_location(app, path);
     } else if let Some(path) = id.strip_prefix(LOC_CONTENT) {
@@ -530,6 +582,39 @@ fn fill_locations<R: Runtime>(
     menus.locations.append(&add)?;
 
     clear(&menus.exclusions)?;
+    let file_types = Submenu::new(app, "File types", true)?;
+    let mut extensions = vec!["js".to_owned(), "json".to_owned(), "log".to_owned()];
+    extensions.extend(model.exclude_extensions.iter().cloned());
+    extensions.sort();
+    extensions.dedup();
+    for extension in extensions {
+        file_types.append(&CheckMenuItem::with_id(
+            app,
+            format!("{EX_EXTENSION}{extension}"),
+            format!("Exclude .{extension} files"),
+            editable,
+            model.exclude_extensions.contains(&extension),
+            None::<&str>,
+        )?)?;
+    }
+    file_types.append(&MenuItem::with_id(
+        app,
+        EX_EXTENSION_ADD,
+        "Exclude another file type…",
+        editable,
+        None::<&str>,
+    )?)?;
+    menus.exclusions.append(&file_types)?;
+    menus.exclusions.append(&MenuItem::with_id(
+        app,
+        EX_FILE_ADD,
+        "Exclude files…",
+        editable,
+        None::<&str>,
+    )?)?;
+    menus
+        .exclusions
+        .append(&PredefinedMenuItem::separator(app)?)?;
     let label = MenuItem::new(app, "Left out by default", false, None::<&str>)?;
     menus.exclusions.append(&label)?;
     for rule in DEV_NOISE_NAMES.iter().copied().chain([BUILD_DIRS_RULE]) {

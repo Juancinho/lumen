@@ -38,3 +38,29 @@ build_dirs_next_to_markers}`, shell `catalog.rs` + tray. Evidence:
   full resync stays the default for big locations (T207 replaces it with change journals).
 - "Add to indexed locations" from the Action Panel waits for a provider that returns
   results outside the locations.
+
+## 2026-10-09 amendment — T112 manual files and file types
+
+The user needs to suppress already indexed `.js`, `.json` and `.log` results manually.
+Reuse the same setting/tray/action model: JSON v3 adds literal `exclude_extensions`,
+normalized without a leading dot; `exclude_paths` also accepts individual file paths.
+v1 content migration stays; v2 names-only choices and unknown fields survive. Future
+settings remain read-only. No schema migration, dependency, model or public API is added.
+
+Ctrl+K file results offer reversible exact-file/type exclusions derived from their trusted
+payload; the UI still sends only ids. Tray Exclusions adds file-type checks (js/json/log
+off by default plus saved custom types), an example-file picker for another extension,
+and a multiple-file picker. Existing Include again and unchecked types undo rules.
+Literal suffixes match non-directories only, not folder names or globs.
+
+Explicit exclusions represent user intent even when a location is offline. Before a full
+inventory, prune matching file-source rows on the existing writer in 512-row keyset pages
+and deletion transactions; cancellation between pages prevents further cleanup, but
+previously committed explicit exclusions remain applied. Ordinary cancelled/unavailable
+inventory still preserves unrelated rows. Cascades remove only derived catalog/chunks/
+vectors/usage, never disk files; re-including restores affected files on inventory/content
+passes. Current native inference finishes cooperatively first; unrelated vectors and the
+active generation survive. No UI-thread disk walk or hidden query polling.
+
+Evidence/contracts: `docs/specs/T112-manual-exclusions.md`, model-free Windows release
+100k fixture in `docs/benchmarks/t112/2026-10-10-joao-pc/`. Native review pending.
