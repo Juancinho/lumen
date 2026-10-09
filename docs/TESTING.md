@@ -14,6 +14,10 @@
 - Not yet: end-to-end Windows UI automation, workflow tests, failure-injection suite.
 - T207: native `lumen-bench watch` on a synthetic catalog plus change/rename/alias,
   same-metadata write, replacement, exclusion, junction and offline/cancellation tests.
+- T208: core syntax tests, `lumen-catalog/tests/query_syntax.rs` and semantic provider
+  filter/embedding/overfetch checks through exact delta and persisted ANN. Release
+  100k-item/chunk synthetic timing: the `lumen-bench` Cargo example `query_syntax` (invocation
+  in `specs/T208-query-syntax.md`), without reading or writing live indexed data.
 
 ## 1. Test pyramid
 

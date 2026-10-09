@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use lumen_core::{
     CancellationToken, Confidence, LatencyClass, MatchKind, Provider, ProviderError, ProviderId,
-    ProviderQuery, ResultItem, Score,
+    ProviderQuery, QueryFilters, ResultItem, Score, SearchQuery,
 };
 use lumen_storage::{
     ChunkHit, FtsQuery, HIGHLIGHT_END, HIGHLIGHT_START, SearchBudget, StorageError, Store,
@@ -73,8 +73,12 @@ impl Provider for ContentProvider {
         if query.typing || query.limit == 0 {
             return Ok(Vec::new());
         }
+        let syntax = SearchQuery::parse(query.text);
+        if !syntax.valid || !syntax.filters.allows_file_content() {
+            return Ok(Vec::new());
+        }
         // The last word may be unfinished even when the user paused: prefix it.
-        let Some(all) = FtsQuery::content(query.text, true) else {
+        let Some(all) = FtsQuery::content(&syntax.text, true) else {
             return Ok(Vec::new());
         };
         let store = self
@@ -83,13 +87,14 @@ impl Provider for ContentProvider {
             .map_err(|_| ProviderError::Unavailable("content lock poisoned".into()))?;
         let budget = SearchBudget::within(BUDGET).with_cancel(cancel.clone());
         let want = query.limit * CHUNKS_PER_RESULT;
-        let mut hits = run(&store, &all, want, &budget, cancel)?;
+        let mut hits = run(&store, &all, want, &syntax.filters, &budget, cancel)?;
         let mut files: HashSet<i64> = hits.iter().map(|h| h.item_id).collect();
         if files.len() < query.limit
-            && let Some(any) = FtsQuery::two_of(query.text, true)
+            && syntax.phrases.is_empty()
+            && let Some(any) = FtsQuery::two_of(&syntax.text, true)
         {
             let seen: HashSet<i64> = hits.iter().map(|h| h.chunk_id).collect();
-            for h in run(&store, &any, want, &budget, cancel)? {
+            for h in run(&store, &any, want, &syntax.filters, &budget, cancel)? {
                 if !seen.contains(&h.chunk_id) {
                     files.insert(h.item_id);
                     hits.push(h);
@@ -116,7 +121,10 @@ impl Provider for ContentProvider {
             if !done.insert(hit.item_id) {
                 continue;
             }
-            let Some(item) = store.catalog_item(hit.item_id).map_err(unavailable)? else {
+            let Some(item) = store
+                .catalog_item_filtered(hit.item_id, &syntax.filters)
+                .map_err(unavailable)?
+            else {
                 continue;
             };
             #[allow(clippy::cast_possible_truncation)]
@@ -144,10 +152,11 @@ fn run(
     store: &Store,
     q: &FtsQuery,
     limit: usize,
+    filters: &QueryFilters,
     budget: &SearchBudget,
     cancel: &CancellationToken,
 ) -> Result<Vec<ChunkHit>, ProviderError> {
-    match store.search_chunks(q, limit, budget) {
+    match store.search_chunks_filtered(q, limit, filters, budget) {
         Ok(hits) => Ok(hits),
         Err(StorageError::Interrupted) if cancel.is_cancelled() => Err(ProviderError::Cancelled),
         Err(StorageError::Interrupted) => Ok(Vec::new()),

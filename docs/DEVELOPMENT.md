@@ -261,6 +261,11 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
 - Root search (T107, ADR-025): the UI calls `search(queryId, text)` per query change, on
   show and on `lumen:catalog-changed`; results stream as `lumen:results`. The catalog lives
   in the same `lumen.db`; the first sync starts 2 s after launch.
+- Query syntax (T208): ordinary root text accepts `type:`, `ext:`, `in:`, `before:` and
+  `after:`, combined with AND; closed quotes require lexical phrases. Example:
+  `contrato ext:pdf in:"D:\Mis documentos" after:2026-01-01`. Dates use mtime/UTC.
+  `type:image` describes inventory, without adding visual embeddings. Precise semantics
+  and release synthetic benchmark: `docs/specs/T208-query-syntax.md`.
 - Window material (T004, ADR-024): transparent window + DWM system backdrop. Tray → "Window
   material" = Automatic (Acrylic) / Acrylic / Mica / Solid, saved as `appearance.material`;
   `LUMEN_MATERIAL=auto|acrylic|mica|solid` overrides for one run. Backdrops need Windows 11

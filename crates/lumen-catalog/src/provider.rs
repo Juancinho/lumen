@@ -11,7 +11,7 @@ use lumen_core::builtin::{COPY_PATH, EXCLUDE_FOLDER, LAUNCH, OPEN, REVEAL};
 use lumen_core::{
     CancellationToken, Capability, CapabilitySet, Confidence, IconRef, LatencyClass, MatchKind,
     Payload, Provider, ProviderError, ProviderId, ProviderQuery, ResultId, ResultItem, ResultKind,
-    Score,
+    Score, SearchQuery,
 };
 use lumen_storage::{CatalogItem, ItemKind, SearchBudget, StorageError, Store};
 
@@ -149,21 +149,53 @@ impl Provider for CatalogProvider {
         if cancel.is_cancelled() {
             return Err(ProviderError::Cancelled);
         }
+        let syntax = SearchQuery::parse(query.text);
+        if !syntax.valid {
+            return Ok(Vec::new());
+        }
         let store = self
             .store
             .lock()
             .map_err(|_| ProviderError::Unavailable("catalog lock poisoned".into()))?;
-        let Some(q) = ParsedQuery::parse(query.text) else {
+        let budget = SearchBudget::within(BUDGET).with_cancel(cancel.clone());
+        if syntax.text.trim().is_empty() && !syntax.filters.0.is_empty() {
+            return match store.filtered_items(&syntax.filters, query.limit, &budget) {
+                Ok(items) => Ok(items
+                    .iter()
+                    .filter_map(|item| {
+                        to_result(
+                            item,
+                            Score::new(Confidence::saturating(0.5), MatchKind::Suggestion),
+                        )
+                    })
+                    .collect()),
+                Err(StorageError::Interrupted) if !cancel.is_cancelled() => Ok(Vec::new()),
+                Err(e) => Err(unavailable(e)),
+            };
+        }
+        let name_text = syntax.text.replace('"', "");
+        let Some(q) = ParsedQuery::parse(&name_text) else {
+            if !syntax.filters.0.is_empty() || !syntax.phrases.is_empty() {
+                return Ok(Vec::new());
+            }
             return suggestions(&store, query.limit);
         };
-        let budget = SearchBudget::within(BUDGET).with_cancel(cancel.clone());
-        let (candidates, learned) = gather(&store, &q, query.limit, &budget)?;
+        let (candidates, learned) = match gather(&store, &q, &syntax, query.limit, &budget) {
+            Err(ProviderError::Cancelled) if !cancel.is_cancelled() => return Ok(Vec::new()),
+            result => result?,
+        };
         if cancel.is_cancelled() {
             return Err(ProviderError::Cancelled);
         }
         let now = now_ms();
         let mut scored: Vec<(Scored, &CatalogItem)> = candidates
             .values()
+            .filter(|item| {
+                syntax
+                    .phrases
+                    .iter()
+                    .all(|phrase| phrase_in_name(phrase, &item.name))
+            })
             .filter_map(|item| {
                 score(&q, item, now)
                     .or_else(|| learned.contains(&item.id).then(|| score_learned(item, now)))
@@ -241,6 +273,7 @@ fn now_ms() -> i64 {
 fn gather(
     store: &Store,
     q: &ParsedQuery,
+    syntax: &SearchQuery<'_>,
     limit: usize,
     budget: &SearchBudget,
 ) -> Result<(HashMap<i64, CatalogItem>, Vec<i64>), ProviderError> {
@@ -250,16 +283,23 @@ fn gather(
     };
     let mut out: HashMap<i64, CatalogItem> = HashMap::new();
     // Items picked for this query before, even if no index stage would surface them first.
-    let learned = store
-        .learned_choices(&q.key, LEARNED_CANDIDATES)
-        .map_err(interrupted)?;
+    let learned = if syntax.phrases.is_empty() {
+        store
+            .learned_choices(&q.key, LEARNED_CANDIDATES)
+            .map_err(interrupted)?
+    } else {
+        Vec::new()
+    };
     for &id in &learned {
-        if let Some(item) = store.catalog_item(id).map_err(interrupted)? {
+        if let Some(item) = store
+            .catalog_item_filtered(id, &syntax.filters)
+            .map_err(interrupted)?
+        {
             out.insert(id, item);
         }
     }
     for hit in store
-        .search_names(&q.key, limit * OVERFETCH, budget)
+        .search_names_filtered(&q.key, limit * OVERFETCH, &syntax.filters, budget)
         .map_err(interrupted)?
     {
         out.insert(hit.item.id, hit.item);
@@ -273,8 +313,19 @@ fn gather(
             cancel: budget.cancel.clone(),
         }
     };
-    if let Some(matcher) = q.fts_matcher() {
-        match store.search_name_tokens(&matcher, TOKEN_CANDIDATES, &slice(TOKEN_SLICE)) {
+    let matcher = if syntax.phrases.is_empty() {
+        q.fts_matcher()
+    } else {
+        lumen_storage::FtsQuery::from_user(&syntax.text, true)
+            .map(|fts| format!("name_parts : ({})", fts.as_str()))
+    };
+    if let Some(matcher) = matcher {
+        match store.search_name_tokens_filtered(
+            &matcher,
+            TOKEN_CANDIDATES,
+            &syntax.filters,
+            &slice(TOKEN_SLICE),
+        ) {
             Ok(items) => {
                 for item in items {
                     out.entry(item.id).or_insert(item);
@@ -284,10 +335,16 @@ fn gather(
             Err(e) => return Err(interrupted(e)),
         }
     }
-    if out.len() < limit && typo_budget(q.chars()) > 0 {
+    if syntax.phrases.is_empty() && out.len() < limit && typo_budget(q.chars()) > 0 {
         let lo: String = q.key.chars().take(2).collect();
         let hi = format!("{lo}\u{10FFFF}");
-        match store.name_key_range(&lo, &hi, FUZZY_CANDIDATES, &slice(FUZZY_SLICE)) {
+        match store.name_key_range_filtered(
+            &lo,
+            &hi,
+            FUZZY_CANDIDATES,
+            &syntax.filters,
+            &slice(FUZZY_SLICE),
+        ) {
             Ok(items) => {
                 for item in items {
                     out.entry(item.id).or_insert(item);
@@ -298,6 +355,12 @@ fn gather(
         }
     }
     Ok((out, learned))
+}
+
+fn phrase_in_name(phrase: &str, name: &str) -> bool {
+    let phrase = crate::text::tokens(phrase);
+    let name = crate::text::tokens(name);
+    !phrase.is_empty() && name.windows(phrase.len()).any(|window| window == phrase)
 }
 
 #[cfg(test)]

@@ -13,9 +13,9 @@ use std::sync::{Arc, Mutex, RwLock};
 use lumen_catalog::provider::to_result;
 use lumen_core::{
     CancellationToken, Confidence, LatencyClass, MatchKind, Provider, ProviderError, ProviderId,
-    ProviderQuery, ResultItem, Score,
+    ProviderQuery, ResultItem, Score, SearchQuery,
 };
-use lumen_storage::{ChunkRef, GenerationState, Store};
+use lumen_storage::{ChunkRef, GenerationState, SearchBudget, Store};
 
 use crate::index::SemanticIndex;
 use crate::query::{QueryEmbedder, QueryError};
@@ -101,7 +101,11 @@ impl Provider for SemanticProvider {
         query: &ProviderQuery<'_>,
         cancel: &CancellationToken,
     ) -> Result<Vec<ResultItem>, ProviderError> {
-        let text = query.text.trim();
+        let syntax = SearchQuery::parse(query.text);
+        if !syntax.valid || !syntax.phrases.is_empty() || !syntax.filters.allows_file_content() {
+            return Ok(Vec::new());
+        }
+        let text = syntax.text.trim();
         if query.typing || query.limit == 0 || text.chars().count() < self.config.min_query_chars {
             return Ok(Vec::new());
         }
@@ -145,9 +149,47 @@ impl Provider for SemanticProvider {
         {
             return Ok(Vec::new());
         }
-        let hits = index
-            .search(&store, &vector, query.limit * self.config.chunks_per_result)
-            .map_err(|e| ProviderError::Unavailable(e.to_string()))?;
+        let want = query.limit * self.config.chunks_per_result;
+        let mut fetch = want;
+        let budget =
+            SearchBudget::within(std::time::Duration::from_millis(100)).with_cancel(cancel.clone());
+        let mut partial = Vec::new();
+        let hits = loop {
+            if cancel.is_cancelled() {
+                return Err(ProviderError::Cancelled);
+            }
+            if !syntax.filters.0.is_empty()
+                && budget
+                    .deadline
+                    .is_some_and(|deadline| std::time::Instant::now() >= deadline)
+            {
+                break partial;
+            }
+            let mut hits = index
+                .search(&store, &vector, fetch)
+                .map_err(|e| ProviderError::Unavailable(e.to_string()))?;
+            if syntax.filters.0.is_empty() {
+                break hits;
+            }
+            let exhausted = hits.len() < fetch;
+            let ids: Vec<_> = hits.iter().map(|h| h.chunk_id).collect();
+            let allowed = match store.matching_chunk_ids(&ids, &syntax.filters, &budget) {
+                Ok(ids) => ids,
+                Err(lumen_storage::StorageError::Interrupted) if cancel.is_cancelled() => {
+                    return Err(ProviderError::Cancelled);
+                }
+                Err(lumen_storage::StorageError::Interrupted) => break partial,
+                Err(e) => return Err(ProviderError::Unavailable(e.to_string())),
+            };
+            hits.retain(|h| allowed.contains(&h.chunk_id));
+            // Bounded ANN overfetch prevents a few excluded nearest neighbours from
+            // hiding eligible files. Very narrow filters can return a partial list.
+            if hits.len() >= want || exhausted || fetch >= 1024 {
+                break hits;
+            }
+            partial = hits;
+            fetch = fetch.saturating_mul(4).min(1024);
+        };
         drop(guard);
         let Some(best) = hits.first().map(|h| h.similarity) else {
             return Ok(Vec::new());
@@ -166,6 +208,9 @@ impl Provider for SemanticProvider {
         let mut out = Vec::new();
         let mut seen = HashSet::new();
         for hit in kept {
+            if cancel.is_cancelled() {
+                return Err(ProviderError::Cancelled);
+            }
             if out.len() >= query.limit {
                 break;
             }
@@ -177,7 +222,7 @@ impl Provider for SemanticProvider {
                 continue;
             }
             let Some(item) = store
-                .catalog_item(r.item_id)
+                .catalog_item_filtered(r.item_id, &syntax.filters)
                 .map_err(|e| ProviderError::Unavailable(e.to_string()))?
             else {
                 continue;

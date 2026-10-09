@@ -125,7 +125,14 @@ Reserved initial filters:
 - `before:`
 - `after:`
 
-Quoted strings request stronger lexical/exact behavior.
+Implemented (T208): operators are hard AND constraints shared by name/content/meaning
+providers; values never enter query embeddings. Recognized incomplete/invalid operators
+fail closed. Filters alone enumerate metadata without loading the model. Dates constrain
+mtime at UTC calendar-day boundaries; `in:` matches directories at component boundaries.
+Completed quoted phrases require lexical token exactness; semantic expansion and partial
+content fallback wait for an unquoted request. Examples and precise accepted values:
+[`specs/T208-query-syntax.md`](specs/T208-query-syntax.md). Media categories describe
+inventory metadata, not extraction/model coverage.
 
 Provider-specific sigils/prefixes should be added only when they create substantial value and never be required for discoverability.
 

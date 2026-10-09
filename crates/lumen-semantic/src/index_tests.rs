@@ -459,6 +459,93 @@ mod provider {
         assert!(r[0].score.confidence.get() > 0.99);
         assert_eq!(r[0].subtitle.as_deref(), Some("beach photos"));
         assert_eq!(r[0].provider, crate::SEMANTIC_PROVIDER_ID);
+        let filtered = p
+            .search(
+                &query("beach photos ext:md in:/d type:document", false),
+                &never,
+            )
+            .unwrap();
+        assert_eq!(filtered[0].id, r[0].id);
+        assert_eq!(
+            filtered[0].score, r[0].score,
+            "operators must not enter the query embedding"
+        );
+        for text in [
+            "beach photos ext:png",
+            "beach photos type:app",
+            "beach photos before:bad",
+            "\"beach photos\"",
+            "ext:md",
+        ] {
+            assert!(
+                p.search(&query(text, false), &never).unwrap().is_empty(),
+                "{text}"
+            );
+        }
+
+        // A narrow filter must look past the ordinary candidate window. Validate
+        // both the exact delta and the persisted ANN using synthetic vectors.
+        let vector = embedder.embed("beach photos", &never).unwrap();
+        for i in 0..65 {
+            let path = if i == 64 {
+                "/allowed/wanted.md".to_owned()
+            } else {
+                format!("/excluded/{i}.txt")
+            };
+            let item = store
+                .insert_item(&NewItem::file(
+                    &path,
+                    if i == 64 { "wanted.md" } else { "noise.txt" },
+                ))
+                .unwrap();
+            let chunk_id = store
+                .insert_chunks(&[NewChunk {
+                    item_id: item,
+                    ordinal: 0,
+                    chunk_kind: "text",
+                    text: "beach photos",
+                    symbol_name: None,
+                    page_number: None,
+                    start_offset: None,
+                    end_offset: None,
+                }])
+                .unwrap()[0];
+            store
+                .write_vectors(
+                    generation,
+                    &[VectorWrite {
+                        chunk_id,
+                        result: Ok(&vector),
+                    }],
+                    0,
+                )
+                .unwrap();
+        }
+        shared
+            .write()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .refresh(&store)
+            .unwrap();
+        let assert_filtered = || {
+            let mut q = query("beach photos in:/allowed ext:md", false);
+            q.limit = 1;
+            let results = p.search(&q, &never).unwrap();
+            assert_eq!(results.len(), 1);
+            assert_eq!(results[0].title, "wanted.md");
+        };
+        assert_filtered();
+        let record = build_file(&store, &dir.join("v"), generation, &never, 1).unwrap();
+        store.set_ann_file(&record).unwrap();
+        shared
+            .write()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .reopen_file(&store)
+            .unwrap();
+        assert_filtered();
         // The semantic lane carries exactly the same code context as lexical results.
         let code_id = store
             .insert_item(&NewItem::file("/repo/client.py", "client.py"))

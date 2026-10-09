@@ -26,6 +26,9 @@
 - **Optional GPU indexing (built, T212):** persisted native tray option, dedicated adapter
   only, synthetic compatibility probe, same-generation queue and CPU fallback (ADR-038).
   Queries stay on CPU. Native tray/keyboard and long driver soak review remains.
+- **Query syntax (built, T208):** root `type/ext/in/before/after` hard filters across all
+  lanes, metadata-only queries and required quoted lexical phrases. Same model/index and
+  unfiltered ranking; bounded semantic overfetch. See `specs/T208-query-syntax.md`.
 
 ## 1. Retrieval philosophy
 

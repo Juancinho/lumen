@@ -5,24 +5,55 @@
 
 ## Branch and exact continuation
 
-main on github.com/Juancinho/lumen. This session continues 69d741f (T207) with T212,
-explicitly requested by the user: dedicated-GPU indexing, CPU queries, available VRAM.
-Inspect git status/log for the final coherent T212 commit. No push was requested/performed.
-T212 is REVIEW; no implementation task remains claimed. Its native tray review below
-remains; next implementation is T208 query syntax.
-Claim T208 after the canonical reading order and its relevant specs/ADRs. Do not begin
-photo/PDF/multimodal work, change weights/ranking or redo completed providers.
+main on github.com/Juancinho/lumen. This session continues cc416de (T212) with T208,
+the next ordered implementation while the user's resident application indexes.
+Inspect git status/log for the coherent T208 commit. No push was requested/performed.
+T208 is REVIEW; no implementation task remains claimed. Native checks below remain.
+Next implementation is T301 PDF text/page extraction, per TASKS → Next and its T201
+dependency. Read SEARCH_AND_INDEXING (PDF/extraction), RELEASE_AND_LICENSING and touched
+ADRs after the canonical reading order, then claim T301. Do not skip to productivity/
+workflows or silently add image/OCR scope. Preserve current model/index/ranking architecture.
 
-The original T207 process PID 11356/start 15:59:27 stayed running through the performance
-checks. No agent restart or live app-data DB writes were used for validation; all test
-writes were synthetic/temporary. At the user's later continuation, the original process
-had been replaced independently by PID 8884/start 17:29:01, already running
-target/t212-release/lumen.exe. Do not stop it or modify its DB for validation.
-Read-only checks at session end: indexing.gpu.enabled=true, no cached probe/quarantine,
-Pause=false; the process still loads .cache/t006/ort-cpu/onnxruntime.dll (development
-override), so GPU is not active yet. AC/battery 100%. The user needs one chosen Quit and
-relaunch with the DirectML override below. A second ordinary launch only addresses the
-current resident instance. Inspect current PIDs/state again before acting.
+Resident process inspected read-only: PID 7404/start 2026-10-09 18:04:57 +02:00,
+target/t212-release/lumen.exe, loading its beside-exe onnxruntime.dll and DirectML.dll.
+The agent did not stop/restart it, alter its settings or write its live app-data DB.
+All validation writes used synthetic temporary databases. Inspect current PIDs before
+acting; a stale second launch only addresses the existing single-instance process.
+
+## T208 — implementation and native review
+
+Read docs/specs/T208-query-syntax.md. Files: lumen-core/query.rs; lumen-storage/filters.rs;
+lumen-catalog provider/content/usage and tests/query_syntax.rs; lumen-semantic provider/
+index_tests; lumen-bench/examples/query_syntax.rs. No schema/model/generation/weights,
+UI/DTO, architecture or indexing change. Existing keyboard/actions/selection remain.
+
+Root type/ext/in/before/after filters combine with AND across all lanes; known incomplete/
+invalid filters fail closed. Dates are mtime/UTC calendar days; paths use directory
+boundaries and ASCII case folding. Unknown operators/URLs/drive letters stay text;
+quoted operators stay literal. Metadata-only queries enumerate names without a model.
+Category lists in QueryType::extensions describe inventory, not media extraction.
+Closed phrases require filename/FTS tokens in order, no prefix/typo inside quotes,
+semantic expansion or two-of fallback. Bare text keeps existing behavior; open quotes
+remain forgiving. Filters bind SQL parameters before lexical LIMIT; learned choices obey
+them. Semantic overfetch is capped at 1,024 candidates/100 ms extra retrieval, potentially
+partial for narrow filters; ordinary ANN and stale-row handling remain unchanged.
+
+Release evidence: docs/benchmarks/t208/2026-10-09-joao-pc/README.md. 100k items/chunks:
+names ordinary/filtered p95 13.429/13.086 ms; filtered content 0.372 ms; phrase 1.343 ms;
+1,024 ANN-ID metadata check 1.678 ms. Zero empty measured queries. Parser p95 0.001136 ms.
+Loaded-machine selective fixture, not visible paint/common-term worst cases/real-library
+recall or full semantic embedding latency. Delta and persisted ANN filters are tested.
+
+Native checks after the user's chosen switch to the new executable:
+
+1. Existing file query with ext:rs / type:code / in:<actual directory>, then type:folder/
+   type:image alone. type:image finds metadata/names; T208 adds no vision/OCR/PDF extractor.
+2. Actual indexed phrase in quotes plus a bare word; impossible ext/date/path or incomplete
+   ext: must not leak excluded rows. Date comparisons use UTC day boundaries.
+3. Arrows/PageDown before settle, edit/clear filters, Enter/Ctrl+Enter/Ctrl+K/Alt+Enter/
+   Escape: preserve focus, selected identity, local actions and matching passage.
+4. Lexical operation offline/without a model. Current UI retains its existing no-results
+   state for invalid syntax. Non-ASCII directory spelling follows existing SQLite semantics.
 
 ## T212 — implementation and launch
 
@@ -45,13 +76,14 @@ A GPU runtime already beside the exe supports toggling without another restart.
 Development downloaded this fixed runtime wheel for hash/extraction validation; cached
 models were reused. No indexed content/files/queries went into probes or left the device.
 
-Usable optimized output, with verified DLLs and notices: target/t212-release/lumen.exe.
-The user must first choose Quit Lumen in the current tray, then run from repository root:
+Usable optimized T208 output, including T212 and verified DLLs/notices:
+target/t208-release/lumen.exe. Keep the current process indexing. After the user chooses
+Quit Lumen in the current tray, run from repository root:
 
 ```powershell
 $env:LUMEN_EMBED_MODEL_DIR = "$PWD\.cache\t006\embeddinggemma-2-ONNX"
-$env:LUMEN_ORT_DYLIB = "$PWD\target\t212-release\onnxruntime.dll"
-.\target\t212-release\lumen.exe
+$env:LUMEN_ORT_DYLIB = "$PWD\target\t208-release\onnxruntime.dll"
+.\target\t208-release\lumen.exe
 ```
 
 Installed model/runtime assets need no development overrides. A stale CPU override masks
@@ -88,7 +120,7 @@ refresh are implemented. Schema/model/extractor/ranking/UI contracts stay unchan
 Unchanged moves preserve embeddings; ambiguous Windows rename+modify hints compare bounded
 indexed chunks within content consent. ANN sequence checks reject stale hits.
 
-With the new T212 executable above (includes T207):
+With the new T208 executable above (includes T207/T212):
 
 1. Add a scratch folder, enable Index file contents, create/edit text/code including an
    editor replacement save. Names/words refresh without rescan; new vectors become pending.
@@ -169,7 +201,6 @@ powershell -ExecutionPolicy Bypass -File scripts\t205\run-windows-eval.ps1
 ```powershell
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -j 2 -- -D warnings
-cargo clippy -p lumen-bench --features directml --all-targets --locked -j 2 -- -D warnings
 cargo xtask test --locked -j 2
 cargo xtask arch
 npm --prefix apps/desktop run format:check
@@ -177,12 +208,14 @@ npm --prefix apps/desktop run lint
 npm --prefix apps/desktop run typecheck
 npm --prefix apps/desktop run test -- --maxWorkers 1
 npm --prefix apps/desktop run build
-cargo build --release -p lumen-desktop --bin lumen --example gpu_indexing --features tauri/custom-protocol --locked -j 2
+cargo build --release -p lumen-desktop --bin lumen --features tauri/custom-protocol --locked -j 2
+cargo run --release -p lumen-bench --example query_syntax --locked -j 2 -- target/t208-timing.json
 ```
 
-T212 ran the full Rust gate, DirectML lint, architecture guard and 71 frontend tests/build.
-Later source changes were rechecked with workspace lint and content/desktop/provision tests.
-The optional local-wheel test was run with LUMEN_TEST_GPU_WHEEL_DIR=.cache/t212; normal
+T208 ran the full Rust gate, workspace lint, architecture guard and 71 frontend tests/build.
+The new query-syntax example measured a synthetic release catalog; no UI layout changed
+and no visible native inspection was claimed. T212's DirectML/runtime checks remain valid.
+T212 previously ran the optional local-wheel test with LUMEN_TEST_GPU_WHEEL_DIR=.cache/t212; normal
 tests skip it without a supplied wheel. Real network/model download tests remain ignored.
 See T212 README for native release probe/example commands and limitations.
 

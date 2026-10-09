@@ -3,7 +3,7 @@
 //! and the folded query text becomes the learned-choice key.
 
 use lumen_core::builtin::{COPY_PATH, LAUNCH, OPEN, REVEAL};
-use lumen_core::{ActionId, ResultId};
+use lumen_core::{ActionId, ResultId, SearchQuery};
 use lumen_storage::{StorageError, Store, UseKind};
 
 use crate::rank::ParsedQuery;
@@ -43,7 +43,10 @@ pub fn record_action(
     let (Some(item), Some(kind)) = (item_id(result), use_kind(action)) else {
         return Ok(false);
     };
-    let key = ParsedQuery::parse(query_text).map(|q| q.key);
+    let syntax = SearchQuery::parse(query_text);
+    let key = (syntax.valid && syntax.phrases.is_empty())
+        .then(|| ParsedQuery::parse(&syntax.text).map(|q| q.key))
+        .flatten();
     store.record_use(item, kind, key.as_deref(), now_ms)?;
     Ok(true)
 }

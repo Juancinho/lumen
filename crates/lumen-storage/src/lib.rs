@@ -13,6 +13,7 @@
 
 pub mod catalog;
 pub mod content;
+mod filters;
 mod fts;
 pub mod generations;
 pub mod migrations;

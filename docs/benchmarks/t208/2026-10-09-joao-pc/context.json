@@ -1,0 +1,17 @@
+{
+  "date_utc": "2026-10-09T16:30:56.7540784Z",
+  "cpu": "AMD Ryzen 5 5600H with Radeon Graphics",
+  "cores": 6,
+  "logical_processors": 12,
+  "physical_memory_bytes": 16477171712,
+  "os": "Microsoft Windows 11 Pro",
+  "os_build": "26300",
+  "resident_pid": 7404,
+  "resident_start": "2026-10-09T18:04:57.5390865+02:00",
+  "resident_working_set_bytes": 580337664,
+  "power": {
+    "BatteryStatus": 2,
+    "EstimatedChargeRemaining": 100
+  },
+  "notes": "Loaded machine: resident T212 Lumen indexing and compilation overlapped. Temporary synthetic DB; no live app-data writes, process restart, inference timing or visible native UI QA."
+}

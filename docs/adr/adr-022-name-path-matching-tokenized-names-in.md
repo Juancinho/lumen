@@ -39,4 +39,6 @@ Evidence: `crates/lumen-catalog/tests/relevance.rs` over `fixtures/search/catalo
   lower the threshold silently). Usage/recency signals (T106) plug in as priors.
 - Inventory throughput halved by the token index; acceptable for Pass 0 (1M entries ≈ 80 s in
   the background). Revisit if T207 incremental updates show it matters.
-- Query syntax filters (`ext:`, `in:`, `type:`) are T208; extension tokens already match.
+- 2026-10-09 T208 amendment: filters (`ext:`, `in:`, `type:`) are implemented without replacing
+  these matching stages; filtered candidates obey predicates before LIMIT. Extension
+  tokens still match plain queries. See `../specs/T208-query-syntax.md`.

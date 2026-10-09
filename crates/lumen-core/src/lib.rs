@@ -33,6 +33,7 @@ pub mod contract;
 pub mod execution;
 pub mod ids;
 pub mod provider;
+pub mod query;
 pub mod result;
 
 pub use action::{ActionDescriptor, ActionGroup, ActionLookup, ActionSafety};
@@ -44,6 +45,7 @@ pub use execution::{
 };
 pub use ids::{ActionId, IdError, ProviderId, QueryId, ResultId};
 pub use provider::{LatencyClass, Provider, ProviderError, ProviderQuery};
+pub use query::{QueryFilter, QueryFilters, QueryType, SearchQuery};
 pub use result::{
     CodeTarget, Confidence, IconRef, MatchKind, Payload, ResultItem, ResultKind, Score,
 };

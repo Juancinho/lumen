@@ -39,7 +39,10 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
     overlay/reconnect checks in HANDOFF.
 14. ~~T212~~ optional dedicated-GPU indexing — REVIEW (ADR-038): Windows release GPU/CPU
     queue and compatibility measured; native tray/persistence/download checks in HANDOFF.
-    **T208** query syntax is the next implementation.
+15. ~~T208~~ query syntax — REVIEW: hard filters and quoted lexical phrases implemented;
+    Windows release 100k synthetic timing measured, native root/keyboard checks in HANDOFF.
+    Next implementation is **T301** PDF extraction; read its domain spec and claim it
+    before implementation. The Windows REVIEW checks above remain open.
 
 # M0 — technical spikes and foundation
 
@@ -89,7 +92,7 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 | T205 | REVIEW | claude | Hybrid provider/lexical/vector fusion + evaluation harness              | T203,T204,T102,T011 |
 | T206 | REVIEW | claude | Progressive semantic UI refinement without focus jumps                  | T107,T205           |
 | T207 | REVIEW | codex | Incremental watcher/reindex/delete/rename (ADR-037)                     | T009,T202           |
-| T208 | TODO   | —     | Query syntax: type/ext/in/before/after/quoted exact                     | T205                |
+| T208 | REVIEW | codex | Query syntax: type/ext/in/before/after/quoted exact                     | T205                |
 | T209 | REVIEW | codex | Code result model: symbol/file/repository context + code actions        | T201,T108           |
 | T210 | REVIEW | claude | Model + runtime provisioning: explicit download (consent, size), SHA-256 check, versioned app-data location, ORT DLL next to the exe, license notices, removal | T006,T202           |
 | T211 | REVIEW | claude | Harder relevance set for fusion tuning: hundreds of synthetic documents, near-duplicates, folder noise, long documents, graded judgments; re-tune ADR-032 weights | T205                |

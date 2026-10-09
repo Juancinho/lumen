@@ -128,9 +128,8 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
   wheel (14 MB, PyPI) via the system curl, SHA-256 per file and per extracted member,
   resumable staging, atomic install, removal; indexing and the query lane start without a
   restart. Environment variables still override (development).
-- **T211 REVIEW (ADR-033):** harder set (162 documents, 49 graded queries), fusion weights
-  1/1/2 (fused NDCG 0.957, top-1 0.939). Code-language gap addressed by T209;
-  log/data `two_of` finding remains open.
+- **T211 REVIEW (ADR-033):** 162 docs/49 queries, weights 1/1/2 (NDCG 0.957/top-1 0.939).
+  Code-language gap addressed by T209; log/data `two_of` finding remains open.
 - **T205 REVIEW (ADR-032):** instant names; settled (80 ms) contents/meaning via FTS/query
   lane + ANN; weighted RRF, exact navigation first, one file row with a passage snippet.
   Original fixture: fused top-1 0.982; weights now 1/1/2 (T211). Linux app smoke passed.
@@ -144,6 +143,8 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
 - **T014 REVIEW:** loaded GTX 1650 q4 recheck 2.24× CPU; full Windows runtime/thread matrix pending.
 - **T212 REVIEW (ADR-038):** persisted dedicated-GPU indexing option, CPU queries and
   same-generation fallback; release queue 6.80 chunks/s, CPU query p95 65 ms; native tray review pending.
+- **T208 REVIEW:** root type/ext/path/date hard filters and quoted lexical phrases;
+  same model/index, names p95 13 ms on synthetic 100k; native root/keyboard review pending.
 - **T111 REVIEW (ADR-027):** indexed locations + exclusions in one versioned setting; tray
   → Indexed locations / Exclusions (native folder picker), per-location state, developer
   noise and marker-based build folders excluded by default (visible, toggleable), Action
@@ -158,10 +159,9 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
 
 ## Immediate objective
 
-1. Close M1 on Windows: the REVIEW checklists in `HANDOFF.md` (search, keys, actions, Quick
-   Look, look and material, shortcut).
-2. Finish M2 Windows reviews, settle the indexing runtime (T014); next implementation is
-   T208 (query syntax), ordered in `TASKS.md` → **Next**. T207/T209 are in REVIEW.
+1. Close M1 Windows REVIEW checklists in `HANDOFF.md`: search, keys, actions, Quick Look/material.
+2. Finish M2 reviews/runtime verdict (T014); T208 is implemented. Next milestone task is
+   T301 PDF extraction, ordered in `TASKS.md` → **Next**; Windows reviews remain open.
 
 ## M1 gate (instant launcher)
 
