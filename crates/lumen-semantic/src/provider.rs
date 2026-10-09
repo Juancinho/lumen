@@ -158,7 +158,7 @@ impl Provider for SemanticProvider {
             .collect();
         let ids: Vec<i64> = kept.iter().map(|h| h.chunk_id).collect();
         let refs: HashMap<i64, ChunkRef> = store
-            .chunk_refs(&ids, EXCERPT_CHARS)
+            .chunk_refs(&ids, 4000)
             .map_err(|e| ProviderError::Unavailable(e.to_string()))?
             .into_iter()
             .map(|r| (r.chunk_id, r))
@@ -185,7 +185,9 @@ impl Provider for SemanticProvider {
             let score = Score::new(Confidence::saturating(hit.similarity), MatchKind::Semantic);
             if let Some(mut result) = to_result(&item, score) {
                 result.provider = SEMANTIC_PROVIDER_ID;
-                result.subtitle = Some(one_line(&r.excerpt));
+                let excerpt: String = r.excerpt.chars().take(EXCERPT_CHARS).collect();
+                result.subtitle = Some(one_line(&excerpt));
+                lumen_catalog::code::enrich(&mut result, r, item.extension.as_deref());
                 out.push(result);
             }
         }

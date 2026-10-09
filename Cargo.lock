@@ -2445,6 +2445,7 @@ name = "lumen-catalog"
 version = "0.1.0"
 dependencies = [
  "lumen-core",
+ "lumen-extract",
  "lumen-indexer",
  "lumen-storage",
  "lumen-windows",

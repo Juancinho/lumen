@@ -1,0 +1,952 @@
+{
+  "schema_version": 1,
+  "kind": "eval",
+  "label": "JOAO-PC | T209 | q4 | 6 threads",
+  "machine": {
+    "os": "windows",
+    "arch": "x86_64",
+    "logical_cpus": 12,
+    "cpu": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791546536
+  },
+  "backend": "ort",
+  "space": "embeddinggemma-2@onnx-community-q4/pre1/embeddinggemma-retrieval@1/d256/l2",
+  "documents": 162,
+  "chunks": 177,
+  "vectors": 177,
+  "index_seconds": 36.6695056,
+  "queries": 49,
+  "latency": [
+    {
+      "lane": "name",
+      "latency": {
+        "n": 49,
+        "min_ms": 0.3532,
+        "mean_ms": 0.6230285714285712,
+        "p50_ms": 0.5405,
+        "p95_ms": 1.1286,
+        "p99_ms": 1.5296,
+        "max_ms": 1.5296
+      }
+    },
+    {
+      "lane": "content",
+      "latency": {
+        "n": 49,
+        "min_ms": 0.1459,
+        "mean_ms": 0.9576530612244896,
+        "p50_ms": 0.8541,
+        "p95_ms": 2.3197,
+        "p99_ms": 2.7771,
+        "max_ms": 2.7771
+      }
+    },
+    {
+      "lane": "semantic",
+      "latency": {
+        "n": 49,
+        "min_ms": 28.4173,
+        "mean_ms": 72.64632653061224,
+        "p50_ms": 33.5174,
+        "p95_ms": 65.6734,
+        "p99_ms": 1804.3802,
+        "max_ms": 1804.3802
+      }
+    }
+  ],
+  "configs": [
+    {
+      "name": "name only",
+      "weights": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "overall": {
+        "queries": 49,
+        "recall_at_1": 0.10204081632653061,
+        "recall_at_5": 0.1183673469387755,
+        "recall_at_10": 0.12040816326530612,
+        "mrr_at_10": 0.11224489795918367,
+        "ndcg_at_10": 0.11441107940470367,
+        "top1": 0.10204081632653061
+      },
+      "by_category": {
+        "ambiguous": {
+          "queries": 1,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.8,
+          "recall_at_10": 0.9,
+          "mrr_at_10": 0.5,
+          "ndcg_at_10": 0.7799082337019199,
+          "top1": 0.0
+        },
+        "code": {
+          "queries": 6,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        },
+        "code-multilingual": {
+          "queries": 1,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        },
+        "exact": {
+          "queries": 5,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 0.9652469314257119,
+          "top1": 1.0
+        },
+        "lexical": {
+          "queries": 3,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        },
+        "long-document": {
+          "queries": 5,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        },
+        "long-document-multilingual": {
+          "queries": 1,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        },
+        "multilingual": {
+          "queries": 7,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        },
+        "near-duplicate": {
+          "queries": 2,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        },
+        "paraphrase": {
+          "queries": 5,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        },
+        "series": {
+          "queries": 9,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        },
+        "series-multilingual": {
+          "queries": 4,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        }
+      },
+      "first_relevant_rank": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "content only",
+      "weights": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "overall": {
+        "queries": 49,
+        "recall_at_1": 0.5918367346938775,
+        "recall_at_5": 0.6224489795918368,
+        "recall_at_10": 0.6224489795918368,
+        "mrr_at_10": 0.6122448979591837,
+        "ndcg_at_10": 0.592474732634551,
+        "top1": 0.5918367346938775
+      },
+      "by_category": {
+        "ambiguous": {
+          "queries": 1,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        },
+        "code": {
+          "queries": 6,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 0.9020643134786521,
+          "top1": 1.0
+        },
+        "code-multilingual": {
+          "queries": 1,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        },
+        "exact": {
+          "queries": 5,
+          "recall_at_1": 0.8,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 0.9,
+          "ndcg_at_10": 0.8914328821400035,
+          "top1": 0.8
+        },
+        "lexical": {
+          "queries": 3,
+          "recall_at_1": 0.6666666666666666,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 0.8333333333333334,
+          "ndcg_at_10": 0.9040876888381987,
+          "top1": 0.6666666666666666
+        },
+        "long-document": {
+          "queries": 5,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "top1": 1.0
+        },
+        "long-document-multilingual": {
+          "queries": 1,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        },
+        "multilingual": {
+          "queries": 7,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        },
+        "near-duplicate": {
+          "queries": 2,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "top1": 1.0
+        },
+        "paraphrase": {
+          "queries": 5,
+          "recall_at_1": 0.4,
+          "recall_at_5": 0.4,
+          "recall_at_10": 0.4,
+          "mrr_at_10": 0.4,
+          "ndcg_at_10": 0.4,
+          "top1": 0.4
+        },
+        "series": {
+          "queries": 9,
+          "recall_at_1": 0.8888888888888888,
+          "recall_at_5": 0.8333333333333334,
+          "recall_at_10": 0.8333333333333334,
+          "mrr_at_10": 0.8888888888888888,
+          "ndcg_at_10": 0.8277165045562749,
+          "top1": 0.8888888888888888
+        },
+        "series-multilingual": {
+          "queries": 4,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        }
+      },
+      "first_relevant_rank": [
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1,
+        2,
+        1,
+        0,
+        1,
+        1,
+        1,
+        2
+      ]
+    },
+    {
+      "name": "semantic only",
+      "weights": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "overall": {
+        "queries": 49,
+        "recall_at_1": 0.9591836734693877,
+        "recall_at_5": 0.9863945578231293,
+        "recall_at_10": 0.9863945578231293,
+        "mrr_at_10": 0.9795918367346939,
+        "ndcg_at_10": 0.9637654394049511,
+        "top1": 0.9591836734693877
+      },
+      "by_category": {
+        "ambiguous": {
+          "queries": 1,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "top1": 1.0
+        },
+        "code": {
+          "queries": 6,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 0.9710391095214267,
+          "top1": 1.0
+        },
+        "code-multilingual": {
+          "queries": 1,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "top1": 1.0
+        },
+        "exact": {
+          "queries": 5,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 0.9652469314257119,
+          "top1": 1.0
+        },
+        "lexical": {
+          "queries": 3,
+          "recall_at_1": 1.0,
+          "recall_at_5": 0.7777777777777778,
+          "recall_at_10": 0.7777777777777778,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 0.8230929086742522,
+          "top1": 1.0
+        },
+        "long-document": {
+          "queries": 5,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "top1": 1.0
+        },
+        "long-document-multilingual": {
+          "queries": 1,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "top1": 1.0
+        },
+        "multilingual": {
+          "queries": 7,
+          "recall_at_1": 0.8571428571428571,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 0.9285714285714286,
+          "ndcg_at_10": 0.9472756790816368,
+          "top1": 0.8571428571428571
+        },
+        "near-duplicate": {
+          "queries": 2,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 0.9819702166583266,
+          "top1": 1.0
+        },
+        "paraphrase": {
+          "queries": 5,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "top1": 1.0
+        },
+        "series": {
+          "queries": 9,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 0.9863287277892403,
+          "top1": 1.0
+        },
+        "series-multilingual": {
+          "queries": 4,
+          "recall_at_1": 0.75,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 0.875,
+          "ndcg_at_10": 0.9077324383928644,
+          "top1": 0.75
+        }
+      },
+      "first_relevant_rank": [
+        1,
+        2,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "lexical (name + content)",
+      "weights": [
+        1.0,
+        1.0,
+        0.0
+      ],
+      "overall": {
+        "queries": 49,
+        "recall_at_1": 0.6122448979591837,
+        "recall_at_5": 0.6387755102040816,
+        "recall_at_10": 0.6408163265306123,
+        "mrr_at_10": 0.6326530612244898,
+        "ndcg_at_10": 0.6159232730453768,
+        "top1": 0.6122448979591837
+      },
+      "by_category": {
+        "ambiguous": {
+          "queries": 1,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.8,
+          "recall_at_10": 0.9,
+          "mrr_at_10": 0.5,
+          "ndcg_at_10": 0.7799082337019199,
+          "top1": 0.0
+        },
+        "code": {
+          "queries": 6,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 0.9020643134786521,
+          "top1": 1.0
+        },
+        "code-multilingual": {
+          "queries": 1,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        },
+        "exact": {
+          "queries": 5,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 0.9652469314257119,
+          "top1": 1.0
+        },
+        "lexical": {
+          "queries": 3,
+          "recall_at_1": 0.6666666666666666,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 0.8333333333333334,
+          "ndcg_at_10": 0.9040876888381987,
+          "top1": 0.6666666666666666
+        },
+        "long-document": {
+          "queries": 5,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "top1": 1.0
+        },
+        "long-document-multilingual": {
+          "queries": 1,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        },
+        "multilingual": {
+          "queries": 7,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        },
+        "near-duplicate": {
+          "queries": 2,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "top1": 1.0
+        },
+        "paraphrase": {
+          "queries": 5,
+          "recall_at_1": 0.4,
+          "recall_at_5": 0.4,
+          "recall_at_10": 0.4,
+          "mrr_at_10": 0.4,
+          "ndcg_at_10": 0.4,
+          "top1": 0.4
+        },
+        "series": {
+          "queries": 9,
+          "recall_at_1": 0.8888888888888888,
+          "recall_at_5": 0.8333333333333334,
+          "recall_at_10": 0.8333333333333334,
+          "mrr_at_10": 0.8888888888888888,
+          "ndcg_at_10": 0.8277165045562749,
+          "top1": 0.8888888888888888
+        },
+        "series-multilingual": {
+          "queries": 4,
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr_at_10": 0.0,
+          "ndcg_at_10": 0.0,
+          "top1": 0.0
+        }
+      },
+      "first_relevant_rank": [
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        2,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1,
+        2,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "fused 1/1/2",
+      "weights": [
+        1.0,
+        1.0,
+        2.0
+      ],
+      "overall": {
+        "queries": 49,
+        "recall_at_1": 0.9591836734693877,
+        "recall_at_5": 0.9761904761904763,
+        "recall_at_10": 0.9931972789115646,
+        "mrr_at_10": 0.9795918367346939,
+        "ndcg_at_10": 0.9643978852901939,
+        "top1": 0.9591836734693877
+      },
+      "by_category": {
+        "ambiguous": {
+          "queries": 1,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "top1": 1.0
+        },
+        "code": {
+          "queries": 6,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 0.9793287876963682,
+          "top1": 1.0
+        },
+        "code-multilingual": {
+          "queries": 1,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "top1": 1.0
+        },
+        "exact": {
+          "queries": 5,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 0.9652469314257119,
+          "top1": 1.0
+        },
+        "lexical": {
+          "queries": 3,
+          "recall_at_1": 1.0,
+          "recall_at_5": 0.7777777777777778,
+          "recall_at_10": 0.8888888888888888,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 0.8701818996275286,
+          "top1": 1.0
+        },
+        "long-document": {
+          "queries": 5,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "top1": 1.0
+        },
+        "long-document-multilingual": {
+          "queries": 1,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "top1": 1.0
+        },
+        "multilingual": {
+          "queries": 7,
+          "recall_at_1": 0.8571428571428571,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 0.9285714285714286,
+          "ndcg_at_10": 0.9472756790816368,
+          "top1": 0.8571428571428571
+        },
+        "near-duplicate": {
+          "queries": 2,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 0.9819702166583266,
+          "top1": 1.0
+        },
+        "paraphrase": {
+          "queries": 5,
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "top1": 1.0
+        },
+        "series": {
+          "queries": 9,
+          "recall_at_1": 1.0,
+          "recall_at_5": 0.9444444444444444,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 0.968549261841176,
+          "top1": 1.0
+        },
+        "series-multilingual": {
+          "queries": 4,
+          "recall_at_1": 0.75,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr_at_10": 0.875,
+          "ndcg_at_10": 0.9077324383928644,
+          "top1": 0.75
+        }
+      },
+      "first_relevant_rank": [
+        1,
+        2,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    }
+  ],
+  "best": null
+}

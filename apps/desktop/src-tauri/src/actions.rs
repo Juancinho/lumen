@@ -3,7 +3,9 @@
 //! authorizes the request, runs the executor and records the use for ranking (ADR-023).
 //! Payloads (paths, launch keys) never come from the UI.
 
-use lumen_core::builtin::{COPY_PATH, DESCRIPTORS, EXCLUDE_FOLDER, LAUNCH, OPEN, REVEAL};
+use lumen_core::builtin::{
+    COPY_PATH, COPY_SYMBOL, DESCRIPTORS, EXCLUDE_FOLDER, LAUNCH, OPEN, REVEAL, REVEAL_REPOSITORY,
+};
 use lumen_core::{
     ActionDescriptor, ActionGroup, ActionId, ActionRequest, Invocation, Payload, QueryId, ResultId,
     ResultItem,
@@ -15,7 +17,7 @@ use crate::dto::ActionDto;
 use crate::{overlay, search, settings};
 
 /// Actions Lumen can execute (one registry for every provider).
-pub(crate) static REGISTRY: [ActionDescriptor; 5] = DESCRIPTORS;
+pub(crate) static REGISTRY: [ActionDescriptor; 7] = DESCRIPTORS;
 
 /// Keyboard hint shown in the Action Panel (must match `features/root-search/keymap.ts`).
 pub(crate) fn shortcut_hint(action: &ActionId, primary: bool) -> Option<&'static str> {
@@ -117,10 +119,9 @@ pub(crate) fn run<R: Runtime>(
 }
 
 fn path_of(payload: &Payload) -> Result<&std::path::Path, String> {
-    match payload {
-        Payload::Path(p) => Ok(p),
-        _ => Err("result has no local path".into()),
-    }
+    payload
+        .local_path()
+        .ok_or_else(|| "result has no local path".into())
 }
 
 fn execute<R: Runtime>(
@@ -149,6 +150,20 @@ fn execute<R: Runtime>(
         arboard::Clipboard::new()
             .and_then(|mut c| c.set_text(text))
             .map_err(|e| err(&e))
+    } else if *action == COPY_SYMBOL {
+        let Payload::Code(code) = payload else {
+            return Err("result has no code symbol".into());
+        };
+        let symbol = code.symbol.as_ref().ok_or("result has no code symbol")?;
+        arboard::Clipboard::new()
+            .and_then(|mut c| c.set_text(symbol.clone()))
+            .map_err(|e| err(&e))
+    } else if *action == REVEAL_REPOSITORY {
+        let Payload::Code(code) = payload else {
+            return Err("result has no repository".into());
+        };
+        let repository = code.repository.as_ref().ok_or("result has no repository")?;
+        tauri_plugin_opener::reveal_item_in_dir(repository).map_err(|e| err(&e))
     } else if *action == EXCLUDE_FOLDER {
         // T111: saved in the locations setting; the next pass (started now) removes its items.
         if crate::catalog::exclude_path(app, path_of(payload)?) {

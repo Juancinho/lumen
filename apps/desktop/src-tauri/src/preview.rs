@@ -112,6 +112,7 @@ fn kind_name(kind: ResultKind) -> &'static str {
         ResultKind::Application => "application",
         ResultKind::Folder => "folder",
         ResultKind::Command => "command",
+        ResultKind::Code => "code",
         _ => "file",
     }
 }
@@ -127,7 +128,12 @@ pub(crate) fn preview(item: &ResultItem) -> PreviewDto {
         text: None,
         truncated: false,
     };
-    let Payload::Path(path) = &item.payload else {
+    if let Payload::Code(code) = &item.payload {
+        dto.text = Some(code.passage.clone());
+        // It is the indexed matching passage, rather than the complete file.
+        dto.truncated = true;
+    }
+    let Some(path) = item.payload.local_path() else {
         return dto;
     };
     let Ok(meta) = std::fs::metadata(path) else {
@@ -140,7 +146,8 @@ pub(crate) fn preview(item: &ResultItem) -> PreviewDto {
         .and_then(|d| u64::try_from(d.as_millis()).ok());
     if meta.is_file() {
         dto.size_bytes = Some(meta.len());
-        if meta.len() <= MAX_TEXT_FILE
+        if dto.text.is_none()
+            && meta.len() <= MAX_TEXT_FILE
             && has_text_extension(path)
             && let Some((text, truncated)) = read_excerpt(path, meta.len())
         {
@@ -233,6 +240,25 @@ mod tests {
         let mut binary = item.clone();
         binary.payload = Payload::Path(dir.join("missing.md"));
         assert!(preview(&binary).text.is_none());
+        let mut code = item;
+        code.kind = ResultKind::Code;
+        code.payload = Payload::Code(Box::new(lumen_core::CodeTarget {
+            path: file,
+            symbol: Some("retry".into()),
+            language: "python".into(),
+            repository: None,
+            start_offset: Some(50000),
+            end_offset: Some(50100),
+            passage: "def retry(): pass".into(),
+        }));
+        let p = preview(&code);
+        assert_eq!(p.kind, "code");
+        assert_eq!(
+            p.text.as_deref(),
+            Some("def retry(): pass"),
+            "Quick Look shows the matching passage even beyond its file-read budget"
+        );
+        assert!(p.truncated);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

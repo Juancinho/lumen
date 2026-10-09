@@ -63,7 +63,8 @@ apps/desktop/              presentation shell (Tauri 2 + React/TS + Vite)
     src/commands/          Tauri commands, one module per feature area
     src/overlay/           overlay window lifecycle; placement.rs + policy.rs are pure/tested
     src/shortcut.rs        configurable global shortcut + conflict handling (T003)
-    src/settings.rs        app-data SQLite settings (lumen.db, `settings` table)
+    src/settings.rs        app-data SQLite settings (lumen.db, `settings` table), open/migrate
+                           on a startup worker; setup waits before registering readers
     src/lifecycle.rs       hidden-WebView modes (ADR-020); src/diag.rs timing diagnostics
     src/material.rs        window material (ADR-024): apply plan, re-check before show
     src/search.rs          search thread + catalog provider -> `lumen:results` (ADR-025)
@@ -150,6 +151,7 @@ Benchmarks (release builds only; debug runs are flagged in the report):
 | Stable identity semantics on a volume | `cargo run --release -p lumen-bench -- identity-check --dir DIR` |
 | Catalog sync + keystroke name lookup | `cargo run --release -p lumen-bench -- catalog --root DIR [--apps] [--show QUERY]` |
 | Search relevance of the three lanes + fusion | `cargo run --release -p lumen-bench [--features ort] -- eval [--backend ort --model-dir DIR --ort-dylib DLL] --sweep` |
+| Code metadata upgrade (synthetic v3→v4, vectors retained) | `cargo run --release -p lumen-storage --example code_upgrade -- 100000 target/bench/code-upgrade.json` |
 | Persistent ANN generation (build/open/delta/stale/rebuild) | `cargo run --release -p lumen-bench -- ann-gen --vectors 100000 --json target/bench/ann-gen.json` |
 | Options | `cargo run --release -p lumen-bench -- --help` (`--backend`, `--dim`, `--iterations`, `--batch-sizes`, `--label`, …) |
 
@@ -222,6 +224,11 @@ the ~2 GB model download (`scripts/t006/`). Validate workflow edits with
   selection; Enter primary action, Ctrl+Enter reveal, Ctrl+K Action Panel, Ctrl+L query,
   Alt+Enter Quick Look (T105). Click runs the primary action. Escape closes the Action
   Panel, then Quick Look, then the overlay.
+- Code hits (T209, ADR-036): the same file row gains symbol/language/repository context;
+  Ctrl+K adds Copy symbol / Reveal repository when known, Alt+Enter shows the matched
+  indexed passage. Enter keeps the registered file handler. Migration 0004 preserves all
+  vectors; the background content pass backfills metadata, so no model download/re-embedding
+  is required for lexical code search.
 - On every show the shell emits `lumen:overlay-shown`; the UI focuses and selects the query.
 - Diagnostics mode (T110): `LUMEN_DIAGNOSTICS=1` adds provider · match kind · confidence
   under every result row and logs per-query timing/failed providers to the WebView console

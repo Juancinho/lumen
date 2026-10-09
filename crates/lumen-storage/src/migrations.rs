@@ -33,6 +33,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "ann_generations",
         sql: include_str!("../migrations/0003_ann_generations.sql"),
     },
+    Migration {
+        version: 4,
+        name: "code_context",
+        sql: include_str!("../migrations/0004_code_context.sql"),
+    },
 ];
 
 /// Schema version this binary produces.
@@ -187,7 +192,7 @@ mod tests {
              VALUES (1, 1, x'0000003c', 0);",
         )
         .unwrap();
-        assert_eq!(apply(&mut conn, MIGRATIONS).unwrap(), (2, 3));
+        assert_eq!(apply(&mut conn, &MIGRATIONS[..3]).unwrap(), (2, 3));
         let (seq, next): (i64, i64) = conn
             .query_row(
                 "SELECT v.seq, g.next_seq FROM chunk_vectors v JOIN generations g ON g.id = v.generation",
@@ -196,5 +201,56 @@ mod tests {
             )
             .unwrap();
         assert_eq!((seq, next), (0, 1));
+    }
+
+    #[test]
+    fn v3_code_upgrade_preserves_vectors_and_keeps_context_fts_in_sync() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        apply(&mut conn, &MIGRATIONS[..3]).unwrap();
+        conn.execute_batch(
+            "INSERT INTO items (kind, canonical_path, display_name, name_parts, path_parts)
+             VALUES ('file', '/repo/src/retry.py', 'retry.py', 'retry py', 'repo src');
+             INSERT INTO chunks (item_id, ordinal, chunk_kind, symbol_name, text)
+             VALUES (1, 0, 'code', 'retry', 'exponential backoff');
+             INSERT INTO generations (space_key, chunker_version, dim, scalar, created_at)
+             VALUES ('k', 1, 2, 'f16', 0);
+             INSERT INTO chunk_vectors (chunk_id, generation, vector, embedded_at, seq)
+             VALUES (1, 1, x'0000003c', 0, 7);",
+        )
+        .unwrap();
+        assert_eq!(apply(&mut conn, MIGRATIONS).unwrap(), (3, 4));
+        let count = |q: &str| {
+            conn.query_row(
+                "SELECT count(*) FROM chunks_fts WHERE chunks_fts MATCH ?1",
+                [q],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(count("repo backoff"), 1);
+        conn.execute_batch("UPDATE items SET code_language = 'python', repository_path = '/repo', code_context_path = canonical_path;").unwrap();
+        assert_eq!(count("python backoff"), 1);
+        let vector: (Vec<u8>, i64) = conn
+            .query_row("SELECT vector, seq FROM chunk_vectors", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .unwrap();
+        assert_eq!(vector, (vec![0, 0, 0, 60], 7));
+        conn.execute_batch("UPDATE items SET canonical_path = '/other/client.ts', display_name = 'client.ts', name_parts = 'client ts', path_parts = 'other';").unwrap();
+        assert_eq!(count("python"), 0);
+        assert_eq!(count("repo"), 0);
+        assert_eq!(count("client backoff"), 1);
+        let repository: Option<String> = conn
+            .query_row("SELECT repository_path FROM items", [], |r| r.get(0))
+            .unwrap();
+        assert!(repository.is_none());
+        conn.execute_batch(
+            "INSERT INTO chunks_fts (chunks_fts, rank) VALUES ('integrity-check', 1);
+            DELETE FROM items WHERE id = 1;
+            INSERT INTO chunks_fts (chunks_fts, rank) VALUES ('integrity-check', 1);",
+        )
+        .unwrap();
+        assert_eq!(count("backoff"), 0);
     }
 }

@@ -20,36 +20,18 @@ contracts, cold/warm measurements T012, runtime ADR-015, ANN ADR-016, schema ADR
 
 ## Product scope accepted
 
-Core destination includes:
-
-- universal root search;
-- exact filename/path/app search;
-- FTS + semantic/multimodal retrieval;
-- universal contextual actions;
-- calculator/system/quicklink/snippet/clipboard providers;
-- workflows;
-- Semantic Drop + Find Similar;
-- Smart Collections;
-- Semantic Workspaces;
-- temporal recent-work search;
-- optional Rewind / Context Lens later;
-- audio/video later;
-- public extension SDK only after internal APIs stabilize.
+Destination: universal root search; exact name/path/app, FTS and semantic/multimodal
+retrieval; contextual actions; calculator/system/quicklink/snippet/clipboard providers;
+workflows; Semantic Drop / Find Similar; Smart Collections; Semantic Workspaces;
+temporal recent-work search. Rewind / Context Lens and audio/video are later; public
+extensions only after internal APIs stabilize. Current scope remains the TASKS roadmap.
 
 ## Architecture status
 
-Accepted:
-
-- Tauri 2 + React/TypeScript presentation shell
-- Rust domain/core
-- shell-agnostic core boundary
-- internal `Provider`, `ResultItem`, `Action`, `Workflow` concepts
-- SQLite WAL + FTS5
-- USearch/HNSW
-- progressive lexical/provider results → semantic refinement
-- resident warm path where memory profile allows
-- multi-pass, resumable, value-prioritized indexing
-- one WebView target
+Accepted: Tauri 2 + React/TypeScript shell, shell-agnostic Rust domain/core, internal
+`Provider` / `ResultItem` / `Action` / `Workflow` contracts, SQLite WAL + FTS5, USearch/HNSW,
+progressive lexical results → semantic refinement, resident warm path within memory
+policy, multi-pass resumable value-prioritized indexing, one WebView.
 
 Decided with evidence: runtime ONNX Runtime CPU q4 (ADR-015), f16 HNSW (ADR-016), device
 policy (ADR-019), window material (ADR-024). Still open: faster indexing runtime (T014),
@@ -107,15 +89,12 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
   query→item choices, pins, retention/clear; bounded ranking priors; empty-query suggestions.
 - **T003 REVIEW:** configurable shortcut (tray submenu, 4 choices, "(in use)" probing,
   persisted in the app-data SQLite settings, first-free fallback only when nothing is saved).
-- **T004 REVIEW (ADR-024 proposed):** window material — transparent window + DWM system
-  backdrop: Automatic = Acrylic (Win11 22H2+), Mica, Solid; Solid when high contrast /
-  transparency off / older Windows; native rounded corners + shadow; tinted surface tokens
-  with a contrast floor enforced by tests; tray → Window material. Windows: ~22 ms
-  show→paint for every material, Acrylic +3–4 % DWM GPU while visible, on-screen secondary
-  contrast ≥ 5.3:1. Pending: user's visual verdict (Acrylic vs Mica default).
+- **T004 REVIEW (ADR-024):** Acrylic/Mica/Solid, native corners/shadow, contrast floor;
+  Solid for high contrast/transparency off/older Windows. Windows: ~22 ms show→paint,
+  Acrylic +3–4 % visible DWM GPU, secondary contrast ≥5.3:1; default visual verdict pending.
 - **T103 REVIEW:** design tokens + premium root search (search bar, 52 px result rows with
   middle-truncated paths, no-results state, content-driven window height capped at 72 %,
-  entrance fade, high-contrast/reduced-motion paths). No data source yet (T107).
+  entrance fade, high-contrast/reduced-motion paths); live providers connected by T107.
 - **T107 REVIEW (ADR-025):** `crates/lumen-search` (coordinator by latency class, merged
   updates, latest-wins search thread); shell `search` command + `lumen:results` events;
   background catalog sync (apps + standard folders, start-up + 30 min). Search now works in
@@ -132,40 +111,34 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
   (BOM/UTF-8/UTF-16/Windows-1252, binary and size skips with reasons), 128-token chunks with
   offsets for prose/Markdown/code/data, symbol names for code; estimator calibrated against
   the EmbeddingGemma 2 tokenizer; `lumen-bench chunk`.
-- **T202 REVIEW (ADR-029):** `crates/lumen-content` — incremental content pass and a
-  persistent, pausable, throttled embedding queue whose state is the database (vectors per
-  generation as f16 in `chunk_vectors`), run by the catalog thread under the device policy
-  (power/memory/idle); tray progress + pause, per-location content toggle. Model via env
-  until T210.
+- **T202 REVIEW (ADR-029):** incremental content pass, persistent pausable embedding queue,
+  f16 vectors per generation; catalog thread follows power/memory/idle policy. Tray progress,
+  pause and per-location content toggle; installed model via T210 or development overrides.
 - **T206 REVIEW (ADR-035):** settled refinements arrive as one update (150 ms batch);
   once the user moved the selection the selected row keeps its position while others
   re-order; content/meaning matches show the matching passage instead of the path (path in
   the tooltip and Quick Look).
+- **T209 REVIEW (ADR-036):** symbol/file/repository context on the same file ID; Copy symbol,
+  Reveal repository and matching-passage Quick Look. Migration/background metadata preserve
+  vectors; Windows code content top-1 0.50→1.00 (6 queries); native action review pending.
 - **T210 REVIEW (ADR-034):** semantic search installs from the tray — consent dialog
   (size, hosts, licenses), pinned model (207 MB, Hugging Face revision) + ONNX Runtime
   wheel (14 MB, PyPI) via the system curl, SHA-256 per file and per extracted member,
   resumable staging, atomic install, removal; indexing and the query lane start without a
   restart. Environment variables still override (development).
-- **T211 REVIEW (ADR-033):** harder generated relevance set (162 documents, 49 graded
-  queries); fusion weights name / content / meaning = 1 / 1 / 2 (fused NDCG@10 0.957, top-1
-  0.939; meaning alone 0.964). Findings: content lane misses code language (path-only),
-  `two_of` lets log lines in.
-- **T205 REVIEW (ADR-032):** hybrid root search — names every keystroke; file contents
-  (FTS, function words dropped, two-of-n fallback) and meaning (query lane + ANN) on the
-  settled query (80 ms re-run); weighted-RRF fusion with exact matches first and one row
-  per file with a passage snippet. `lumen-bench eval` over `fixtures/eval` (48 documents,
-  56 queries): fused top-1 0.982, meaning alone 0.964, names + contents 0.571; weights
-  1/1/1 provisional (set saturated, T211). Linux smoke: semantic rows in the real app.
-- **T203 REVIEW (ADR-031):** persistent ANN generations in `lumen-semantic` —
-  memory-mapped HNSW file built from a seq snapshot of `chunk_vectors` + exact in-memory
-  delta, every hit validated against SQLite (deleted / re-embedded / reused chunk ids never
-  surface), rebuild on delta or stale growth, first generation active at once, later ones
-  switched after validation; maintained by the app's indexing thread (migration 0003).
-  Sandbox 100k: search 0.7 / 1.1 ms p50/p95, recall@10 0.999; build 25 s.
+- **T211 REVIEW (ADR-033):** harder set (162 documents, 49 graded queries), fusion weights
+  1/1/2 (fused NDCG 0.957, top-1 0.939). Code-language gap addressed by T209;
+  log/data `two_of` finding remains open.
+- **T205 REVIEW (ADR-032):** instant names; settled (80 ms) contents/meaning via FTS/query
+  lane + ANN; weighted RRF, exact navigation first, one file row with a passage snippet.
+  Original fixture: fused top-1 0.982; weights now 1/1/2 (T211). Linux app smoke passed.
+- **T203 REVIEW (ADR-031):** persistent mmap HNSW generations + exact delta, SQLite
+  validation prevents deleted/re-embedded/reused chunks surfacing; background rebuild and
+  atomic validated switch (migration 0003). Sandbox 100k: 0.7/1.1 ms p50/p95, recall 0.999.
 - **T204 REVIEW (ADR-030, proposed):** `crates/lumen-semantic` — `QueryEmbedder` with its
   own runtime session, latest-wins requests, cancellation, cache, warm/unload, and indexing
   preemption (hold + 1.5 s linger; one-chunk queue batches for 10 s after the overlay is
-  shown). Sandbox: query p95 189 → 70 ms next to indexing. Not yet called by search (T205).
+  shown). Sandbox: query p95 189 → 70 ms next to indexing; used by root search (T205).
 - **T014 REVIEW (Windows run pending):** throughput harness for ORT thread sweeps and
   llama.cpp builds (CPU/Vulkan/CUDA, GGUF) with CPU share per run; sandbox ORT q4 3.4
   chunks/s per busy core. The runtime/thread verdict becomes an ADR after the joao-pc run.
@@ -185,8 +158,8 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
 
 1. Close M1 on Windows: the REVIEW checklists in `HANDOFF.md` (search, keys, actions, Quick
    Look, look and material, shortcut).
-2. Start M2 (text/code semantic search) with T201, and settle the indexing runtime (T014) —
-   ordered in `TASKS.md` → **Next**.
+2. Finish M2 Windows reviews, settle the indexing runtime (T014); next implementation is
+   T207 (incremental watcher), ordered in `TASKS.md` → **Next**. T209 is in REVIEW.
 
 ## M1 gate (instant launcher)
 
@@ -197,17 +170,9 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
 
 ## Top risks
 
-- Content FTS per keystroke: 13/68 ms p50/p95 at 100k chunks with real hits (T016) — run it
-  on the settled query, not every keystroke (ADR-017 note);
-
-- CPU embedding throughput for initial indexing (~3–4 chunks/s measured, ADR-015);
-
-- inference integration maturity;
-- WebView lifecycle/RAM while resident;
-- media/PDF extraction licensing/packaging;
-- background indexing resource spikes;
-- provider ranking complexity;
-- semantic reranking focus instability;
-- NTFS/non-NTFS identity edge cases (hard links, save-by-replace, id reuse: ADR-018);
-- scope creep from launcher/productivity features;
-- overengineering extension SDK too early.
+- Content FTS: 13/68 ms p50/p95 at 100k chunks with real hits (T016); settled only.
+- Initial CPU embedding throughput (~3–4 chunks/s, ADR-015), integration maturity and
+  background resource spikes; T014 runtime verdict remains pending.
+- Resident WebView RAM; media/PDF licensing/packaging; provider ranking and focus stability.
+- File identity edge cases (hard links/save-by-replace/id reuse, ADR-018); scope creep and
+  premature extension SDKs.

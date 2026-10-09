@@ -21,15 +21,28 @@ pub(crate) fn db_path<R: Runtime>(app: &App<R>) -> Option<PathBuf> {
 
 pub(crate) fn open<R: Runtime>(app: &App<R>) -> Settings {
     let store = db_path(app).and_then(|path| {
-        if let Some(dir) = path.parent()
-            && let Err(err) = std::fs::create_dir_all(dir)
-        {
-            eprintln!("lumen: cannot create {}: {err}", dir.display());
-            return None;
-        }
-        Store::open_writer(&path)
-            .map_err(|err| eprintln!("lumen: settings store unavailable: {err}"))
-            .ok()
+        // Forward migrations can rebuild derived indexes (T209). Execute their disk/CPU
+        // work on a startup worker; providers and first show must wait for the canonical
+        // schema before any readers open. This is before the UI is ready, not a runtime
+        // command or an additional process.
+        std::thread::Builder::new()
+            .name("lumen-settings".into())
+            .spawn(move || {
+                if let Some(dir) = path.parent()
+                    && let Err(err) = std::fs::create_dir_all(dir)
+                {
+                    eprintln!("lumen: cannot create {}: {err}", dir.display());
+                    return None;
+                }
+                Store::open_writer(&path)
+                    .map_err(|err| eprintln!("lumen: settings store unavailable: {err}"))
+                    .ok()
+            })
+            .map_err(|err| eprintln!("lumen: settings worker unavailable: {err}"))
+            .ok()?
+            .join()
+            .map_err(|_| eprintln!("lumen: settings worker failed"))
+            .ok()?
     });
     Settings(Mutex::new(store))
 }

@@ -121,6 +121,10 @@ pub fn run_content_pass(
             break;
         }
     }
+    if !cancel.is_cancelled() {
+        crate::code::refresh(store, scope, cancel)?;
+    }
+    report.cancelled |= cancel.is_cancelled();
     report.elapsed = started.elapsed();
     Ok(report)
 }

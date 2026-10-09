@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 
 use lumen_catalog::{CatalogProvider, ContentProvider, IndexLocations, sync_files};
 use lumen_content::{Control, PassConfig, QueueConfig, QueueJob, run_content_pass, run_queue};
-use lumen_core::{CancellationToken, Payload, Provider, ProviderQuery, QueryId, ResultItem};
+use lumen_core::{CancellationToken, Provider, ProviderQuery, QueryId, ResultItem};
 use lumen_embedding::{Embedder, EmbeddingProfile};
 use lumen_extract::{EXTRACTOR_VERSION, EstimateTokens};
 use lumen_search::fuse;
@@ -209,9 +209,7 @@ fn now_ms() -> i64 {
 
 /// Fixture-relative path of a result (`/` separators); folders included.
 fn relative(item: &ResultItem, root: &Path) -> Option<String> {
-    let Payload::Path(p) = &item.payload else {
-        return None;
-    };
+    let p = item.payload.local_path()?;
     let rel = p.strip_prefix(root).ok()?;
     Some(
         rel.components()

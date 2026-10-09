@@ -345,8 +345,11 @@ impl Store {
         {
             let mut stmt = tx.prepare_cached(
                 "INSERT INTO chunks (item_id, ordinal, chunk_kind, text, symbol_name, page_number,
-                                     start_offset, end_offset)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                                     start_offset, end_offset, search_context)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
+                    CASE WHEN ?3 = 'code' THEN (SELECT name_parts || ' ' || path_parts || ' ' ||
+                        display_name || ' ' || coalesce(code_language, '') FROM items WHERE id = ?1)
+                    ELSE '' END)",
             )?;
             for c in chunks {
                 stmt.execute(params![

@@ -17,12 +17,14 @@ pub const REVEAL: ActionId = ActionId::from_static("lumen.reveal");
 pub const COPY_PATH: ActionId = ActionId::from_static("lumen.copy-path");
 /// Leave a folder out of Lumen's locations (T111); undone from the exclusions list.
 pub const EXCLUDE_FOLDER: ActionId = ActionId::from_static("lumen.exclude-folder");
+pub const COPY_SYMBOL: ActionId = ActionId::from_static("lumen.copy-symbol");
+pub const REVEAL_REPOSITORY: ActionId = ActionId::from_static("lumen.reveal-repository");
 
 const LOCAL_PATH: CapabilitySet = CapabilitySet::of(&[Capability::LocalPath]);
 const LAUNCHABLE: CapabilitySet = CapabilitySet::of(&[Capability::Launchable]);
 
 /// Descriptors of the built-in actions, in panel order.
-pub const DESCRIPTORS: [ActionDescriptor; 5] = [
+pub const DESCRIPTORS: [ActionDescriptor; 7] = [
     ActionDescriptor::new_static(
         OPEN,
         "Open",
@@ -50,6 +52,20 @@ pub const DESCRIPTORS: [ActionDescriptor; 5] = [
         ActionSafety::SafeRead,
         ActionGroup::Navigation,
         LOCAL_PATH,
+    ),
+    ActionDescriptor::new_static(
+        COPY_SYMBOL,
+        "Copy symbol",
+        ActionSafety::SafeRead,
+        ActionGroup::Common,
+        CapabilitySet::of(&[Capability::CodeSymbol]),
+    ),
+    ActionDescriptor::new_static(
+        REVEAL_REPOSITORY,
+        "Reveal repository in Explorer",
+        ActionSafety::SafeRead,
+        ActionGroup::Navigation,
+        CapabilitySet::of(&[Capability::Repository]),
     ),
     ActionDescriptor::new_static(
         EXCLUDE_FOLDER,

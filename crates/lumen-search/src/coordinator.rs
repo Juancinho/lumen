@@ -190,6 +190,7 @@ pub fn fuse(lists: &[(usize, Vec<ResultItem>)], weights: &[f32], limit: usize) -
         intent: bool,
         confidence: Confidence,
         subtitle: Option<&'a String>,
+        code: Option<(&'a ResultItem, f32)>,
     }
     let mut entries: Vec<Entry<'_>> = Vec::new();
     let mut by_id: HashMap<&ResultId, usize> = HashMap::new();
@@ -213,6 +214,11 @@ pub fn fuse(lists: &[(usize, Vec<ResultItem>)], weights: &[f32], limit: usize) -
                     if e.subtitle.is_none() {
                         e.subtitle = item.subtitle.as_ref();
                     }
+                    if matches!(item.payload, lumen_core::Payload::Code(_))
+                        && e.code.is_none_or(|(_, best)| contribution > best)
+                    {
+                        e.code = Some((item, contribution));
+                    }
                     if contribution > e.best || (contribution == e.best && key < e.best_key) {
                         e.best = contribution;
                         e.best_key = key;
@@ -229,6 +235,8 @@ pub fn fuse(lists: &[(usize, Vec<ResultItem>)], weights: &[f32], limit: usize) -
                         intent,
                         confidence: item.score.confidence,
                         subtitle: item.subtitle.as_ref(),
+                        code: matches!(item.payload, lumen_core::Payload::Code(_))
+                            .then_some((item, contribution)),
                     });
                 }
             }
@@ -248,6 +256,17 @@ pub fn fuse(lists: &[(usize, Vec<ResultItem>)], weights: &[f32], limit: usize) -
             item.score.confidence = e.confidence;
             if item.subtitle.is_none() {
                 item.subtitle = e.subtitle.cloned();
+            }
+            // Keep contextual actions even if the name lane's copy wins a tie. The
+            // passage and its payload must come from the same code hit.
+            if let Some((code, _)) = e.code {
+                item.payload = code.payload.clone();
+                item.capabilities = code.capabilities;
+                item.secondary_actions = code.secondary_actions.clone();
+                if !matches!(item.score.match_kind, MatchKind::Exact | MatchKind::Intent) {
+                    item.kind = code.kind;
+                    item.subtitle = code.subtitle.clone();
+                }
             }
             item
         })
@@ -419,6 +438,49 @@ pub(crate) mod tests {
             ["item:7", "item:8"],
             "a zero weight drops the lane"
         );
+    }
+
+    #[test]
+    fn code_context_and_actions_survive_a_name_lane_tie() {
+        use lumen_core::{Capability, CodeTarget, builtin, validate_result};
+        let name = ProviderId::new("test.name").unwrap();
+        let content = ProviderId::new("test.content").unwrap();
+        let mut file = item("item:7", &name, 0.9);
+        file.payload = Payload::Path("/repo/client.py".into());
+        file.capabilities = CapabilitySet::of(&[Capability::LocalPath]);
+        let mut code = file.clone();
+        code.provider = content;
+        code.kind = ResultKind::Code;
+        code.score.match_kind = MatchKind::FullText;
+        code.capabilities = code.capabilities.with(Capability::CodeSymbol);
+        code.secondary_actions = vec![builtin::COPY_SYMBOL];
+        code.subtitle = Some("retry failed requests".into());
+        code.payload = Payload::Code(Box::new(CodeTarget {
+            path: "/repo/client.py".into(),
+            symbol: Some("retry".into()),
+            language: "python".into(),
+            repository: None,
+            start_offset: Some(30),
+            end_offset: Some(80),
+            passage: "def retry(): pass".into(),
+        }));
+        let lists = vec![(0, vec![file.clone()]), (1, vec![code.clone()])];
+        let result = fuse(&lists, &[1.0, 1.0], 10).remove(0);
+        assert_eq!(result.id, file.id);
+        assert_eq!(result.kind, ResultKind::Code);
+        assert_eq!(result.payload, code.payload);
+        assert_eq!(result.subtitle, code.subtitle);
+        assert!(result.offers(&builtin::COPY_SYMBOL));
+        assert!(validate_result(&result, &builtin::DESCRIPTORS).is_empty());
+        file.score.match_kind = MatchKind::Exact;
+        let exact = fuse(&[(0, vec![file]), (1, vec![code])], &[1.0, 1.0], 10).remove(0);
+        assert_eq!(
+            exact.kind,
+            ResultKind::File,
+            "exact file navigation keeps its file presentation"
+        );
+        assert!(exact.offers(&builtin::COPY_SYMBOL));
+        assert_eq!(exact.score.match_kind, MatchKind::Exact);
     }
 
     #[test]

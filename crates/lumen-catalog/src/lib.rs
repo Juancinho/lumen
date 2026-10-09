@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 pub mod apps;
+pub mod code;
 pub mod content;
 pub mod files;
 pub mod locations;

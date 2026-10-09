@@ -86,6 +86,7 @@ export function KindGlyph({ kind }: { kind: ResultKind }) {
     case "command":
       return <CommandGlyph />;
     case "file":
+    case "code":
       return <FileGlyph />;
   }
 }

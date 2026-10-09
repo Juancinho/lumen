@@ -110,6 +110,12 @@ pub struct ChunkRef {
     pub chunk_id: i64,
     pub item_id: i64,
     pub excerpt: String,
+    pub kind: String,
+    pub symbol: Option<String>,
+    pub language: Option<String>,
+    pub repository: Option<String>,
+    pub start_offset: Option<i64>,
+    pub end_offset: Option<i64>,
 }
 
 /// Content state over all file items (progress UI, diagnostics).
@@ -121,6 +127,58 @@ pub struct ContentCounts {
 }
 
 impl Store {
+    /// Code files needing metadata backfill or refresh after a move/content write.
+    /// This does not replace chunks or invalidate vectors.
+    ///
+    /// # Errors
+    /// SQLite failure.
+    pub fn code_candidates(&self, after_id: i64, limit: usize) -> Result<Vec<ContentCandidate>> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT id, canonical_path, raw_path, display_name, extension, size_bytes, modified_at
+             FROM items WHERE id > ?1 AND source = 'files' AND kind = 'file'
+               AND status <> 'error' AND (attributes & 4) = 0
+               AND code_context_path IS NOT canonical_path
+               AND EXISTS (SELECT 1 FROM chunks WHERE item_id = items.id AND chunk_kind = 'code')
+             ORDER BY id LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(
+            params![after_id, i64::try_from(limit).unwrap_or(i64::MAX)],
+            |r| {
+                Ok(ContentCandidate {
+                    item_id: r.get(0)?,
+                    path: r.get(1)?,
+                    raw_path: r.get(2)?,
+                    name: r.get(3)?,
+                    extension: r.get(4)?,
+                    size_bytes: r.get(5)?,
+                    modified_at: r.get(6)?,
+                })
+            },
+        )?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// Stores locally discovered code context; a concurrent move makes the write a no-op.
+    /// The context trigger updates FTS, preserving every chunk/vector identity.
+    ///
+    /// # Errors
+    /// SQLite failure.
+    pub fn set_code_context(
+        &self,
+        item_id: i64,
+        path: &str,
+        language: &str,
+        repository: Option<&str>,
+    ) -> Result<()> {
+        self.conn
+            .prepare_cached(
+                "UPDATE items SET code_language = ?3, repository_path = ?4, code_context_path = ?2
+             WHERE id = ?1 AND canonical_path = ?2",
+            )?
+            .execute(params![item_id, path, language, repository])?;
+        Ok(())
+    }
+
     /// Up to `limit` text files with `id > after_id` (ascending) that need their content
     /// (re)processed: never processed, failed, changed since (`size:mtime`), or processed
     /// by an extractor older than `extractor_version`. Only `extensions` (lowercase, without
@@ -189,12 +247,16 @@ impl Store {
             let mut delete = tx.prepare_cached("DELETE FROM chunks WHERE item_id = ?1")?;
             let mut insert = tx.prepare_cached(
                 "INSERT INTO chunks (item_id, ordinal, chunk_kind, text, symbol_name,
-                                     page_number, start_offset, end_offset)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                                     page_number, start_offset, end_offset, search_context)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
+                    CASE WHEN ?3 = 'code' THEN (SELECT name_parts || ' ' || path_parts || ' ' ||
+                        display_name || ' ' || coalesce(code_language, '') FROM items WHERE id = ?1)
+                    ELSE '' END)",
             )?;
             let mut state = tx.prepare_cached(
                 "UPDATE items SET content_state = ?2, content_error = ?3,
                     extractor_version = ?4, content_fingerprint = ?5, indexed_at = ?6
+                    , code_context_path = CASE WHEN ?2 = 'indexed' THEN NULL ELSE code_context_path END
                  WHERE id = ?1",
             )?;
             let mut exists = tx.prepare_cached("SELECT 1 FROM items WHERE id = ?1")?;
@@ -394,21 +456,31 @@ impl Store {
     /// # Errors
     /// SQLite failure.
     pub fn chunk_refs(&self, chunk_ids: &[i64], excerpt_chars: usize) -> Result<Vec<ChunkRef>> {
-        let mut stmt = self
-            .conn
-            .prepare_cached("SELECT item_id, substr(text, 1, ?2) FROM chunks WHERE id = ?1")?;
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT c.item_id, substr(c.text, 1, ?2), c.chunk_kind, c.symbol_name,
+                    i.code_language, i.repository_path, c.start_offset, c.end_offset
+             FROM chunks c JOIN items i ON i.id = c.item_id WHERE c.id = ?1",
+        )?;
         let n = i64::try_from(excerpt_chars).unwrap_or(i64::MAX);
         let mut out = Vec::with_capacity(chunk_ids.len());
         for &chunk_id in chunk_ids {
-            if let Some((item_id, excerpt)) = stmt
-                .query_row(params![chunk_id, n], |r| Ok((r.get(0)?, r.get(1)?)))
+            if let Some(reference) = stmt
+                .query_row(params![chunk_id, n], |r| {
+                    Ok(ChunkRef {
+                        chunk_id,
+                        item_id: r.get(0)?,
+                        excerpt: r.get(1)?,
+                        kind: r.get(2)?,
+                        symbol: r.get(3)?,
+                        language: r.get(4)?,
+                        repository: r.get(5)?,
+                        start_offset: r.get(6)?,
+                        end_offset: r.get(7)?,
+                    })
+                })
                 .optional()?
             {
-                out.push(ChunkRef {
-                    chunk_id,
-                    item_id,
-                    excerpt,
-                });
+                out.push(reference);
             }
         }
         Ok(out)

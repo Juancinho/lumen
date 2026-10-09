@@ -17,14 +17,18 @@ conceptual sketches below. Notable concrete choices:
 - `ExecutionContext::authorize` turns an id-only `ActionRequest` into an authorized context:
   action must be offered by the result, Enter runs only the primary, destructive/privileged need
   explicit confirmation.
-- `Payload` never crosses to the UI (ADR-013). Quick Look (T105) asks the shell for a preview
+- `Payload` never crosses to the UI (ADR-013). T209 adds a boxed typed `CodeTarget` (path,
+  symbol/language/repository, normalized-text offsets, passage); the UI receives only
+  display labels. Code rows share the file ID across all lanes (ADR-036).
+- Quick Look (T105) asks the shell for a preview
   by result id instead of a `PreviewRef`.
 
-Built on top (M1): the `Provider` trait with latency classes (`provider.rs`); one provider,
-`lumen.catalog` (apps + files, ADR-021/022); the coordinator and latest-wins search thread
+Built on top: the `Provider` trait with latency classes (`provider.rs`); `lumen.catalog`
+(apps + files, ADR-021/022), `lumen.content` and `lumen.semantic` (settled, ADR-032); the coordinator and latest-wins search thread
 in `crates/lumen-search` (ADR-025); built-in actions `lumen.open`, `lumen.launch`,
 `lumen.reveal`, `lumen.copy-path` (`builtin.rs`) with Action Panel ordering and executors
-(ADR-026). Not yet: calculator/settings/quicklink providers (T402+), workflows (T501+),
+(ADR-026), plus capability-based `lumen.copy-symbol` / `lumen.reveal-repository` for code
+(ADR-036). Not yet: calculator/settings/quicklink providers (T402+), workflows (T501+),
 pin/open-with actions.
 
 ## 1. Mental model

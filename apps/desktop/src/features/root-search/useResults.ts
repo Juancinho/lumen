@@ -22,6 +22,7 @@ function toRow(view: ResultView): ResultRowModel {
     detail: view.detail,
     snippet: view.snippet,
     extension: view.extension,
+    ...(view.code ? { code: view.code } : {}),
     primaryAction: view.primaryAction,
     diagnostics: view.diagnostics
       ? `${view.diagnostics.provider} · ${view.diagnostics.matchKind} · ${view.diagnostics.confidence.toFixed(2)}`

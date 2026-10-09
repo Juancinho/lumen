@@ -42,3 +42,4 @@
 | [ADR-033](adr/adr-033-fusion-weights-meaning-doubled-hard-set.md) | Fusion weights from the harder set: meaning ×2; lexical-lane findings | Accepted |
 | [ADR-034](adr/adr-034-model-provisioning-pinned-consented-curl.md) | Model + runtime provisioning: pinned files, explicit consent, system curl, verified atomic install | Accepted |
 | [ADR-035](adr/adr-035-progressive-refinement-pinned-selection-snippets.md) | Progressive refinement: one settled update, selected row stays put, passages for content/meaning matches | Accepted |
+| [ADR-036](adr/adr-036-code-context-file-identity-and-local-actions.md) | Code context on the file row, lexical metadata without re-embedding, capability-based local actions | Accepted |

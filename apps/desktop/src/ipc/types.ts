@@ -19,16 +19,24 @@ export interface Appearance {
 /** Mirrors `ResultDto`: one result as the UI renders it (T107). */
 export interface ResultView {
   id: string;
-  kind: "application" | "file" | "folder" | "command";
+  kind: "application" | "file" | "folder" | "command" | "code";
   title: string;
   detail: string | null;
   /** Passage that matched when found by contents or meaning (T206), else `null`. */
   snippet: string | null;
   extension: string | null;
+  code?: CodeContext | null;
   /** Action id Enter runs (`lumen.open`, `lumen.launch`). */
   primaryAction: string;
   /** Development diagnostics (`LUMEN_DIAGNOSTICS=1`), otherwise `null`. */
   diagnostics: ResultDiagnostics | null;
+}
+
+/** Mirrors CodeContextDto: display labels, never executor payloads. */
+export interface CodeContext {
+  symbol: string | null;
+  language: string;
+  repository: string | null;
 }
 
 /** Mirrors `ResultDiagnosticsDto` (T110). */
@@ -75,11 +83,11 @@ export interface Size {
 /** Mirrors `PreviewDto` (Quick Look, T105). */
 export interface Preview {
   title: string;
-  kind: "application" | "file" | "folder" | "command";
+  kind: "application" | "file" | "folder" | "command" | "code";
   location: string | null;
   sizeBytes: number | null;
   modifiedMs: number | null;
-  /** Start of a text file, if it is one. */
+  /** Start of a text file, or the indexed passage for a code match. */
   text: string | null;
   truncated: boolean;
 }

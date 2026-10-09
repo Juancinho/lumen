@@ -64,6 +64,22 @@ function renderSearch(
 }
 
 describe("RootSearch", () => {
+  it("shows the code symbol and file in one accessible row with repository context", () => {
+    const code: ResultRowModel = {
+      ...nth(rows, 1),
+      kind: "code",
+      title: "client.py",
+      extension: "py",
+      snippet: "def retry_request(url): return request(url)",
+      code: { symbol: "retry_request", language: "python", repository: "lumen" },
+    };
+    renderSearch("retry python", { rows: [code], status: "done" });
+    const option = screen.getByRole("option");
+    expect(option).toHaveTextContent("retry_request · client.py");
+    expect(option).toHaveTextContent("def retry_request(url)");
+    expect(option).toHaveAttribute("title", expect.stringContaining("python · lumen"));
+    expect(screen.getByRole("combobox")).toHaveAttribute("aria-activedescendant", option.id);
+  });
   it("shows only the search bar while idle", () => {
     renderSearch("", { rows: [], status: "idle" });
     const input = screen.getByRole("combobox", { name: "Search" });

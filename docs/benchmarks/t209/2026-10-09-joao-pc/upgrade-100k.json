@@ -1,0 +1,1 @@
+{"schema_version":1,"kind":"code-upgrade","os":"windows","arch":"x86_64","release":true,"logical_cpus":12,"chunks":100000,"preserved_vectors":100000,"migration_ms":1096.7667000000001,"context_backfill_ms":1597.4681}

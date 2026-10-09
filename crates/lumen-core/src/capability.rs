@@ -20,15 +20,21 @@ pub enum Capability {
     TextValue = 2,
     /// Target can be pinned/favorited in the local usage store.
     Pinnable = 3,
+    /// The matching passage has an extracted symbol name.
+    CodeSymbol = 4,
+    /// The code file has a known local repository root.
+    Repository = 5,
 }
 
 impl Capability {
     /// Every capability, in bit order.
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 6] = [
         Self::LocalPath,
         Self::Launchable,
         Self::TextValue,
         Self::Pinnable,
+        Self::CodeSymbol,
+        Self::Repository,
     ];
 
     const fn bit(self) -> u32 {

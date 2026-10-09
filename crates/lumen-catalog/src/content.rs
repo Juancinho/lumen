@@ -98,6 +98,12 @@ impl Provider for ContentProvider {
         }
         // One result per file, in first-hit order; bm25 is negative, lower = better.
         let best = hits.first().map_or(-1.0, |h| h.rank.min(-1e-9));
+        let refs: std::collections::HashMap<_, _> = store
+            .chunk_refs(&hits.iter().map(|h| h.chunk_id).collect::<Vec<_>>(), 4000)
+            .map_err(unavailable)?
+            .into_iter()
+            .map(|r| (r.chunk_id, r))
+            .collect();
         let mut out = Vec::new();
         let mut done = HashSet::new();
         for hit in &hits {
@@ -122,6 +128,9 @@ impl Provider for ContentProvider {
             if let Some(mut result) = to_result(&item, score) {
                 result.provider = CONTENT_PROVIDER_ID;
                 result.subtitle = Some(plain(&hit.snippet));
+                if let Some(reference) = refs.get(&hit.chunk_id) {
+                    crate::code::enrich(&mut result, reference, item.extension.as_deref());
+                }
                 out.push(result);
             }
         }
@@ -241,5 +250,68 @@ mod tests {
         assert_eq!(n("contrato cliente backoff"), 1);
         assert_eq!(n("contrato backoff"), 0);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn code_language_and_symbol_actions_work_without_a_model() {
+        use lumen_core::{Payload, ResultKind, builtin, validate_result};
+        let dir = std::env::temp_dir().join(format!("lumen-code-content-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("lumen.db");
+        let mut w = Store::open_writer(&db).unwrap();
+        for (path, name, language) in [
+            ("/repo/retry.ts", "retry.ts", "typescript"),
+            ("/repo/retry.py", "retry.py", "python"),
+        ] {
+            let id = w.insert_item(&NewItem::file(path, name)).unwrap();
+            w.insert_chunks(&[NewChunk {
+                item_id: id,
+                ordinal: 0,
+                chunk_kind: "code",
+                text: "def retry_request(): exponential backoff for http requests",
+                symbol_name: Some("retry_request"),
+                page_number: None,
+                start_offset: Some(10),
+                end_offset: Some(80),
+            }])
+            .unwrap();
+            w.set_code_context(id, path, language, Some("/repo"))
+                .unwrap();
+        }
+        let p = ContentProvider::new(Store::open_reader(&db).unwrap());
+        let cancel = CancellationToken::new();
+        let results = p
+            .search(&query("exponential backoff python", false), &cancel)
+            .unwrap();
+        assert_eq!(
+            results[0].title, "retry.py",
+            "language in metadata must beat identical body in another language"
+        );
+        let single = p.search(&query("backoff python", false), &cancel).unwrap();
+        assert_eq!(single.len(), 1);
+        for r in &results {
+            assert_eq!(r.kind, ResultKind::Code);
+            assert!(validate_result(r, &builtin::DESCRIPTORS).is_empty());
+            assert!(r.offers(&builtin::COPY_SYMBOL));
+            assert!(r.offers(&builtin::REVEAL_REPOSITORY));
+            assert_eq!(r.primary_action, builtin::OPEN);
+            let Payload::Code(code) = &r.payload else {
+                panic!("missing typed code target")
+            };
+            assert_eq!(code.symbol.as_deref(), Some("retry_request"));
+            assert_eq!(code.start_offset, Some(10));
+            assert_eq!(
+                code.repository.as_deref(),
+                Some(std::path::Path::new("/repo"))
+            );
+        }
+        cancel.cancel();
+        assert!(matches!(
+            p.search(&query("backoff python", false), &cancel),
+            Err(ProviderError::Cancelled)
+        ));
+        drop(p);
+        drop(w);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

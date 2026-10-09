@@ -1,6 +1,6 @@
 # SEARCH_AND_INDEXING.md — retrieval, extraction and indexing
 
-## 0. Implementation status (2026-10-08)
+## 0. Implementation status (2026-10-09)
 
 - **Navigational (built):** Pass 0 inventory with a coverage guarantee and stable identity
   (ADR-018), app + file catalog (ADR-021), tokenized name/path matching with typo,
@@ -9,12 +9,14 @@
 - **Lexical content (core built):** `chunks` + `chunks_fts` with budgeted queries
   (ADR-017); text/code extraction and 128-token chunking (`lumen-extract`, ADR-028); the
   content pass writes chunks incrementally (`lumen-content`, ADR-029), run by the app after
-  every catalog pass over locations with "Index file contents" on (not searched yet: T205).
+  every catalog pass over locations with "Index file contents" on; searched on the settled
+  query (ADR-032). Code chunks also index name/folder/language context (ADR-036); the
+  background pass discovers repository metadata without replacing vectors.
 - **Semantic (components):** embedding backend + device policy (ADR-014/015/019), ANN
   wrapper (ADR-016), persistent embedding queue with vectors per generation in SQLite
   (ADR-029); warm latest-wins query embedder that preempts indexing (ADR-030) and
   persistent ANN generations (file + delta, hits validated, validated switch; ADR-031) in
-  `lumen-semantic`, maintained by the app's indexing thread; not yet called by search (T205).
+  `lumen-semantic`, maintained by the app's indexing thread and searched on settled queries.
 - **Coordination (built):** latency-class lanes and latest-wins search thread (ADR-025);
   settled re-run after 80 ms and weighted-RRF fusion of names / contents / meaning
   (ADR-032; `lumen-bench eval`: fused top-1 0.98 vs 0.96 meaning alone on `fixtures/eval`).
@@ -76,10 +78,13 @@ Use normalization that respects Windows case-insensitive behavior while preservi
 
 ### FTS5
 
-Index extracted text and optional symbol names. Implemented (ADR-017): external-content
+Index extracted text and optional symbol names. Implemented (ADR-017/036): external-content
 FTS5 over `chunks`, `unicode61 remove_diacritics 2`, prefix indexes 3/4, bm25, user input
 always quoted (`FtsQuery::from_user`), every interactive query under a `SearchBudget`. Names
-use their own token index (`names_fts`, ADR-022).
+use their own token index (`names_fts`, ADR-022). Migration 0004 adds derived
+`search_context` for code (name/folder tokens, filename, language); other kinds leave it
+empty. Its rebuild preserves chunk IDs and vectors. Metadata backfill runs on the content
+thread, with no filesystem work in search.
 
 Store only what is needed for retrieval/snippets; large full bodies may be stored in a separate content cache if required.
 
@@ -228,6 +233,14 @@ Prefer language-aware boundaries where practical:
 Fallback to line windows for unsupported languages.
 
 Store symbol name and language as metadata. A query like `retry failed requests python` should return the symbol and file, not an arbitrary 500-line blob.
+
+Built (T209, ADR-036): content/semantic hits carry a typed code target with optional symbol,
+language, repository and normalized-text byte offsets. One row keeps the file's entity ID;
+symbol-free chunks remain file-level code matches. Ctrl+K offers Copy symbol / Reveal
+repository when present, Enter opens the registered file handler, and Alt+Enter previews
+the matching indexed passage. Repository discovery checks bounded `.git` ancestors during
+indexing; moves clear stale metadata immediately, then the background pass rediscovers it.
+No editor CLI is guessed and offsets are not treated as raw-file line numbers.
 
 ## 10. PDF indexing
 
@@ -456,4 +469,3 @@ Initial engineering targets:
 - target total index/cache size below ~1–2% of indexed source data, with configurable cache bounds.
 
 These are planning envelopes, not UI promises. Benchmark real corpora before publishing claims.
-

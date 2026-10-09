@@ -19,6 +19,8 @@ use crate::ids::{ActionId, ProviderId, ResultId};
 #[non_exhaustive]
 pub enum ResultKind {
     File,
+    /// A matching code passage, retaining the file's entity identity.
+    Code,
     Folder,
     Application,
     /// A built-in or system command (Windows setting, system action).
@@ -137,10 +139,38 @@ impl Score {
 pub enum Payload {
     /// Local file or folder.
     Path(PathBuf),
+    /// File plus the matching code passage. Boxed to keep the hot result compact.
+    Code(Box<CodeTarget>),
     /// A textual value (calculation result, URL).
     Text(Box<str>),
     /// Opaque key the owning provider resolves itself (app user-model id, setting URI).
     ProviderKey(Box<str>),
+}
+
+/// Trusted provider context for code actions. No editor command or UI-supplied path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CodeTarget {
+    pub path: PathBuf,
+    pub symbol: Option<String>,
+    pub language: String,
+    /// Nearest Git repository (including worktrees), discovered during indexing.
+    pub repository: Option<PathBuf>,
+    /// Offsets into normalized extracted text, not raw file offsets.
+    pub start_offset: Option<u64>,
+    pub end_offset: Option<u64>,
+    /// Bounded indexed passage for Quick Look, including matches beyond the file start.
+    pub passage: String,
+}
+
+impl Payload {
+    #[must_use]
+    pub fn local_path(&self) -> Option<&std::path::Path> {
+        match self {
+            Self::Path(path) => Some(path),
+            Self::Code(code) => Some(&code.path),
+            _ => None,
+        }
+    }
 }
 
 /// One row of the universal result list.

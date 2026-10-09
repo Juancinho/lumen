@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,6 +15,7 @@ import {
   resizeOverlay,
   type Appearance,
   type OverlayShown,
+  type Preview,
 } from "../ipc";
 import { useResults, type ResultsState } from "../features/root-search/useResults";
 import { App } from "./App";
@@ -392,6 +393,79 @@ describe("App overlay", () => {
       await userEvent.keyboard("{Escape}");
       expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
       expect(hideOverlay).not.toHaveBeenCalled();
+    });
+
+    it("refreshes an open file preview when its code passage arrives, ignoring older answers", async () => {
+      const { rerender } = render(<App />);
+      await userEvent.keyboard("{Alt>}{Enter}{/Alt}");
+      expect(await screen.findByText(/hola/)).toBeInTheDocument();
+      const pane = within(screen.getByRole("complementary"));
+
+      let finishEarlier: ((preview: Preview) => void) | undefined;
+      vi.mocked(previewResult).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishEarlier = resolve;
+          }),
+      );
+      const code = (snippet: string) => ({
+        ...file("item:1"),
+        kind: "code" as const,
+        snippet,
+        code: { symbol: "retry", language: "python", repository: "lumen" },
+      });
+      results = { rows: [code("earlier passage")], status: "searching", queryId: 7 };
+      rerender(<App />);
+      expect(previewResult).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText(/hola/)).not.toBeInTheDocument();
+
+      const match: Preview = {
+        title: "item:1.txt",
+        kind: "code",
+        location: null,
+        sizeBytes: null,
+        modifiedMs: null,
+        text: "matched retry passage",
+        truncated: true,
+      };
+      vi.mocked(previewResult).mockResolvedValueOnce(match);
+      results = { rows: [code(match.text ?? "")], status: "done", queryId: 7 };
+      rerender(<App />);
+      expect(await pane.findByText(/matched retry passage/)).toBeInTheDocument();
+      expect(previewResult).toHaveBeenCalledTimes(3);
+      await act(async () => {
+        finishEarlier?.({ ...match, text: "earlier passage" });
+        await Promise.resolve();
+      });
+      expect(pane.getByText(/matched retry passage/)).toBeInTheDocument();
+      expect(pane.queryByText(/earlier passage/)).not.toBeInTheDocument();
+    });
+
+    it("refreshes exact filename previews even when code labels stay the same", async () => {
+      const exact = () => ({
+        ...file("item:1"),
+        snippet: null,
+        code: { symbol: "retry", language: "python", repository: "lumen" },
+      });
+      results = { rows: [exact()], status: "searching", queryId: 7 };
+      const { rerender } = render(<App />);
+      await userEvent.keyboard("{Alt>}{Enter}{/Alt}");
+      expect(await screen.findByText(/hola/)).toBeInTheDocument();
+      vi.mocked(previewResult).mockResolvedValueOnce({
+        title: "item:1.txt",
+        kind: "file",
+        location: null,
+        sizeBytes: null,
+        modifiedMs: null,
+        text: "refined code passage",
+        truncated: true,
+      });
+      results = { rows: [exact()], status: "done", queryId: 7 };
+      rerender(<App />);
+      expect(
+        await within(screen.getByRole("complementary")).findByText(/refined code passage/),
+      ).toBeInTheDocument();
+      expect(previewResult).toHaveBeenCalledTimes(2);
     });
 
     it("covers the list when the monitor is too narrow for two panes", async () => {

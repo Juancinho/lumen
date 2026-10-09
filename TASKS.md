@@ -33,8 +33,9 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 10. ~~T210~~ model + runtime provisioning — REVIEW (ADR-034): on Windows, tray → Semantic
     search → Download… (checklist in HANDOFF).
 11. ~~T206~~ progressive refinement — REVIEW (ADR-035): try it on Windows (HANDOFF).
-12. **T209** code results (path tokens for the content lane, ADR-033 findings), **T207**
-    incremental watcher.
+12. ~~T209~~ code results — REVIEW (ADR-036): Windows release relevance and upgrade
+    measured; native Open / Copy symbol / Reveal repository checks in HANDOFF. **T207**
+    incremental watcher is the next implementation task.
 
 # M0 — technical spikes and foundation
 
@@ -85,7 +86,7 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 | T206 | REVIEW | claude | Progressive semantic UI refinement without focus jumps                  | T107,T205           |
 | T207 | TODO   | —     | Incremental watcher/reindex/delete/rename                               | T009,T202           |
 | T208 | TODO   | —     | Query syntax: type/ext/in/before/after/quoted exact                     | T205                |
-| T209 | TODO   | —     | Code result model: symbol/file/repository context + code actions        | T201,T108           |
+| T209 | REVIEW | codex | Code result model: symbol/file/repository context + code actions        | T201,T108           |
 | T210 | REVIEW | claude | Model + runtime provisioning: explicit download (consent, size), SHA-256 check, versioned app-data location, ORT DLL next to the exe, license notices, removal | T006,T202           |
 | T211 | REVIEW | claude | Harder relevance set for fusion tuning: hundreds of synthetic documents, near-duplicates, folder noise, long documents, graded judgments; re-tune ADR-032 weights | T205                |
 

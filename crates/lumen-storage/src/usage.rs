@@ -304,9 +304,10 @@ mod tests {
 
     fn store_with(names: &[&str]) -> (TempDb, Store, Vec<i64>) {
         let dir = std::env::temp_dir().join(format!(
-            "lumen-usage-{}-{}",
+            "lumen-usage-{}-{}-{:?}",
             names.join("-").len(),
-            std::process::id()
+            std::process::id(),
+            std::thread::current().id()
         ));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();

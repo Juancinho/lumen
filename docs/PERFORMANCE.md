@@ -18,6 +18,13 @@ p50/p95 (query embedding dominated) + contents 0.2 ms + fusion; Windows timing p
 Not measured yet: keystroke → painted results end to end, arrow-key response, Quick Look
 cached preview.
 
+T209 Windows (ADR-036): 162 synthetic documents / 177 chunks / 49 queries; contents
+0.85 / 2.32 ms p50/p95, meaning 33.52 / 65.67 ms (CPU q4, six threads). These are small
+fixture timings, not 100k search evidence. A 100k-code-chunk v3→v4 upgrade took 1.10 s;
+its separate metadata backfill took 1.60 s with every vector preserved. Migrations run on
+a startup worker, and first show waits for schema readiness; this one-time cold-upgrade
+cost does not recur on normal launches. Existing budgets are unchanged.
+
 ## 1. Principle
 
 Performance is not a later optimization pass. Lumen's product value depends on invoking it reflexively. If opening or searching feels slower than opening Explorer, the product loses its reason to exist.
@@ -322,4 +329,3 @@ The comparison must include:
 - packaging size;
 - visual implementation cost;
 - accessibility/maintenance implications.
-

@@ -59,7 +59,7 @@ mod imp {
 
     pub(super) fn available_memory_mib() -> Option<u64> {
         let mut m = MEMORYSTATUSEX {
-            dwLength: u32::try_from(std::mem::size_of::<MEMORYSTATUSEX>()).ok()?,
+            dwLength: u32::try_from(size_of::<MEMORYSTATUSEX>()).ok()?,
             ..MEMORYSTATUSEX::default()
         };
         // SAFETY: `dwLength` set as required; out-pointer to a live local.
@@ -69,7 +69,7 @@ mod imp {
 
     pub(super) fn input_idle() -> Option<Duration> {
         let mut info = LASTINPUTINFO {
-            cbSize: u32::try_from(std::mem::size_of::<LASTINPUTINFO>()).ok()?,
+            cbSize: u32::try_from(size_of::<LASTINPUTINFO>()).ok()?,
             dwTime: 0,
         };
         // SAFETY: `cbSize` set as required; out-pointer to a live local.

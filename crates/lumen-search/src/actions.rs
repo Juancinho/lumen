@@ -78,7 +78,7 @@ mod tests {
     use super::*;
     use crate::coordinator::tests::item;
 
-    static REGISTRY: [ActionDescriptor; 5] = DESCRIPTORS;
+    static REGISTRY: [ActionDescriptor; 7] = DESCRIPTORS;
 
     fn file() -> ResultItem {
         let mut it = item("item:1", &ProviderId::new("test.p").unwrap(), 0.5);
@@ -145,6 +145,57 @@ mod tests {
             )
             .err(),
             Some(ActionError::UnknownAction)
+        );
+    }
+
+    #[test]
+    fn code_actions_require_offered_capabilities_and_panel_invocation() {
+        use lumen_core::builtin::{COPY_SYMBOL, REVEAL_REPOSITORY};
+        let mut code = file();
+        code.secondary_actions
+            .extend([COPY_SYMBOL, REVEAL_REPOSITORY]);
+        assert!(
+            prepare(
+                request(COPY_SYMBOL, Invocation::ActionPanel),
+                &code,
+                &DESCRIPTORS
+            )
+            .is_err()
+        );
+        code.capabilities = code.capabilities.with(Capability::CodeSymbol);
+        assert!(
+            prepare(
+                request(COPY_SYMBOL, Invocation::ActionPanel),
+                &code,
+                &DESCRIPTORS
+            )
+            .is_ok()
+        );
+        assert!(
+            prepare(
+                request(REVEAL_REPOSITORY, Invocation::ActionPanel),
+                &code,
+                &DESCRIPTORS
+            )
+            .is_err()
+        );
+        code.capabilities = code.capabilities.with(Capability::Repository);
+        assert!(
+            prepare(
+                request(REVEAL_REPOSITORY, Invocation::ActionPanel),
+                &code,
+                &DESCRIPTORS
+            )
+            .is_ok()
+        );
+        assert_eq!(
+            prepare(
+                request(COPY_SYMBOL, Invocation::Primary),
+                &code,
+                &DESCRIPTORS
+            )
+            .err(),
+            Some(ActionError::Refused(AuthorizationError::NotPrimary))
         );
     }
 }

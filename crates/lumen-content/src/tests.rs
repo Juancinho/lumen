@@ -141,6 +141,59 @@ fn content_pass_indexes_skips_and_is_incremental() {
 }
 
 #[test]
+fn code_metadata_backfill_preserves_embedded_chunks() {
+    let t = Temp::new("code-backfill");
+    std::fs::create_dir_all(t.files().join(".git")).unwrap();
+    let mut store = seeded(&t);
+    let cfg = PassConfig::default();
+    pass(&mut store, &cfg);
+    let id = store
+        .item_id_by_path(&t.files().join("http.py").display().to_string())
+        .unwrap()
+        .unwrap();
+    let chunk_id: i64 = store
+        .connection()
+        .query_row(
+            "SELECT id FROM chunks WHERE item_id = ?1 ORDER BY ordinal LIMIT 1",
+            [id],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let generation = store
+        .ensure_generation(
+            GenerationSpec {
+                space_key: "test",
+                chunker_version: EXTRACTOR_VERSION,
+                dim: 2,
+            },
+            0,
+        )
+        .unwrap();
+    store
+        .write_vectors(
+            generation,
+            &[lumen_storage::VectorWrite {
+                chunk_id,
+                result: Ok(&[0.0, 1.0]),
+            }],
+            0,
+        )
+        .unwrap();
+    // Simulate an upgraded database with existing vectors but no discovered metadata.
+    store.connection().execute("UPDATE items SET code_language = NULL, repository_path = NULL, code_context_path = NULL WHERE id = ?1", [id]).unwrap();
+    assert_eq!(
+        pass(&mut store, &cfg).files,
+        0,
+        "metadata backfill never re-extracts content"
+    );
+    let reference = store.chunk_refs(&[chunk_id], 4000).unwrap().remove(0);
+    assert_eq!(reference.language.as_deref(), Some("python"));
+    assert_eq!(reference.repository, Some(t.files().display().to_string()));
+    assert_eq!(store.queue_counts(generation).unwrap().embedded, 1);
+    assert_eq!(store.vectors(generation, 0, 10).unwrap()[0].0, chunk_id);
+}
+
+#[test]
 fn content_pass_respects_scope() {
     let t = Temp::new("scope");
     let mut store = seeded(&t);

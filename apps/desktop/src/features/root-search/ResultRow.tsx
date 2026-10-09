@@ -37,6 +37,8 @@ export function ResultRow({
   onHover,
   onActivate,
 }: ResultRowProps) {
+  const title =
+    row.kind === "code" && row.code?.symbol ? `${row.code.symbol} · ${row.title}` : row.title;
   return (
     // Keyboard selection/activation is owned by the combobox input (focus never moves
     // into the list), so the option only needs pointer handlers.
@@ -47,7 +49,13 @@ export function ResultRow({
       aria-selected={selected}
       tabIndex={-1}
       className="result-row"
-      title={row.snippet && row.detail ? row.detail : undefined}
+      title={
+        row.code
+          ? [row.code.language, row.code.repository, row.detail].filter(Boolean).join(" · ")
+          : row.snippet && row.detail
+            ? row.detail
+            : undefined
+      }
       onMouseMove={onHover}
       onMouseDown={(event) => {
         // Keep focus in the query field.
@@ -59,8 +67,8 @@ export function ResultRow({
         <KindGlyph kind={row.kind} />
       </span>
       <span className="result-row__text">
-        <span className="result-row__title" title={row.title}>
-          {row.title}
+        <span className="result-row__title" title={title}>
+          {title}
         </span>
         {row.snippet ? (
           <span className="result-row__snippet">{row.snippet}</span>

@@ -212,10 +212,14 @@ fn missing_or_mismatching_files_degrade_to_rebuild() {
     assert_eq!(index.maintenance(&f.store).unwrap(), Maintenance::Rebuild);
 
     f.build();
-    let mut index = f.open(settings);
+    let index = f.open(settings);
     assert_eq!(index.maintenance(&f.store).unwrap(), Maintenance::None);
     let record = f.store.ann_file(f.generation).unwrap().unwrap();
+    // Windows cannot remove an open memory-mapped index. Model disappearance between
+    // process lifetimes, then exercise the same degraded open/reopen path.
+    drop(index);
     std::fs::remove_file(f.vectors_dir().join(&record.file_name)).unwrap();
+    let mut index = f.open(settings);
     index.reopen_file(&f.store).unwrap();
     assert!(matches!(index.status().file, FileState::Unusable(_)));
     assert_eq!(f.top(&index, 3, 1), [ids[3]]);
@@ -455,6 +459,56 @@ mod provider {
         assert!(r[0].score.confidence.get() > 0.99);
         assert_eq!(r[0].subtitle.as_deref(), Some("beach photos"));
         assert_eq!(r[0].provider, crate::SEMANTIC_PROVIDER_ID);
+        // The semantic lane carries exactly the same code context as lexical results.
+        let code_id = store
+            .insert_item(&NewItem::file("/repo/client.py", "client.py"))
+            .unwrap();
+        let chunk_id = store
+            .insert_chunks(&[NewChunk {
+                item_id: code_id,
+                ordinal: 0,
+                chunk_kind: "code",
+                text: "def retry(): pass",
+                symbol_name: Some("retry"),
+                page_number: None,
+                start_offset: Some(9000),
+                end_offset: Some(9020),
+            }])
+            .unwrap()[0];
+        store
+            .set_code_context(code_id, "/repo/client.py", "python", Some("/repo"))
+            .unwrap();
+        let vector = embedder.embed("retry failed requests", &never).unwrap();
+        store
+            .write_vectors(
+                generation,
+                &[VectorWrite {
+                    chunk_id,
+                    result: Ok(&vector),
+                }],
+                0,
+            )
+            .unwrap();
+        shared
+            .write()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .refresh(&store)
+            .unwrap();
+        let code = p
+            .search(&query("retry failed requests", false), &never)
+            .unwrap()
+            .remove(0);
+        assert_eq!(code.kind, lumen_core::ResultKind::Code);
+        assert!(lumen_core::validate_result(&code, &lumen_core::builtin::DESCRIPTORS).is_empty());
+        let lumen_core::Payload::Code(target) = &code.payload else {
+            panic!("missing code target")
+        };
+        assert_eq!(target.symbol.as_deref(), Some("retry"));
+        assert_eq!(target.language, "python");
+        assert_eq!(target.start_offset, Some(9000));
+        assert_eq!(target.passage, "def retry(): pass");
         drop(p);
         let _ = std::fs::remove_dir_all(&dir);
     }

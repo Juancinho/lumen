@@ -44,4 +44,6 @@ pub use execution::{
 };
 pub use ids::{ActionId, IdError, ProviderId, QueryId, ResultId};
 pub use provider::{LatencyClass, Provider, ProviderError, ProviderQuery};
-pub use result::{Confidence, IconRef, MatchKind, Payload, ResultItem, ResultKind, Score};
+pub use result::{
+    CodeTarget, Confidence, IconRef, MatchKind, Payload, ResultItem, ResultKind, Score,
+};

@@ -79,11 +79,22 @@ pub(crate) struct ResultDto {
     /// rather than its name (T206): shown instead of the location line.
     pub(crate) snippet: Option<String>,
     pub(crate) extension: Option<String>,
+    /// Display context only; trusted action targets and passage offsets stay in Rust.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) code: Option<CodeContextDto>,
     /// Action that Enter runs (`lumen.open`, `lumen.launch`).
     pub(crate) primary_action: String,
     /// Development diagnostics (T110, `LUMEN_DIAGNOSTICS=1` only): never in normal UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) diagnostics: Option<ResultDiagnosticsDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CodeContextDto {
+    pub(crate) symbol: Option<String>,
+    pub(crate) language: String,
+    pub(crate) repository: Option<String>,
 }
 
 /// Mirrors `ResultDiagnostics` in `src/ipc/types.ts`.
@@ -109,23 +120,37 @@ pub(crate) struct ActionDto {
 
 impl From<&lumen_core::ResultItem> for ResultDto {
     fn from(item: &lumen_core::ResultItem) -> Self {
-        use lumen_core::{IconRef, MatchKind, ResultKind};
+        use lumen_core::{IconRef, MatchKind, Payload, ResultKind};
         Self {
             id: item.id.as_str().to_owned(),
             kind: match item.kind {
                 ResultKind::Application => "application",
                 ResultKind::Folder => "folder",
                 ResultKind::Command => "command",
+                ResultKind::Code => "code",
                 _ => "file",
             },
             title: item.title.clone(),
             detail: item.detail.clone().or_else(|| item.subtitle.clone()),
-            snippet: match item.score.match_kind {
-                MatchKind::FullText | MatchKind::Semantic => item.subtitle.clone(),
+            snippet: match (item.kind, item.score.match_kind) {
+                (ResultKind::Code, _) => item.subtitle.clone(),
+                (_, MatchKind::FullText | MatchKind::Semantic) => item.subtitle.clone(),
                 _ => None,
             },
             extension: match &item.icon {
                 IconRef::FileExtension(ext) => Some(ext.to_string()),
+                _ => None,
+            },
+            code: match &item.payload {
+                Payload::Code(code) => Some(CodeContextDto {
+                    symbol: code.symbol.clone(),
+                    language: code.language.clone(),
+                    repository: code
+                        .repository
+                        .as_ref()
+                        .and_then(|p| p.file_name())
+                        .map(|p| p.to_string_lossy().into_owned()),
+                }),
                 _ => None,
             },
             primary_action: item.primary_action.as_str().to_owned(),
@@ -296,6 +321,23 @@ mod tests {
             ResultDto::from(&by_content).snippet.is_none(),
             "name matches show no snippet"
         );
+        by_content.kind = ResultKind::Code;
+        by_content.payload = Payload::Code(Box::new(lumen_core::CodeTarget {
+            path: "C:\\private\\repo\\client.py".into(),
+            symbol: Some("retry".into()),
+            language: "python".into(),
+            repository: Some("C:\\private\\repo".into()),
+            start_offset: Some(50000),
+            end_offset: Some(50100),
+            passage: "def retry(): pass".into(),
+        }));
+        let code = serde_json::to_value(ResultDto::from(&by_content)).unwrap();
+        assert_eq!(code["kind"], "code");
+        assert_eq!(
+            code["code"],
+            serde_json::json!({"symbol": "retry", "language": "python", "repository": "repo"})
+        );
+        assert!(code.get("payload").is_none() && code.get("startOffset").is_none());
     }
 
     #[test]
@@ -313,6 +355,21 @@ mod tests {
                 "title": "Reveal in Explorer",
                 "group": "navigation",
                 "shortcut": "Ctrl+Enter"
+            })
+        );
+    }
+
+    #[test]
+    fn code_display_projection_keeps_executor_targets_and_offsets_private() {
+        let dto = CodeContextDto {
+            symbol: Some("retry_request".into()),
+            language: "python".into(),
+            repository: Some("lumen".into()),
+        };
+        assert_eq!(
+            serde_json::to_value(dto).unwrap(),
+            serde_json::json!({
+                "symbol": "retry_request", "language": "python", "repository": "lumen"
             })
         );
     }

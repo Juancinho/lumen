@@ -11,6 +11,7 @@
 
 #![forbid(unsafe_code)]
 
+mod code;
 mod pass;
 mod queue;
 
