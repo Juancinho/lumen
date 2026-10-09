@@ -17,7 +17,10 @@ pub mod usage;
 
 pub use apps::{AppsReport, sync_apps};
 pub use content::{CONTENT_PROVIDER_ID, ContentProvider};
-pub use files::{FilesReport, sync_files, sync_files_with_progress};
+pub use files::{
+    FilesReport, sync_changes, sync_changes_with_content_scope, sync_files,
+    sync_files_with_progress,
+};
 pub use locations::{IndexLocations, LocationState, location_states};
 pub use provider::CatalogProvider;
 pub use usage::record_action;

@@ -25,6 +25,7 @@ mod scan;
 mod stats;
 mod storage;
 mod synth;
+mod watch;
 
 use std::process::ExitCode;
 use std::time::Duration;
@@ -44,6 +45,7 @@ Commands:
   query-lane  Warm query embedding alone / next to indexing / with preemption (T204)
   ann-gen   Persistent ANN generation on SQLite: build, mmap open, delta, stale rows (T203)
   eval      Search relevance of name / content / semantic lanes and their fusion (T205)
+  watch     Native watcher -> catalog/content freshness over synthetic files (T207)
   probe     Measure one embedding device for the device policy (T013), JSON probe
   device-policy   Device decisions from probe files across power/profile scenarios (T013)
 
@@ -248,6 +250,21 @@ fn main() -> ExitCode {
             Ok((summary, json, path)) => emit(&summary, json, path),
             Err(err) => usage_error(&err),
         },
+        Some("watch") => {
+            let json = match args.get(1).map(String::as_str) {
+                None => None,
+                Some("--json") if args.len() == 3 => args.get(2).cloned(),
+                _ => return usage_error("watch accepts only --json PATH"),
+            };
+            match watch::run() {
+                Ok(r) => emit(
+                    "Native watcher freshness probe completed (synthetic data only).\n",
+                    to_json(&r),
+                    json,
+                ),
+                Err(err) => usage_error(&err),
+            }
+        }
         Some("probe") => match parse_probe(&args[1..]).and_then(|(opts, json)| {
             device::run_probe(&opts).map(|r| (device::summarize_probe(&r), to_json(&r), json))
         }) {

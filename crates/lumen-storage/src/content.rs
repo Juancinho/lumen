@@ -127,6 +127,47 @@ pub struct ContentCounts {
 }
 
 impl Store {
+    /// Compare an ambiguous rename/write against the indexed representation, without
+    /// loading vectors or replacing chunks. Only bounded extraction output is supplied.
+    /// # Errors
+    /// SQLite failure.
+    pub fn content_matches(
+        &self,
+        item_id: i64,
+        chunks: &[NewChunk<'_>],
+        version: u32,
+    ) -> Result<bool> {
+        let indexed: bool = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM items WHERE id = ?1
+            AND content_state = 'indexed' AND extractor_version = ?2)",
+            params![item_id, version],
+            |r| r.get(0),
+        )?;
+        if !indexed {
+            return Ok(false);
+        }
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT ordinal, chunk_kind, text, symbol_name,
+            page_number, start_offset, end_offset FROM chunks WHERE item_id = ?1 ORDER BY ordinal",
+        )?;
+        let mut rows = stmt.query([item_id])?;
+        for chunk in chunks {
+            let Some(row) = rows.next()? else {
+                return Ok(false);
+            };
+            if row.get::<_, i64>(0)? != chunk.ordinal
+                || row.get::<_, String>(1)? != chunk.chunk_kind
+                || row.get::<_, String>(2)? != chunk.text
+                || row.get::<_, Option<String>>(3)?.as_deref() != chunk.symbol_name
+                || row.get::<_, Option<i64>>(4)? != chunk.page_number
+                || row.get::<_, Option<i64>>(5)? != chunk.start_offset
+                || row.get::<_, Option<i64>>(6)? != chunk.end_offset
+            {
+                return Ok(false);
+            }
+        }
+        Ok(rows.next()?.is_none())
+    }
     /// Code files needing metadata backfill or refresh after a move/content write.
     /// This does not replace chunks or invalidate vectors.
     ///

@@ -7,6 +7,7 @@
 //! failed to list; nothing under them is removed).
 
 use rusqlite::{OptionalExtension, params};
+use std::collections::HashSet;
 
 use crate::{ItemKind, Result, SearchBudget, Store};
 
@@ -186,6 +187,32 @@ impl Store {
         scan: i64,
         entries: &[CatalogEntry<'_>],
     ) -> Result<UpsertStats> {
+        self.upsert_inventory(scan, entries, None, &HashSet::new())
+    }
+
+    /// Incremental upsert: identities may move only from independently verified absent
+    /// paths. Hard links still present on disk must remain distinct catalog items.
+    /// `dirty` contains write-notified paths, including unchanged size/mtime saves.
+    ///
+    /// # Errors
+    /// SQLite failure (the entire batch rolls back).
+    pub fn upsert_changed_entries(
+        &mut self,
+        scan: i64,
+        entries: &[CatalogEntry<'_>],
+        absent: &HashSet<i64>,
+        dirty: &HashSet<String>,
+    ) -> Result<UpsertStats> {
+        self.upsert_inventory(scan, entries, Some(absent), dirty)
+    }
+
+    fn upsert_inventory(
+        &mut self,
+        scan: i64,
+        entries: &[CatalogEntry<'_>],
+        absent: Option<&HashSet<i64>>,
+        dirty: &HashSet<String>,
+    ) -> Result<UpsertStats> {
         let tx = self.conn.transaction()?;
         let mut stats = UpsertStats::default();
         {
@@ -197,9 +224,30 @@ impl Store {
                 "SELECT id FROM items INDEXED BY items_identity
                  WHERE volume_id = ?1 AND file_id = ?2 AND source = ?3
                    AND (seen_scan IS NULL OR seen_scan < ?4)
-                   AND size_bytes IS ?5 AND modified_at IS ?6
-                 LIMIT 1",
+                   AND kind = ?7 AND ((kind = 'folder' AND created_at IS ?8)
+                     OR (size_bytes IS ?5 AND modified_at IS ?6
+                         AND (?8 IS NULL OR created_at IS NULL OR created_at IS ?8)))
+                 LIMIT 128",
             )?;
+            let mut invalidate = tx.prepare_cached(
+                "UPDATE items SET content_state = NULL, content_fingerprint = NULL,
+                    code_context_path = NULL, repository_path = NULL, code_language = NULL
+                 WHERE id = ?1 AND source = 'files' AND
+                   (?2 OR size_bytes IS NOT ?3 OR modified_at IS NOT ?4
+                    OR extension IS NOT ?5 OR kind IS NOT ?6 OR (attributes & 4) <> (?7 & 4)
+                    OR (?8 IS NOT NULL AND volume_id IS NOT NULL AND volume_id IS NOT ?8)
+                    OR (?9 IS NOT NULL AND file_id IS NOT NULL AND file_id IS NOT ?9))",
+            )?;
+            let mut clear = tx.prepare_cached("DELETE FROM chunks WHERE item_id = ?1")?;
+            let mut clear_aliases = tx.prepare_cached(
+                "DELETE FROM chunks WHERE item_id IN
+                (SELECT id FROM items INDEXED BY items_identity WHERE volume_id = ?1
+                 AND file_id = ?2 AND source = 'files' AND kind = 'file' AND id <> ?3)",
+            )?;
+            let mut invalidate_aliases = tx.prepare_cached("UPDATE items SET content_state = NULL,
+                content_fingerprint = NULL, code_context_path = NULL, repository_path = NULL,
+                code_language = NULL, size_bytes = ?4, modified_at = ?5
+                WHERE volume_id = ?1 AND file_id = ?2 AND source = 'files' AND kind = 'file' AND id <> ?3")?;
             let mut update = tx.prepare_cached(
                 "UPDATE items SET kind = ?2, source = ?3, volume_id = ?4, file_id = ?5,
                     canonical_path = ?6, raw_path = ?7, display_name = ?8, name_key = ?9,
@@ -223,23 +271,56 @@ impl Store {
                 let target = match (existing, e.volume_id, e.file_id) {
                     (Some(id), ..) => Some((id, false)),
                     (None, Some(volume), Some(file)) => by_identity
-                        .query_row(
+                        .query_map(
                             params![
                                 volume,
                                 file,
                                 e.source.as_str(),
                                 scan,
                                 e.size_bytes,
-                                e.modified_at
+                                e.modified_at,
+                                e.kind.as_str(),
+                                e.created_at
                             ],
                             |r| r.get::<_, i64>(0),
-                        )
-                        .optional()?
+                        )?
+                        .collect::<std::result::Result<Vec<i64>, _>>()?
+                        .into_iter()
+                        .find(|id| absent.is_none_or(|ids| ids.contains(id)))
                         .map(|id| (id, true)),
                     _ => None,
                 };
                 match target {
                     Some((id, moved)) => {
+                        if invalidate.execute(params![
+                            id,
+                            dirty.contains(e.path),
+                            e.size_bytes,
+                            e.modified_at,
+                            e.extension,
+                            e.kind.as_str(),
+                            e.attributes,
+                            e.volume_id,
+                            e.file_id
+                        ])? > 0
+                        {
+                            // Delete chunks and vectors before readers can observe changed metadata.
+                            clear.execute([id])?;
+                            if dirty.contains(e.path)
+                                && let (Some(volume), Some(file)) = (e.volume_id, e.file_id)
+                            {
+                                // A write through one hard-link name changes every alias of this
+                                // physical file. Do not leave their old vectors searchable.
+                                clear_aliases.execute(params![volume, file, id])?;
+                                invalidate_aliases.execute(params![
+                                    volume,
+                                    file,
+                                    id,
+                                    e.size_bytes,
+                                    e.modified_at
+                                ])?;
+                            }
+                        }
                         update.execute(params![
                             id,
                             e.kind.as_str(),
@@ -295,6 +376,105 @@ impl Store {
         }
         tx.commit()?;
         Ok(stats)
+    }
+
+    /// Bounded candidates for a possible move. The caller verifies disappearance on disk
+    /// before opening a write transaction; matching identity alone can also mean a hard link.
+    ///
+    /// # Errors
+    /// SQLite failure.
+    pub fn identity_candidates(&self, entry: &CatalogEntry<'_>) -> Result<Vec<CatalogItem>> {
+        let mut stmt = self.conn.prepare_cached(&format!(
+            "SELECT {ITEM_COLUMNS} FROM items INDEXED BY items_identity
+             WHERE volume_id = ?1 AND file_id = ?2 AND source = ?3
+               AND kind = ?6 AND ((kind = 'folder' AND created_at IS ?7)
+                 OR (size_bytes IS ?4 AND modified_at IS ?5
+                     AND (?7 IS NULL OR created_at IS NULL OR created_at IS ?7))) LIMIT 128"
+        ))?;
+        let rows = stmt.query_map(
+            params![
+                entry.volume_id,
+                entry.file_id,
+                entry.source.as_str(),
+                entry.size_bytes,
+                entry.modified_at,
+                entry.kind.as_str(),
+                entry.created_at
+            ],
+            item_from_row,
+        )?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// Exact path existence for inventory, including Windows directories with case
+    /// sensitivity enabled. Action lookup keeps its existing case-insensitive behavior.
+    /// # Errors
+    /// SQLite failure.
+    pub fn exact_item_id_by_path(&self, path: &str) -> Result<Option<i64>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT id FROM items WHERE canonical_path = ?1",
+                [path],
+                |r| r.get(0),
+            )
+            .optional()?)
+    }
+
+    /// Keyset page of unseen items in one changed subtree. The canonical-path index keeps
+    /// ordinary file edits independent of the total inventory size. Path text is encoded
+    /// by lumen-catalog; callers never pass a SQL LIKE pattern.
+    ///
+    /// # Errors
+    /// SQLite failure.
+    pub fn unseen_under(
+        &self,
+        scan: i64,
+        path: &str,
+        after: &str,
+        limit: usize,
+    ) -> Result<Vec<CatalogItem>> {
+        let prefix = format!(
+            "{}{}",
+            path.trim_end_matches(std::path::MAIN_SEPARATOR),
+            std::path::MAIN_SEPARATOR
+        );
+        let upper = format!("{prefix}{KEY_MAX}");
+        let mut stmt = self.conn.prepare_cached(&format!(
+            "SELECT {ITEM_COLUMNS} FROM items WHERE source = 'files'
+             AND (seen_scan IS NULL OR seen_scan < ?1) AND canonical_path > ?4
+             AND (canonical_path = ?2 OR (canonical_path >= ?3 AND canonical_path < ?5))
+             ORDER BY canonical_path LIMIT ?6"
+        ))?;
+        let rows = stmt.query_map(
+            params![
+                scan,
+                path,
+                prefix,
+                after,
+                upper,
+                i64::try_from(limit).unwrap_or(i64::MAX)
+            ],
+            item_from_row,
+        )?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// Refresh repository context after a marker changes without replacing vectors.
+    /// # Errors
+    /// SQLite failure.
+    pub fn invalidate_code_under(&mut self, path: &str) -> Result<()> {
+        let prefix = format!(
+            "{}{}",
+            path.trim_end_matches(std::path::MAIN_SEPARATOR),
+            std::path::MAIN_SEPARATOR
+        );
+        self.conn.execute(
+            "UPDATE items SET code_context_path = NULL, repository_path = NULL
+            WHERE canonical_path = ?1 OR (canonical_path >= ?2 AND canonical_path < ?3)",
+            params![path, prefix, format!("{prefix}{KEY_MAX}")],
+        )?;
+        Ok(())
     }
 
     /// Items of `source` that pass `scan` did not see: `(id, path)`.

@@ -5,13 +5,14 @@
 //! did not see are removed — except under directories that failed to list, and never after
 //! a cancelled pass, so a transient failure can never make files disappear from search.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use lumen_core::CancellationToken;
 use lumen_indexer::{EntryKind, ScanEntry, ScanOptions, ScanReport, scan};
 use lumen_storage::{CatalogEntry, ItemKind, Source, StorageError, Store, UpsertStats};
 
-use crate::path::encode;
+use crate::path::{decode, encode};
 use crate::text::{fold, name_parts, path_parts};
 
 /// Entries written per transaction.
@@ -232,6 +233,227 @@ pub fn sync_files_with_progress(
     })
 }
 
+/// Applies a bounded batch of filesystem hints without removing unrelated roots/items.
+/// Writes precede removals so file/folder moves retain item, chunk and vector identities.
+/// Offline roots, failed listings and cancellation never justify deletion (ADR-037).
+///
+/// # Errors
+/// Storage failures. Native hints and filesystem failures remain in the report.
+pub fn sync_changes(
+    store: &mut Store,
+    opts: &ScanOptions,
+    changes: &[lumen_indexer::watch::Change],
+    cancel: Option<&CancellationToken>,
+) -> Result<FilesReport, StorageError> {
+    sync_changes_with_content_scope(store, opts, changes, cancel, &|_| true)
+}
+
+/// [`sync_changes`] with the caller's content-consent scope. Ambiguous Windows rename +
+/// modify hints may read supported text up to the extractor limit only inside this scope.
+/// # Errors
+/// Storage failure.
+pub fn sync_changes_with_content_scope(
+    store: &mut Store,
+    opts: &ScanOptions,
+    changes: &[lumen_indexer::watch::Change],
+    cancel: Option<&CancellationToken>,
+    content_scope: &dyn Fn(&str) -> bool,
+) -> Result<FilesReport, StorageError> {
+    use lumen_indexer::watch::{Change, is_marker};
+    let within_roots = |path: &Path| {
+        opts.roots
+            .iter()
+            .any(|r| is_within(&encode(path).text, &encode(r).text))
+    };
+    let dirty: HashSet<String> = changes
+        .iter()
+        .filter(|c| c.content && within_roots(&c.path))
+        .map(|c| encode(&c.path).text)
+        .collect();
+    let mut scopes = Vec::<Change>::new();
+    let contains_scope = |parent: &Change, child: &Change| {
+        let p = encode(&parent.path).text;
+        let c = encode(&child.path).text;
+        parent.recursive
+            && is_within(&c, &p)
+            && !(cfg!(windows) && p != c && p.to_lowercase() == c.to_lowercase())
+    };
+    for change in changes.iter().filter(|c| within_roots(&c.path)) {
+        let mut scope = change.clone();
+        if is_marker(&scope.path)
+            && let Some(parent) = scope.path.parent().filter(|p| within_roots(p))
+        {
+            if scope.path.file_name().is_some_and(|n| n == ".git") {
+                store.invalidate_code_under(&encode(parent).text)?;
+            }
+            scope.path = parent.to_path_buf();
+            scope.recursive = true;
+            scope.content = false;
+        }
+        if scopes.iter().any(|c| contains_scope(c, &scope)) {
+            continue;
+        }
+        if scope.recursive {
+            scopes.retain(|c| !contains_scope(&scope, c));
+        }
+        scopes.push(scope);
+    }
+    let scan_id = store.begin_scan(Source::Files)?;
+    let mut total = UpsertStats::default();
+    let mut batch = Vec::<Owned>::with_capacity(BATCH);
+    let mut failure = None;
+    let flush_changed = |store: &mut Store,
+                         batch: &mut Vec<Owned>,
+                         total: &mut UpsertStats|
+     -> Result<(), StorageError> {
+        if batch.is_empty() {
+            return Ok(());
+        }
+        let entries: Vec<_> = batch.iter().map(Owned::entry).collect();
+        let mut absent = HashSet::new();
+        let mut effective_dirty = dirty.clone();
+        // Filesystem checks run before the short SQLite transaction. A surviving hard
+        // link or an unavailable root is never a move candidate.
+        for e in &entries {
+            if e.volume_id.is_none() || store.exact_item_id_by_path(e.path)?.is_some() {
+                continue;
+            }
+            for old in store.identity_candidates(e)? {
+                let old_path = decode(&old.path, old.raw_path.as_deref());
+                let online = opts
+                    .roots
+                    .iter()
+                    .filter(|r| is_within(&old.path, &encode(r).text))
+                    .any(|r| std::fs::metadata(r).is_ok());
+                let case_rename = cfg!(windows)
+                    && old.path != e.path
+                    && old.path.to_lowercase() == e.path.to_lowercase()
+                    && opts
+                        .roots
+                        .iter()
+                        .any(|r| scan::spelling_exists(&old_path, r) == Some(false));
+                if online
+                    && (case_rename
+                        || std::fs::symlink_metadata(&old_path)
+                            .is_err_and(|e| e.kind() == std::io::ErrorKind::NotFound))
+                {
+                    absent.insert(old.id);
+                    if dirty.contains(e.path)
+                        && e.kind == ItemKind::File
+                        && e.attributes & 4 == 0
+                        && content_scope(e.path)
+                        && matching_move_content(store, old.id, e)?
+                    {
+                        effective_dirty.remove(e.path);
+                    }
+                }
+            }
+        }
+        add(
+            total,
+            store.upsert_changed_entries(scan_id, &entries, &absent, &effective_dirty)?,
+        );
+        batch.clear();
+        Ok(())
+    };
+    let scan = scan::scan_changed(
+        opts,
+        &scopes,
+        |e| {
+            if failure.is_some() {
+                return;
+            }
+            batch.push(Owned::from_scan(&e));
+            if batch.len() >= BATCH
+                && let Err(err) = flush_changed(store, &mut batch, &mut total)
+            {
+                failure = Some(err);
+            }
+        },
+        cancel,
+    );
+    if let Some(err) = failure {
+        return Err(err);
+    }
+    flush_changed(store, &mut batch, &mut total)?;
+    let unverified: Vec<_> = scan
+        .blocking_issues()
+        .map(|i| encode(&i.path).text)
+        .collect();
+    let mut removed = 0;
+    let mut kept_unverified = 0;
+    if !scan.cancelled {
+        for scope in &scopes {
+            if !scope.recursive && scope.path.is_dir() {
+                continue;
+            }
+            let mut after = String::new();
+            loop {
+                if cancel.is_some_and(CancellationToken::is_cancelled) {
+                    break;
+                }
+                let rows = store.unseen_under(scan_id, &encode(&scope.path).text, &after, BATCH)?;
+                if rows.is_empty() {
+                    break;
+                }
+                let mut doomed = Vec::new();
+                for row in rows {
+                    after = row.path.clone();
+                    if unverified.iter().any(|p| is_within(&row.path, p)) {
+                        kept_unverified += 1;
+                    } else {
+                        doomed.push(row.id);
+                    }
+                }
+                removed += store.delete_items(&doomed)?;
+            }
+        }
+    }
+    store.finish_scan(
+        scan_id,
+        scan.is_complete(),
+        scan.emitted(),
+        removed,
+        scan.issues.len() as u64,
+    )?;
+    Ok(FilesReport {
+        scan_id,
+        scan,
+        written: total,
+        removed,
+        kept_unverified,
+    })
+}
+
+fn matching_move_content(
+    store: &Store,
+    id: i64,
+    entry: &CatalogEntry<'_>,
+) -> Result<bool, StorageError> {
+    use lumen_extract::{
+        ChunkConfig, DEFAULT_MAX_BYTES, EXTRACTOR_VERSION, EstimateTokens, chunk, extract_file,
+    };
+    let path = decode(entry.path, entry.raw_path);
+    let Ok(doc) = extract_file(&path, DEFAULT_MAX_BYTES) else {
+        return Ok(false);
+    };
+    let chunks = chunk(&doc, &ChunkConfig::default(), &EstimateTokens);
+    let expected: Vec<_> = chunks
+        .iter()
+        .map(|c| lumen_storage::NewChunk {
+            item_id: id,
+            ordinal: i64::from(c.ordinal),
+            chunk_kind: c.kind.as_str(),
+            text: c.text(&doc.text),
+            symbol_name: c.symbol.as_deref(),
+            page_number: None,
+            start_offset: i64::try_from(c.start).ok(),
+            end_offset: i64::try_from(c.end).ok(),
+        })
+        .collect();
+    store.content_matches(id, &expected, EXTRACTOR_VERSION)
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -402,5 +624,143 @@ mod tests {
         assert!(is_within(&format!("{s}r{s}docs{s}a.txt"), &dir));
         assert!(is_within(&dir, &dir));
         assert!(!is_within(&format!("{s}r{s}docs2{s}a.txt"), &dir));
+    }
+
+    #[test]
+    fn incremental_missing_root_and_cancel_keep_items() {
+        use lumen_indexer::watch::Change;
+        let t = Tmp::new("incremental-offline");
+        let r = t.root();
+        fs::write(r.join("file.txt"), "preserved").unwrap();
+        let mut store = t.store();
+        sync_files(&mut store, &opts(&r), None).unwrap();
+        let before = store.count_items(Source::Files).unwrap();
+        fs::rename(&r, t.0.join("offline")).unwrap();
+        let changes = [Change {
+            path: r.clone(),
+            recursive: true,
+            content: false,
+            renamed_from: false,
+        }];
+        let report = sync_changes(&mut store, &opts(&r), &changes, None).unwrap();
+        assert!(!report.scan.is_complete());
+        assert_eq!(report.removed, 0);
+        assert_eq!(store.count_items(Source::Files).unwrap(), before);
+        fs::rename(t.0.join("offline"), &r).unwrap();
+        fs::remove_file(r.join("file.txt")).unwrap();
+        let token = CancellationToken::new();
+        token.cancel();
+        let report = sync_changes(&mut store, &opts(&r), &changes, Some(&token)).unwrap();
+        assert!(report.scan.cancelled);
+        assert_eq!(report.removed, 0);
+        assert_eq!(store.count_items(Source::Files).unwrap(), before);
+    }
+
+    #[test]
+    fn markers_reconcile_excluded_siblings_and_ordinary_directory_writes_keep_children() {
+        use lumen_indexer::watch::Change;
+        let t = Tmp::new("incremental-marker");
+        let r = t.root();
+        fs::create_dir_all(r.join("target/nested")).unwrap();
+        fs::write(r.join("target/nested/keep.txt"), "kept").unwrap();
+        let mut options = opts(&r);
+        options.exclusions.build_dirs_next_to_markers = true;
+        let mut store = t.store();
+        sync_files(&mut store, &options, None).unwrap();
+        let before = store.count_items(Source::Files).unwrap();
+        let changes = [Change {
+            path: r.join("target"),
+            recursive: false,
+            content: true,
+            renamed_from: false,
+        }];
+        let report = sync_changes(&mut store, &options, &changes, None).unwrap();
+        assert_eq!(report.scan.emitted(), 1);
+        assert_eq!(report.removed, 0);
+        assert_eq!(store.count_items(Source::Files).unwrap(), before);
+        let marker = r.join("Cargo.toml");
+        let changes = [Change {
+            path: marker.clone(),
+            recursive: true,
+            content: false,
+            renamed_from: false,
+        }];
+        fs::write(&marker, "[package]").unwrap();
+        let report = sync_changes(&mut store, &options, &changes, None).unwrap();
+        assert_eq!(report.removed, 3);
+        assert_eq!(report.scan.excluded[0].rule, "build:target");
+        fs::remove_file(&marker).unwrap();
+        sync_changes(&mut store, &options, &changes, None).unwrap();
+        assert_eq!(store.count_items(Source::Files).unwrap(), before);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn case_only_rename_preserves_identity_without_duplicate_paths() {
+        use lumen_indexer::watch::Change;
+        let t = Tmp::new("incremental-case");
+        let r = t.root();
+        let old = r.join("lower.txt");
+        let new = r.join("LOWER.txt");
+        let old_dir = r.join("lower-dir");
+        let new_dir = r.join("LOWER-DIR");
+        fs::create_dir_all(&old_dir).unwrap();
+        fs::write(old_dir.join("child.txt"), "same child").unwrap();
+        fs::write(&old, "same").unwrap();
+        let mut store = t.store();
+        sync_files(&mut store, &opts(&r), None).unwrap();
+        let id = store
+            .item_id_by_path(old.to_str().unwrap())
+            .unwrap()
+            .unwrap();
+        let before = store.count_items(Source::Files).unwrap();
+        let child_id = store
+            .exact_item_id_by_path(old_dir.join("child.txt").to_str().unwrap())
+            .unwrap();
+        fs::rename(&old, &new).unwrap();
+        let changes = [
+            Change {
+                path: old,
+                recursive: true,
+                content: false,
+                renamed_from: true,
+            },
+            Change {
+                path: new.clone(),
+                recursive: true,
+                content: false,
+                renamed_from: false,
+            },
+        ];
+        let report = sync_changes(&mut store, &opts(&r), &changes, None).unwrap();
+        assert_eq!(report.written.moved, 1, "{report:?}");
+        assert_eq!(
+            store.item_id_by_path(new.to_str().unwrap()).unwrap(),
+            Some(id)
+        );
+        assert_eq!(store.count_items(Source::Files).unwrap(), before);
+        fs::rename(&old_dir, &new_dir).unwrap();
+        let changes = [
+            Change {
+                path: old_dir,
+                recursive: true,
+                content: false,
+                renamed_from: true,
+            },
+            Change {
+                path: new_dir.clone(),
+                recursive: true,
+                content: false,
+                renamed_from: false,
+            },
+        ];
+        sync_changes(&mut store, &opts(&r), &changes, None).unwrap();
+        assert_eq!(
+            store
+                .exact_item_id_by_path(new_dir.join("child.txt").to_str().unwrap())
+                .unwrap(),
+            child_id
+        );
+        assert_eq!(store.count_items(Source::Files).unwrap(), before);
     }
 }

@@ -20,6 +20,9 @@
 - **Coordination (built):** latency-class lanes and latest-wins search thread (ADR-025);
   settled re-run after 80 ms and weighted-RRF fusion of names / contents / meaning
   (ADR-032; `lumen-bench eval`: fused top-1 0.98 vs 0.96 meaning alone on `fixtures/eval`).
+- **Change tracking (built, T207):** bounded native watch hints and scoped reconciliation
+  on the existing writer (ADR-037), safe file/folder moves and atomic content invalidation;
+  periodic recovery remains. Native overlay/reconnect review is pending.
 
 ## 1. Retrieval philosophy
 
@@ -160,8 +163,8 @@ Initial roots:
 - optional developer roots.
 
 Implemented (T107): the standard folders Desktop, Documents, Downloads, Pictures, Music and
-Videos, nested/duplicate roots collapsed, synced at start-up and every 30 min until the
-watcher (T207) and configurable roots exist.
+Videos, nested/duplicate roots collapsed. T111 configures roots; T207 updates files from
+native events. Startup/settings/30-minute inventories remain recovery and app discovery.
 
 User-configurable locations and exclusions are **T111** (spec:
 `docs/specs/T111-indexed-locations.md`): folders or whole drives as locations with a visible
@@ -183,6 +186,14 @@ Do not exclude source folders themselves.
 User exclusions always win.
 
 ## 8. Change detection
+
+Implemented T207: [task contract](specs/T207-incremental-indexing.md) and ADR-037. Native
+hints coalesce at 4,096 paths, with 300 ms quiet / 2 s storm deadline; loss/overflow requests
+a 5 s delayed recovery inventory. Events preempt embedding at its existing batch boundary.
+Only scoped paths are pruned, after upserts and availability checks. Same-metadata writes,
+replacement identities, hard links, case-only renames and marker exclusions are covered.
+Ambiguous rename/write hints compare bounded indexed text chunks within content consent;
+unchanged moves retain vectors. No every-file body hash or USN journal is introduced.
 
 For each item track enough metadata to avoid unnecessary extraction:
 

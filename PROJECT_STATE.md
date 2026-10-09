@@ -44,7 +44,6 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
 - **T011 DONE:** universal command contracts in `crates/lumen-core` — ids, `ResultItem`,
   `CapabilitySet`, `ActionDescriptor` (risk class + panel group), `validate_result`,
   `ExecutionContext::authorize`, `CancellationToken`. ADR-013: shell owns wire DTOs.
-- Crates: `crates/lumen-core`, `apps/desktop/src-tauri` (`lumen-desktop`, bin `lumen`), `xtask`.
 - Shell → core direction enforced by `cargo xtask arch` and ESLint `no-restricted-imports`.
 - Commands/layout: `docs/DEVELOPMENT.md`. Contract summary: `docs/COMMAND_MODEL.md` §0.
 - **T002 DONE:** resident overlay — hidden borderless window, Alt+Space toggle, Escape/blur/
@@ -121,6 +120,9 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
 - **T209 REVIEW (ADR-036):** symbol/file/repository context on the same file ID; Copy symbol,
   Reveal repository and matching-passage Quick Look. Migration/background metadata preserve
   vectors; Windows code content top-1 0.50→1.00 (6 queries); native action review pending.
+- **T207 REVIEW (ADR-037):** bounded native file watcher and scoped updates on the existing
+  writer; safe moves/deletes/write invalidation, unchanged vectors retained. Windows
+  synthetic freshness p95 381 ms at 10k items; native overlay/reconnect checks pending.
 - **T210 REVIEW (ADR-034):** semantic search installs from the tray — consent dialog
   (size, hosts, licenses), pinned model (207 MB, Hugging Face revision) + ONNX Runtime
   wheel (14 MB, PyPI) via the system curl, SHA-256 per file and per extracted member,
@@ -159,14 +161,14 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
 1. Close M1 on Windows: the REVIEW checklists in `HANDOFF.md` (search, keys, actions, Quick
    Look, look and material, shortcut).
 2. Finish M2 Windows reviews, settle the indexing runtime (T014); next implementation is
-   T207 (incremental watcher), ordered in `TASKS.md` → **Next**. T209 is in REVIEW.
+   T208 (query syntax), ordered in `TASKS.md` → **Next**. T207/T209 are in REVIEW.
 
 ## M1 gate (instant launcher)
 
 - type → name/app results every keystroke within budget ✔ (Windows: p95 5.3 ms provider);
 - Enter/Ctrl+Enter/Ctrl+K actions, Quick Look, stable keyboard selection ✔ (REVIEW);
 - premium surface + native material ✔ measured, visual verdict pending;
-- catalog kept current without user action ✔ (sync at start-up + 30 min; watcher is T207).
+- files kept current by native events ✔ (T207); startup/30-min recovery and app discovery.
 
 ## Top risks
 

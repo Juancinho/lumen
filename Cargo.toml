@@ -10,6 +10,7 @@ publish = false
 
 # Single source of truth for dependency versions. Members opt in with `dep.workspace = true`.
 [workspace.dependencies]
+notify = "8.2.0"
 lumen-core = { path = "crates/lumen-core" }
 lumen-embedding = { path = "crates/lumen-embedding" }
 lumen-embedding-ort = { path = "crates/lumen-embedding-ort" }

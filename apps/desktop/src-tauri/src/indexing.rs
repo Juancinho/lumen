@@ -268,6 +268,7 @@ pub(crate) fn content_pass<R: Runtime>(
         Ok(r) => {
             crate::diag::record("content_pass_ms", started.elapsed().as_secs_f64() * 1000.0);
             crate::diag::record("content_files", count(r.files));
+            crate::catalog::notify(app, r.files > 0);
         }
         Err(err) => eprintln!("lumen: content pass failed: {err}"),
     }
@@ -478,6 +479,7 @@ pub(crate) fn embed_slice<R: Runtime>(
     refresh_counts(&state, &store, generation);
     if result.as_ref().is_ok_and(|r| r.embedded > 0) {
         maintain_ann(&state, &mut store, db, generation, token);
+        crate::catalog::notify(app, true);
     }
     let next = match result {
         Ok(r) => {

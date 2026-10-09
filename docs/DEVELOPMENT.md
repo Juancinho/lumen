@@ -150,6 +150,7 @@ Benchmarks (release builds only; debug runs are flagged in the report):
 | File inventory coverage/speed (counts only) | `cargo run --release -p lumen-bench -- scan --root DIR --identity --json target/bench/scan.json` |
 | Stable identity semantics on a volume | `cargo run --release -p lumen-bench -- identity-check --dir DIR` |
 | Catalog sync + keystroke name lookup | `cargo run --release -p lumen-bench -- catalog --root DIR [--apps] [--show QUERY]` |
+| Native watcher freshness (synthetic catalog, no model) | `cargo run --release -p lumen-bench -- watch --json target/bench/watch.json` |
 | Search relevance of the three lanes + fusion | `cargo run --release -p lumen-bench [--features ort] -- eval [--backend ort --model-dir DIR --ort-dylib DLL] --sweep` |
 | Code metadata upgrade (synthetic v3→v4, vectors retained) | `cargo run --release -p lumen-storage --example code_upgrade -- 100000 target/bench/code-upgrade.json` |
 | Persistent ANN generation (build/open/delta/stale/rebuild) | `cargo run --release -p lumen-bench -- ann-gen --vectors 100000 --json target/bench/ann-gen.json` |

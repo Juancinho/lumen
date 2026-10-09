@@ -34,8 +34,9 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
     search → Download… (checklist in HANDOFF).
 11. ~~T206~~ progressive refinement — REVIEW (ADR-035): try it on Windows (HANDOFF).
 12. ~~T209~~ code results — REVIEW (ADR-036): Windows release relevance and upgrade
-    measured; native Open / Copy symbol / Reveal repository checks in HANDOFF. **T207**
-    incremental watcher is the next implementation task.
+    measured; native Open / Copy symbol / Reveal repository checks in HANDOFF.
+13. ~~T207~~ incremental watcher — REVIEW (ADR-037): native synthetic freshness measured;
+    overlay/reconnect checks in HANDOFF. **T208** query syntax is the next implementation.
 
 # M0 — technical spikes and foundation
 
@@ -84,7 +85,7 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 | T204 | REVIEW | claude | Warm query embedding service + cancellation                             | T006                |
 | T205 | REVIEW | claude | Hybrid provider/lexical/vector fusion + evaluation harness              | T203,T204,T102,T011 |
 | T206 | REVIEW | claude | Progressive semantic UI refinement without focus jumps                  | T107,T205           |
-| T207 | TODO   | —     | Incremental watcher/reindex/delete/rename                               | T009,T202           |
+| T207 | REVIEW | codex | Incremental watcher/reindex/delete/rename (ADR-037)                     | T009,T202           |
 | T208 | TODO   | —     | Query syntax: type/ext/in/before/after/quoted exact                     | T205                |
 | T209 | REVIEW | codex | Code result model: symbol/file/repository context + code actions        | T201,T108           |
 | T210 | REVIEW | claude | Model + runtime provisioning: explicit download (consent, size), SHA-256 check, versioned app-data location, ORT DLL next to the exe, license notices, removal | T006,T202           |

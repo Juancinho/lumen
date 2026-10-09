@@ -5,21 +5,65 @@
 
 ## Branch
 
-main on github.com/Juancinho/lumen. This session continues 1859f1e (T206) with T209.
+main on github.com/Juancinho/lumen. This session continues a68d4d5 (T209) with T207.
 Local commit/push state: inspect git status and git log; no push was requested here.
 
 ## Active task / exact continuation
 
-None claimed. T209 is REVIEW (codex, ADR-036); implementation, Windows release evidence
-and automated validation are complete. Native code-action checks are below.
-Next implementation per TASKS.md: T207 incremental watcher. Do not redo T209 or start
-query syntax/editor integration/other milestones as prerequisites without evidence.
+No task is currently CLAIMED. T207 is implemented and REVIEW (native overlay/reconnect
+checks below); the next implementation is T208 query syntax, ordered in TASKS.md.
+Read the canonical files and its relevant specs/ADRs before claiming it. Do not begin
+multimodal/photo/PDF work, change the runtime, or redo providers while continuing T208.
 
-T207 must build on the existing inventory identity, content pass, persistent queue,
-generation validation and provider contracts. Code metadata now also needs invalidation
-on moves/content changes: migration 0004 clears repository/language on a path move, and
-lumen_content::code refreshes it during the content pass without replacing unchanged
-chunks/vectors. Read its domain spec and touched ADRs before claiming T207.
+The user's target/release/lumen.exe instance was left running/indexing throughout T207.
+Validation used temporary synthetic databases/files only. Do not stop the instance or
+write its app-data database for validation. The new optimized build is separate:
+target/t207-build/release/lumen.exe (same settings/queue on a
+user-chosen restart). No model downloads or push were requested/performed.
+
+## T207 — outcome and native checks remaining
+
+Read docs/specs/T207-incremental-indexing.md and ADR-037. Implementation:
+lumen-indexer watch/scan_changed; lumen-catalog scoped reconciliation; lumen-storage
+invalidation/content comparison; desktop catalog/indexing/overlay notification wiring.
+No schema/model/extractor/ranking/UI-contract change. Known hints remain bounded through
+overflow and run before recovery; files update incrementally, apps retain periodic sync.
+Unchanged file/folder moves preserve embeddings; ambiguous Windows rename+modify events
+compare bounded indexed chunks within content consent. Changes retire stale vectors;
+existing ANN sequence validation prevents old hits returning.
+
+After the user chooses to quit the resident instance, run the new version from the same
+PowerShell session/model configuration. Building this output does not replace the old exe:
+
+    npm --prefix apps/desktop run build
+    cargo build --release --target-dir target/t207-build -p lumen-desktop --features tauri/custom-protocol --locked -j 2
+    $env:LUMEN_EMBED_MODEL_DIR = "$PWD\.cache\t006\embeddinggemma-2-ONNX"
+    $env:LUMEN_ORT_DYLIB = "$PWD\.cache\t006\ort-cpu\onnxruntime.dll"
+    .\target\t207-build\release\lumen.exe
+
+Environment overrides are only needed for the development cache; installed assets still
+resolve normally. A second launch addresses the old resident process until it quits.
+
+1. Add a scratch folder from the tray, enable Index file contents, create a small text/code
+   file, and confirm name + new words appear from root search without a restart/rescan.
+   Lexical freshness is measured; semantic readiness follows the persistent queue/policy.
+2. Edit the text, including an editor save-by-replacement; old passages/semantic hits must
+   disappear, new passages appear, and new vectors become pending. Rename the file/folder:
+   selected file identity, Open/Reveal/Copy path and code repository context must follow.
+3. Keep the overlay open on a stable query; new results refresh while a surviving selected
+   row stays selected. Check Alt+Enter preview and Ctrl+K actions after rename/delete.
+   While hidden, catalog/vector commits must not start query inference or WebView search;
+   Alt+Space refreshes once on show. These native lifecycle checks are not simulated QA.
+4. Edit root/exclusion settings while indexing; verify cancellation, watch replacement,
+   marker exclusions and contents-disabled locations. Disconnect/reconnect a selected
+   removable volume: unverified items remain, recovery/watch registration resumes. Network
+   or unsupported watching relies on startup/settings/30-minute inventory, with no poller.
+
+Windows release probe: docs/benchmarks/t207/windows-watch.json. 10,001 synthetic items,
+20 native operations: lexical freshness 361/381 ms p50/p95 (300 ms debounce included),
+29 entries emitted, zero full inventories; all rename vectors preserved. Two seconds
+parked: zero notifications / measured process CPU. This is not model throughput, visible
+paint timing or a long idle/network/large-storm soak.
 
 ## T209 — native Windows review remaining
 
@@ -135,13 +179,24 @@ After queue slices, ANN files live under app-data vectors/ (first build around 2
 Run from repository root unless a frontend prefix is shown:
 
     cargo fmt --all -- --check
-    cargo clippy --workspace --all-targets --locked -- -D warnings
-    cargo clippy -p lumen-bench --features directml --all-targets --locked -- -D warnings
-    cargo xtask test --locked
+    cargo clippy --workspace --all-targets --locked -j 2 -- -D warnings
+    cargo clippy -p lumen-bench --features directml --all-targets --locked -j 2 -- -D warnings
+    cargo xtask test --locked -j 2
     cargo xtask arch
     npm --prefix apps/desktop run check
     npm --prefix apps/desktop run build
     cargo build --release -p lumen-desktop --features tauri/custom-protocol --locked
+
+T207 completed the full Rust gate and architecture check. Frontend format/lint/types and
+production build passed; 71 tests passed with `npm --prefix apps/desktop run test --
+--maxWorkers=1` after the default simultaneous worker startup timed out under concurrent
+compilation/indexing load. Use one worker during loaded-machine validation; no frontend
+configuration was changed. Late native notification changes were rechecked with shell
+tests/lint. The optimized desktop output for T207 uses the separate target-dir above.
+
+T207 native synthetic probe (no model or live database):
+
+    cargo run --release -p lumen-bench --locked -j 2 -- watch --json target/bench/t207-watch.json
 
 T209 release evidence, cached model only (no downloads):
 

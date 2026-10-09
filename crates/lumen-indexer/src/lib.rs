@@ -9,6 +9,7 @@
 
 pub mod identity;
 pub mod scan;
+pub mod watch;
 #[cfg(windows)]
 pub mod winpath;
 

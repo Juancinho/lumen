@@ -3,7 +3,7 @@
 //! and right away when the locations or exclusions change (the running pass is cancelled —
 //! nothing is removed by a cancelled pass). The UI re-runs its query on
 //! `lumen:catalog-changed`, sent during long passes too so a small location is not held back
-//! by a big drive. Incremental watching is T207.
+//! by a big drive. Native change hints are reconciled by this same writer (T207).
 //!
 //! The same thread then runs content indexing (`indexing.rs`, T202): the content pass after
 //! every catalog pass, and embedding-queue slices while chunks are pending — one SQLite
@@ -19,8 +19,12 @@ use std::time::{Duration, Instant};
 
 use lumen_catalog::apps::start_menu_dirs;
 use lumen_catalog::locations::{IndexLocations, LocationsError, SETTING_KEY};
-use lumen_catalog::{LocationState, location_states, sync_apps, sync_files_with_progress};
+use lumen_catalog::{
+    LocationState, location_states, sync_apps, sync_changes_with_content_scope,
+    sync_files_with_progress,
+};
 use lumen_core::CancellationToken;
+use lumen_indexer::watch::{Batch, NativeWatch, Notification, Pending};
 use lumen_storage::Store;
 use tauri::{App, AppHandle, Emitter, Manager, Runtime};
 
@@ -104,6 +108,10 @@ struct Control {
     /// Indexing work may be possible now (resume): wake without a catalog pass.
     kick: bool,
     running: Option<CancellationToken>,
+    /// Only embedding slices are preempted by filesystem events; initial/full inventories
+    /// must finish even while another application is writing continuously.
+    embedding: bool,
+    pending: Pending,
 }
 
 /// Managed state: the locations model and the sync thread's control.
@@ -211,8 +219,7 @@ pub(crate) fn start<R: Runtime>(app: &App<R>) {
         states: Mutex::new(Vec::new()),
         control: Mutex::new(Control {
             wanted: true,
-            kick: false,
-            running: None,
+            ..Control::default()
         }),
         wake: Condvar::new(),
     });
@@ -226,9 +233,16 @@ pub(crate) fn start<R: Runtime>(app: &App<R>) {
             std::thread::sleep(START_DELAY);
             let mut next = Next::Idle;
             let mut last_full: Option<Instant> = None;
+            let mut watch = None;
             loop {
-                let (token, full) = wait_for_work(&handle, next, last_full);
+                let (token, full, batch) = wait_for_work(&handle, next, last_full);
                 if full {
+                    // Re-register before scanning: restore offline/deleted roots and close
+                    // the registration gap with this inventory. Old events can only add hints.
+                    watch = install_watch(&handle, &db);
+                    if !batch.changes.is_empty() {
+                        incremental_pass(&handle, &db, &batch, &token);
+                    }
                     pass(&handle, &db, &token);
                     if !token.is_cancelled() {
                         let model = handle.state::<Catalog>().locations();
@@ -236,8 +250,23 @@ pub(crate) fn start<R: Runtime>(app: &App<R>) {
                         last_full = Some(Instant::now());
                     }
                     tray::refresh_locations(&handle);
+                } else if !batch.changes.is_empty() {
+                    incremental_pass(&handle, &db, &batch, &token);
+                    if !token.is_cancelled() {
+                        let model = handle.state::<Catalog>().locations();
+                        indexing::content_pass(&handle, &db, &model, &token);
+                    }
                 }
-                next = if token.is_cancelled() {
+                let catalog = handle.state::<Catalog>();
+                let pending = {
+                    let mut c = catalog
+                        .control
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner);
+                    c.embedding = true;
+                    c.pending.delay(Instant::now()).is_some()
+                };
+                next = if token.is_cancelled() || pending {
                     Next::More
                 } else {
                     indexing::embed_slice(&handle, &db, &token)
@@ -249,6 +278,8 @@ pub(crate) fn start<R: Runtime>(app: &App<R>) {
                     .unwrap_or_else(PoisonError::into_inner)
                     .running = None;
                 tray::refresh_indexing(&handle);
+                // Keep the native handle alive across all content/embedding slices.
+                let _ = &watch;
             }
         });
     if let Err(err) = spawned {
@@ -272,26 +303,194 @@ fn wait_for_work<R: Runtime>(
     app: &AppHandle<R>,
     next: Next,
     last_full: Option<Instant>,
-) -> (CancellationToken, bool) {
+) -> (CancellationToken, bool, Batch) {
     let catalog = app.state::<Catalog>();
     let mut c = catalog
         .control
         .lock()
         .unwrap_or_else(PoisonError::into_inner);
-    let timeout = wait_time(next, last_full.map(|t| t.elapsed()));
-    if !c.wanted && !c.kick && !timeout.is_zero() {
-        let (guard, _) = catalog
+    loop {
+        if c.wanted || c.kick || last_full.is_none_or(|t| t.elapsed() >= RESYNC_EVERY) {
+            break;
+        }
+        let timeout = c
+            .pending
+            .delay(Instant::now())
+            .unwrap_or_else(|| wait_time(next, last_full.map(|t| t.elapsed())));
+        if timeout.is_zero() {
+            break;
+        }
+        let (guard, result) = catalog
             .wake
-            .wait_timeout_while(c, timeout, |c| !c.wanted && !c.kick)
+            .wait_timeout(c, timeout)
             .unwrap_or_else(PoisonError::into_inner);
         c = guard;
+        if result.timed_out() && c.pending.delay(Instant::now()).is_none() {
+            break;
+        }
     }
-    let full = c.wanted || last_full.is_none_or(|t| t.elapsed() >= RESYNC_EVERY);
+    let batch = if c.wanted || c.pending.delay(Instant::now()).is_some_and(|d| d.is_zero()) {
+        c.pending.take()
+    } else {
+        Batch::default()
+    };
+    let full = c.wanted || batch.rescan || last_full.is_none_or(|t| t.elapsed() >= RESYNC_EVERY);
     c.wanted = false;
     c.kick = false;
     let token = CancellationToken::new();
     c.running = Some(token.clone());
-    (token, full)
+    c.embedding = false;
+    (token, full, batch)
+}
+
+fn install_watch<R: Runtime>(app: &AppHandle<R>, db: &Path) -> Option<NativeWatch> {
+    let opts = app.state::<Catalog>().locations().scan_options(true);
+    let roots = opts.roots.clone();
+    let internal = db.parent().map(Path::to_path_buf);
+    let handle = app.clone();
+    let mut watch = match NativeWatch::new(move |mut event: Notification| {
+        if let Ok(e) = &mut event {
+            let root_changed = lumen_indexer::watch::root_lifecycle(e)
+                && e.paths.iter().any(|p| opts.roots.contains(p));
+            e.paths.retain(|p| {
+                if internal.as_ref().is_some_and(|d| p.starts_with(d)) {
+                    return false;
+                }
+                if !opts.roots.iter().any(|r| p.starts_with(r)) {
+                    return false;
+                }
+                if opts.exclusions.user_paths.iter().any(|d| p.starts_with(d)) {
+                    return false;
+                }
+                // Cheap ancestor filtering keeps excluded dependency/.git write storms
+                // out of the bounded queue. Conditional venv/build checks stay in scan.
+                !p.ancestors()
+                    .skip(1)
+                    .take_while(|a| !opts.roots.iter().any(|r| r == a))
+                    .any(|a| {
+                        let name = a
+                            .file_name()
+                            .map(|n| n.to_string_lossy().to_lowercase())
+                            .unwrap_or_default();
+                        opts.exclusions
+                            .user_names
+                            .iter()
+                            .any(|n| n.to_lowercase() == name)
+                            || opts
+                                .exclusions
+                                .default_names
+                                .iter()
+                                .any(|n| n.eq_ignore_ascii_case(&name) && name != "venv")
+                            || (opts.exclusions.system_defaults
+                                && lumen_indexer::SYSTEM_EXCLUSIONS
+                                    .iter()
+                                    .any(|n| n.eq_ignore_ascii_case(&name)))
+                    })
+            });
+            if e.paths.is_empty() && !e.need_rescan() {
+                return;
+            }
+            if root_changed {
+                let catalog = handle.state::<Catalog>();
+                let mut c = catalog
+                    .control
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner);
+                c.pending.require_rescan(Instant::now());
+                if c.embedding
+                    && let Some(running) = &c.running
+                {
+                    running.cancel();
+                }
+                drop(c);
+                catalog.wake.notify_all();
+                return;
+            }
+        }
+        let catalog = handle.state::<Catalog>();
+        let mut c = catalog
+            .control
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let accepted = c.pending.push(event, Instant::now());
+        if accepted
+            && c.embedding
+            && let Some(running) = &c.running
+        {
+            running.cancel();
+        }
+        drop(c);
+        if accepted {
+            catalog.wake.notify_all();
+        }
+    }) {
+        Ok(watch) => watch,
+        Err(_) => {
+            eprintln!("lumen: native watching unavailable; periodic inventory remains enabled");
+            return None;
+        }
+    };
+    let failed = watch.set_roots(&roots);
+    if !failed.is_empty() {
+        eprintln!(
+            "lumen: {} watch registrations unavailable; periodic inventory will retry",
+            failed.len()
+        );
+    }
+    Some(watch)
+}
+
+fn incremental_pass<R: Runtime>(
+    app: &AppHandle<R>,
+    db: &Path,
+    batch: &Batch,
+    token: &CancellationToken,
+) {
+    let started = Instant::now();
+    let model = app.state::<Catalog>().locations();
+    let result = Store::open_writer(db).and_then(|mut store| {
+        sync_changes_with_content_scope(
+            &mut store,
+            &model.scan_options(true),
+            &batch.changes,
+            Some(token),
+            &|path| model.indexes_content(path),
+        )
+    });
+    match result {
+        Ok(report) => {
+            notify(
+                app,
+                report.written.inserted
+                    + report.written.updated
+                    + report.written.moved
+                    + report.removed
+                    > 0,
+            );
+            crate::diag::record(
+                "catalog_incremental_ms",
+                started.elapsed().as_secs_f64() * 1000.0,
+            );
+            // Failed reads retain catalog entries and retry during the recovery inventory.
+            if !report.scan.is_complete() {
+                app.state::<Catalog>()
+                    .control
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .pending
+                    .require_rescan(Instant::now());
+            }
+        }
+        Err(_) => {
+            eprintln!("lumen: incremental inventory failed; scheduling recovery");
+            app.state::<Catalog>()
+                .control
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .pending
+                .require_rescan(Instant::now());
+        }
+    }
 }
 
 fn pass<R: Runtime>(app: &AppHandle<R>, db: &Path, token: &CancellationToken) {
@@ -356,8 +555,11 @@ fn pass<R: Runtime>(app: &AppHandle<R>, db: &Path, token: &CancellationToken) {
     crate::diag::record("catalog_pass_ms", started.elapsed().as_secs_f64() * 1000.0);
 }
 
-fn notify<R: Runtime>(app: &AppHandle<R>, changed: bool) {
-    if changed && let Err(err) = app.emit_to(overlay::WINDOW_LABEL, EVENT_CHANGED, ()) {
+pub(crate) fn notify<R: Runtime>(app: &AppHandle<R>, changed: bool) {
+    if changed
+        && overlay::is_shown()
+        && let Err(err) = app.emit_to(overlay::WINDOW_LABEL, EVENT_CHANGED, ())
+    {
         eprintln!("lumen: emit {EVENT_CHANGED} failed: {err}");
     }
 }

@@ -398,6 +398,158 @@ fn build_entry(
     }
 }
 
+/// Reconcile native hints against the filesystem. Only recursive hints walk subtrees;
+/// ordinary writes probe one entry. Root availability, ancestor exclusions and links
+/// are checked before treating an absent path as a confirmed deletion.
+pub fn scan_changed(
+    opts: &ScanOptions,
+    changes: &[crate::watch::Change],
+    mut on_entry: impl FnMut(ScanEntry),
+    cancel: Option<&CancellationToken>,
+) -> ScanReport {
+    let started = Instant::now();
+    let mut report = ScanReport::default();
+    let rules = Rules::new(&opts.exclusions);
+    for change in changes {
+        if cancel.is_some_and(CancellationToken::is_cancelled) {
+            report.cancelled = true;
+            break;
+        }
+        let path = &change.path;
+        let Some(root) = opts
+            .roots
+            .iter()
+            .find(|r| path_key(path).starts_with(path_key(r)))
+        else {
+            continue;
+        };
+        if cfg!(windows)
+            && change.renamed_from
+            && changes.iter().any(|to| {
+                !to.renamed_from && to.path != *path && path_key(&to.path) == path_key(path)
+            })
+            && spelling_exists(path, root) == Some(false)
+        {
+            continue;
+        }
+        if let Err(e) = fs::metadata(root) {
+            report.issue(root, IssueStage::OpenRoot, &e);
+            continue;
+        }
+        // Roots explicitly selected by the user may themselves be links; descendants may not.
+        let mut ancestors: Vec<_> = path
+            .ancestors()
+            .take_while(|p| path_key(p) != path_key(root))
+            .collect();
+        ancestors.reverse();
+        let mut excluded = false;
+        for ancestor in ancestors {
+            match fs::symlink_metadata(ancestor) {
+                Ok(meta) => {
+                    if let Some(rule) = rules.matches(ancestor, meta.is_dir()) {
+                        report.excluded.push(Excluded {
+                            path: ancestor.to_path_buf(),
+                            rule,
+                        });
+                        excluded = true;
+                        break;
+                    }
+                    if ancestor != path && meta.file_type().is_symlink() {
+                        report.excluded.push(Excluded {
+                            path: ancestor.to_path_buf(),
+                            rule: "symlink ancestor".into(),
+                        });
+                        excluded = true;
+                        break;
+                    }
+                }
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                    excluded = true;
+                    break;
+                }
+                Err(e) => {
+                    report.issue(ancestor, IssueStage::ReadEntry, &e);
+                    excluded = true;
+                    break;
+                }
+            }
+        }
+        if excluded {
+            continue;
+        }
+        let meta = if path_key(path) == path_key(root) {
+            fs::metadata(path)
+        } else {
+            fs::symlink_metadata(path)
+        };
+        let Ok(meta) = meta else {
+            if let Err(e) = meta {
+                report.issue(path, IssueStage::ReadEntry, &e);
+            }
+            continue;
+        };
+        if meta.is_dir() && change.recursive {
+            let sub = scan(
+                &ScanOptions {
+                    roots: vec![path.clone()],
+                    exclusions: opts.exclusions.clone(),
+                    identity: opts.identity,
+                },
+                &mut on_entry,
+                cancel,
+            );
+            report.files += sub.files;
+            report.dirs += sub.dirs;
+            report.links += sub.links;
+            report.other += sub.other;
+            report.unknown += sub.unknown;
+            report.bytes += sub.bytes;
+            report.hidden += sub.hidden;
+            report.system += sub.system;
+            report.cloud_placeholders += sub.cloud_placeholders;
+            report.non_unicode_paths += sub.non_unicode_paths;
+            report.identity_skipped += sub.identity_skipped;
+            report.excluded.extend(sub.excluded);
+            report.issues.extend(sub.issues);
+            report.cancelled |= sub.cancelled;
+        } else {
+            let e = build_entry(path, None, Ok(meta), opts.identity, &mut report);
+            count(&e, &mut report);
+            on_entry(e);
+        }
+    }
+    report.elapsed = started.elapsed();
+    report
+}
+
+/// Exact on-disk spelling below an explicitly selected root. Only used for ambiguous
+/// Windows case renames; a case-sensitive folder containing both names is not a move.
+/// `None` means verification failed, so callers must preserve the old identity separately.
+#[must_use]
+pub fn spelling_exists(path: &Path, root: &Path) -> Option<bool> {
+    if !path_key(path).starts_with(path_key(root)) {
+        return None;
+    }
+    for ancestor in path
+        .ancestors()
+        .take_while(|p| path_key(p) != path_key(root))
+    {
+        let parent = ancestor.parent()?;
+        let name = ancestor.file_name()?;
+        let mut found = false;
+        for entry in fs::read_dir(parent).ok()? {
+            if entry.ok()?.file_name() == name {
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            return Some(false);
+        }
+    }
+    Some(true)
+}
+
 fn count(entry: &ScanEntry, report: &mut ScanReport) {
     match entry.kind {
         EntryKind::File => {
@@ -939,6 +1091,20 @@ mod tests {
         assert_eq!(report.identity_skipped, 1);
         assert!(entries.iter().any(|e| e.kind == EntryKind::Symlink));
         assert!(report.is_complete(), "{:?}", report.issues);
+        let change = crate::watch::Change {
+            path: r.join("real/loop/real/f.txt"),
+            recursive: false,
+            content: true,
+            renamed_from: false,
+        };
+        let report = scan_changed(
+            &o,
+            &[change],
+            |_| panic!("a descendant hint followed the junction"),
+            None,
+        );
+        assert_eq!(report.emitted(), 0);
+        assert_eq!(report.excluded[0].rule, "symlink ancestor");
     }
 
     #[cfg(windows)]

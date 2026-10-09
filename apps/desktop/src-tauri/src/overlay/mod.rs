@@ -7,7 +7,7 @@
 mod placement;
 mod policy;
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Runtime, WebviewWindow};
@@ -26,6 +26,13 @@ pub(crate) const COMPACT_HEIGHT: f64 = 64.0;
 /// Content size last requested by the UI (`resize_overlay`), as `f64` bits.
 static REQUESTED_HEIGHT: AtomicU64 = AtomicU64::new(COMPACT_HEIGHT.to_bits());
 static REQUESTED_WIDTH: AtomicU64 = AtomicU64::new(LOGICAL_WIDTH.to_bits());
+// The overlay owns show/hide. Background catalog events must not wake hidden search or
+// query inference; the next EVENT_SHOWN already refreshes from the current store.
+static SHOWN: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn is_shown() -> bool {
+    SHOWN.load(Ordering::Acquire)
+}
 
 fn requested() -> (f64, f64) {
     (
@@ -114,6 +121,7 @@ fn show_window<R: Runtime>(window: &WebviewWindow<R>) {
         eprintln!("lumen: show overlay failed: {err}");
         return;
     }
+    SHOWN.store(true, Ordering::Release);
     focus_window(window, seq);
     crate::diag::record("show_native_ms", started.elapsed().as_secs_f64() * 1000.0);
     crate::indexing::on_overlay_shown(window.app_handle());
@@ -141,6 +149,7 @@ fn hide_window<R: Runtime>(window: &WebviewWindow<R>) {
         eprintln!("lumen: hide overlay failed: {err}");
         return;
     }
+    SHOWN.store(false, Ordering::Release);
     crate::lifecycle::after_hide(window);
 }
 

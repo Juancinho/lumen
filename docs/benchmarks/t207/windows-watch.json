@@ -1,0 +1,42 @@
+{
+  "machine": {
+    "os": "windows",
+    "arch": "x86_64",
+    "logical_cpus": 12,
+    "cpu": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "build_profile": "release",
+    "lumen_version": "0.1.0",
+    "unix_time_s": 1791553587
+  },
+  "inventory_items": 10001,
+  "operations": 20,
+  "mutation_to_lexical": {
+    "n": 20,
+    "min_ms": 340.7613,
+    "mean_ms": 363.797285,
+    "p50_ms": 360.8614,
+    "p95_ms": 380.7787,
+    "p99_ms": 428.32599999999996,
+    "max_ms": 428.32599999999996
+  },
+  "reconciliation": {
+    "n": 20,
+    "min_ms": 34.9689,
+    "mean_ms": 54.38672000000001,
+    "p50_ms": 49.2809,
+    "p95_ms": 70.05369999999999,
+    "p99_ms": 112.7914,
+    "max_ms": 112.7914
+  },
+  "inventories_during_mutations": 0,
+  "emitted_entries_during_mutations": 29,
+  "rename_vectors_preserved": true,
+  "idle_wall_s": 2.000123,
+  "idle_cpu": {
+    "cpu_s": 0.0,
+    "cores": 0.0,
+    "machine_percent": 0.0
+  },
+  "idle_notifications": false,
+  "embedding": "two-dimensional synthetic vectors; preservation/queue state, no model inference"
+}

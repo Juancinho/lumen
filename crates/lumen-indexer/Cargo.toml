@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 file-id.workspace = true
 lumen-core.workspace = true
+notify.workspace = true
 
 [lints]
 workspace = true

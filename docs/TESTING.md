@@ -1,6 +1,6 @@
 # TESTING.md
 
-## 0. Implementation status (2026-10-08)
+## 0. Implementation status (2026-10-09)
 
 - Gate (`docs/DEVELOPMENT.md` §4, CI on Linux + Windows): `cargo fmt`, `cargo clippy --locked
   -D warnings`, `cargo xtask test` (workspace, then the shell separately), `cargo xtask arch`,
@@ -12,6 +12,8 @@
 - Windows evidence scripts: `scripts/t0xx|t1xx/run-windows-*.ps1` (release builds; JSON into
   `docs/benchmarks/`). Linux Xvfb smoke runs of the real app are used for UI flows.
 - Not yet: end-to-end Windows UI automation, workflow tests, failure-injection suite.
+- T207: native `lumen-bench watch` on a synthetic catalog plus change/rename/alias,
+  same-metadata write, replacement, exclusion, junction and offline/cancellation tests.
 
 ## 1. Test pyramid
 

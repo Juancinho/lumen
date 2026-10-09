@@ -232,6 +232,285 @@ fn content_pass_stops_on_cancel() {
     assert_eq!(r.indexed, 0);
 }
 
+fn hints(paths: &[PathBuf], content: bool) -> Vec<lumen_indexer::watch::Change> {
+    paths
+        .iter()
+        .map(|p| lumen_indexer::watch::Change {
+            path: p.clone(),
+            recursive: true,
+            content,
+            renamed_from: false,
+        })
+        .collect()
+}
+
+fn incremental_opts(root: &Path) -> ScanOptions {
+    ScanOptions {
+        roots: vec![root.to_path_buf()],
+        identity: true,
+        exclusions: Exclusions::default(),
+    }
+}
+
+fn vectors_for_all_chunks(store: &mut Store) -> i64 {
+    let generation = store
+        .ensure_generation(
+            GenerationSpec {
+                space_key: "incremental-test",
+                chunker_version: EXTRACTOR_VERSION,
+                dim: 2,
+            },
+            0,
+        )
+        .unwrap();
+    let pending = store.pending_chunks(generation, 0, 100).unwrap();
+    let vectors: Vec<_> = pending
+        .iter()
+        .map(|p| lumen_storage::VectorWrite {
+            chunk_id: p.chunk_id,
+            result: Ok(&[0.0, 1.0]),
+        })
+        .collect();
+    store.write_vectors(generation, &vectors, 0).unwrap();
+    generation
+}
+
+#[test]
+fn incremental_folder_moves_preserve_vectors_and_unrelated_roots() {
+    let t = Temp::new("incremental-move");
+    let old = t.files().join("repository");
+    std::fs::create_dir_all(old.join(".git")).unwrap();
+    std::fs::write(
+        old.join("parser.rs"),
+        "fn parse_input() { println!(\"originaltoken\"); }\n",
+    )
+    .unwrap();
+    let other = t.0.join("other");
+    std::fs::create_dir_all(&other).unwrap();
+    std::fs::write(other.join("keep.txt"), "unrelatedtoken").unwrap();
+    let mut opts = incremental_opts(&t.files());
+    opts.roots.push(other.clone());
+    let mut store = t.store();
+    sync_files(&mut store, &opts, None).unwrap();
+    pass(&mut store, &PassConfig::default());
+    let old_id = store
+        .item_id_by_path(&old.join("parser.rs").display().to_string())
+        .unwrap()
+        .unwrap();
+    let generation = vectors_for_all_chunks(&mut store);
+    let before = store.vectors(generation, 0, 100).unwrap();
+    let new = t.files().join("Repositorio nuevo");
+    std::fs::rename(&old, &new).unwrap();
+    let report =
+        lumen_catalog::sync_changes(&mut store, &opts, &hints(&[old, new.clone()], false), None)
+            .unwrap();
+    assert!(report.written.moved >= 2);
+    assert_eq!(report.removed, 0);
+    assert_eq!(
+        store
+            .item_id_by_path(&new.join("parser.rs").display().to_string())
+            .unwrap(),
+        Some(old_id)
+    );
+    assert!(
+        store
+            .item_id_by_path(&other.join("keep.txt").display().to_string())
+            .unwrap()
+            .is_some()
+    );
+    assert_eq!(pass(&mut store, &PassConfig::default()).files, 0);
+    assert_eq!(store.vectors(generation, 0, 100).unwrap(), before);
+    let reference = store
+        .chunk_refs(
+            &[before
+                .iter()
+                .find(|(id, _)| store.chunk_refs(&[*id], 100).unwrap()[0].item_id == old_id)
+                .unwrap()
+                .0],
+            100,
+        )
+        .unwrap();
+    assert_eq!(
+        reference[0].repository.as_deref(),
+        Some(new.to_str().unwrap())
+    );
+}
+
+#[test]
+fn notified_same_size_same_mtime_write_removes_stale_content_before_extraction() {
+    let t = Temp::new("incremental-write");
+    let path = t.files().join("note.txt");
+    std::fs::write(&path, "oldsecretword").unwrap();
+    let opts = incremental_opts(&t.files());
+    let mut store = t.store();
+    sync_files(&mut store, &opts, None).unwrap();
+    pass(&mut store, &PassConfig::default());
+    let generation = vectors_for_all_chunks(&mut store);
+    let old_chunk = store.vectors(generation, 0, 10).unwrap()[0].0;
+    let mtime = std::fs::metadata(&path).unwrap().modified().unwrap();
+    std::fs::write(&path, "newsecretword").unwrap();
+    std::fs::File::options()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(mtime))
+        .unwrap();
+    let report = lumen_catalog::sync_changes(
+        &mut store,
+        &opts,
+        &hints(std::slice::from_ref(&path), true),
+        None,
+    )
+    .unwrap();
+    assert_eq!(report.written.updated, 1);
+    assert!(store.chunk_refs(&[old_chunk], 100).unwrap().is_empty());
+    assert_eq!(store.queue_counts(generation).unwrap().embedded, 0);
+    assert_eq!(pass(&mut store, &PassConfig::default()).indexed, 1);
+    let fts = |word| {
+        store
+            .search_chunks(
+                &lumen_storage::FtsQuery::from_user(word, false).unwrap(),
+                5,
+                &lumen_storage::SearchBudget::unbounded(),
+            )
+            .unwrap()
+    };
+    assert!(fts("oldsecretword").is_empty());
+    assert_eq!(fts("newsecretword").len(), 1);
+    assert_eq!(store.queue_counts(generation).unwrap().pending(), 1);
+    std::fs::remove_file(&path).unwrap();
+    lumen_catalog::sync_changes(&mut store, &opts, &hints(&[path], false), None).unwrap();
+    assert_eq!(store.queue_counts(generation).unwrap().chunks, 0);
+}
+
+#[test]
+fn atomic_replacement_invalidates_identity_even_when_metadata_matches() {
+    let t = Temp::new("incremental-replace");
+    let path = t.files().join("note.txt");
+    std::fs::write(&path, "oldsecretword").unwrap();
+    let opts = incremental_opts(&t.files());
+    let mut store = t.store();
+    sync_files(&mut store, &opts, None).unwrap();
+    pass(&mut store, &PassConfig::default());
+    let generation = vectors_for_all_chunks(&mut store);
+    let old_id = store.item_id_by_path(path.to_str().unwrap()).unwrap();
+    let mtime = std::fs::metadata(&path).unwrap().modified().unwrap();
+    let temp = t.files().join("save.tmp");
+    std::fs::write(&temp, "newsecretword").unwrap();
+    std::fs::File::options()
+        .write(true)
+        .open(&temp)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(mtime))
+        .unwrap();
+    std::fs::remove_file(&path).unwrap();
+    std::fs::rename(&temp, &path).unwrap();
+    lumen_catalog::sync_changes(
+        &mut store,
+        &opts,
+        &hints(std::slice::from_ref(&path), false),
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        store.item_id_by_path(path.to_str().unwrap()).unwrap(),
+        old_id
+    );
+    assert_eq!(store.queue_counts(generation).unwrap().embedded, 0);
+    assert_eq!(pass(&mut store, &PassConfig::default()).indexed, 1);
+}
+
+#[test]
+fn ambiguous_rename_write_checks_content_and_respects_names_only_scope() {
+    let t = Temp::new("ambiguous-rename");
+    let old = t.files().join("old.txt");
+    let new = t.files().join("new.txt");
+    let third = t.files().join("third.txt");
+    std::fs::write(&old, "oldsecretword").unwrap();
+    let opts = incremental_opts(&t.files());
+    let mut store = t.store();
+    sync_files(&mut store, &opts, None).unwrap();
+    pass(&mut store, &PassConfig::default());
+    let generation = vectors_for_all_chunks(&mut store);
+    let before = store.vectors(generation, 0, 10).unwrap();
+    std::fs::rename(&old, &new).unwrap();
+    lumen_catalog::sync_changes(&mut store, &opts, &hints(&[old, new.clone()], true), None)
+        .unwrap();
+    assert_eq!(store.vectors(generation, 0, 10).unwrap(), before);
+    assert_eq!(pass(&mut store, &PassConfig::default()).files, 0);
+    let mtime = std::fs::metadata(&new).unwrap().modified().unwrap();
+    std::fs::rename(&new, &third).unwrap();
+    std::fs::write(&third, "newsecretword").unwrap();
+    std::fs::File::options()
+        .write(true)
+        .open(&third)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(mtime))
+        .unwrap();
+    lumen_catalog::sync_changes(
+        &mut store,
+        &opts,
+        &hints(&[new.clone(), third.clone()], true),
+        None,
+    )
+    .unwrap();
+    assert_eq!(store.queue_counts(generation).unwrap().embedded, 0);
+    assert_eq!(pass(&mut store, &PassConfig::default()).indexed, 1);
+    vectors_for_all_chunks(&mut store);
+    std::fs::rename(&third, &new).unwrap();
+    // Existing chunks must not authorize a body read after content consent is disabled.
+    lumen_catalog::sync_changes_with_content_scope(
+        &mut store,
+        &opts,
+        &hints(&[third, new], true),
+        None,
+        &|_| false,
+    )
+    .unwrap();
+    assert_eq!(store.queue_counts(generation).unwrap().embedded, 0);
+}
+
+#[test]
+fn incremental_hardlinks_do_not_steal_a_surviving_path() {
+    let t = Temp::new("incremental-hardlink");
+    let old = t.files().join("old.txt");
+    let new = t.files().join("new.txt");
+    std::fs::write(&old, "preservedword").unwrap();
+    let opts = incremental_opts(&t.files());
+    let mut store = t.store();
+    sync_files(&mut store, &opts, None).unwrap();
+    pass(&mut store, &PassConfig::default());
+    let generation = vectors_for_all_chunks(&mut store);
+    let old_id = store
+        .item_id_by_path(old.to_str().unwrap())
+        .unwrap()
+        .unwrap();
+    std::fs::hard_link(&old, &new).unwrap();
+    lumen_catalog::sync_changes(
+        &mut store,
+        &opts,
+        &hints(std::slice::from_ref(&new), false),
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        store.item_id_by_path(old.to_str().unwrap()).unwrap(),
+        Some(old_id)
+    );
+    assert_ne!(
+        store.item_id_by_path(new.to_str().unwrap()).unwrap(),
+        Some(old_id)
+    );
+    assert_eq!(store.queue_counts(generation).unwrap().embedded, 1);
+    pass(&mut store, &PassConfig::default());
+    vectors_for_all_chunks(&mut store);
+    assert_eq!(store.queue_counts(generation).unwrap().embedded, 2);
+    std::fs::write(&old, "updatedword").unwrap();
+    lumen_catalog::sync_changes(&mut store, &opts, &hints(&[old], true), None).unwrap();
+    assert_eq!(store.queue_counts(generation).unwrap().embedded, 0);
+    assert_eq!(pass(&mut store, &PassConfig::default()).indexed, 2);
+}
+
 fn embedder(backend: Arc<dyn EmbeddingBackend>) -> Embedder {
     Embedder::new(backend, EmbeddingProfile::DEFAULT).unwrap()
 }
