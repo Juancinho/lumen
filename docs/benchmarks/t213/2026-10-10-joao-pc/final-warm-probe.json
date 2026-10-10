@@ -1,0 +1,27 @@
+{
+  "images": {
+    "legacy_cycle_ms": 19674.415500000003,
+    "accelerated_cycle_ms": 16351.2321,
+    "min_cosine": 0.9999998211860656
+  },
+  "cpu": {
+    "query_p50_ms": 27.5075,
+    "query_p95_ms": 28.8164,
+    "index_chunks_per_s": 5.582362525600366,
+    "min_cosine_vs_cpu": 1.0,
+    "stable": true,
+    "offloaded_fraction": null,
+    "device_memory_mib": null,
+    "device_memory_total_mib": null
+  },
+  "gpu": {
+    "query_p50_ms": 330.0028,
+    "query_p95_ms": 403.9913,
+    "index_chunks_per_s": 11.073590096666903,
+    "min_cosine_vs_cpu": 0.9999998211860656,
+    "stable": true,
+    "offloaded_fraction": 0.9443016281062554,
+    "device_memory_mib": 905.91796875,
+    "device_memory_total_mib": 3935.0
+  }
+}

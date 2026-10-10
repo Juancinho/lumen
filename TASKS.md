@@ -10,9 +10,10 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 
 ## Next (ordered)
 
-User repair (2026-10-09): **T213 CLAIMED by codex**, isolated branch
+User repair (2026-10-09): **T213 REVIEW by codex**, isolated branch
 `codex/t213-indexing-progress`: interleave extraction and embedding, prevent image
-starvation, report live progress and validate hybrid image GPU. T112 is integrated.
+starvation, report live progress and validate hybrid image GPU. T112 is integrated;
+the combined app is running and real photo vectors are advancing. Native DPI/keys review remains.
 User priority (2026-10-09): **T112 REVIEW** — manual file/extension exclusions built;
 try Exclusions → File types / Exclude files… or root Ctrl+K, then undo (HANDOFF).
 Preserve all existing REVIEW checklists. Next roadmap task is T304.
@@ -110,7 +111,7 @@ Preserve all existing REVIEW checklists. Next roadmap task is T304.
 | T210 | REVIEW | claude | Model + runtime provisioning: explicit download (consent, size), SHA-256 check, versioned app-data location, ORT DLL next to the exe, license notices, removal | T006,T202           |
 | T211 | REVIEW | claude | Harder relevance set for fusion tuning: hundreds of synthetic documents, near-duplicates, folder noise, long documents, graded judgments; re-tune ADR-032 weights | T205                |
 | T212 | REVIEW | codex | Opt-in dedicated GPU indexing with CPU queries, isolated compatibility probe and CPU fallback (user requested) | T013,T202,T204,T210 |
-| T213 | CLAIMED | codex | Repair stalled-looking indexing: bounded extraction rounds, live status and fair image queue | T202,T207,T303 |
+| T213 | REVIEW | codex | Bounded extraction, live coverage, fair image queue and measured hybrid GPU (ADR-042); native DPI/keys review remains | T202,T207,T303 |
 
 # M3 — PDF/image intelligence and semantic objects
 

@@ -299,7 +299,7 @@ fn cache_key(
 ) -> Result<String, String> {
     let hash = |path: &Path| lumen_provision::sha256_file(path).map_err(|e| e.to_string());
     let mut parts = vec![
-        "gpu-probe-v2-image-backbone".to_owned(),
+        "gpu-probe-v3-warm-image-backbone".to_owned(),
         adapter.identity.clone(),
         hash(runtime)?,
         hash(&model.join("tokenizer.json"))?,
@@ -355,7 +355,7 @@ fn run_child<R: Runtime>(app: &AppHandle<R>, request: &Request) -> Result<Report
     let result = (|| {
         let mut child = command.spawn().map_err(|e| e.to_string())?;
         let started = Instant::now();
-        // Image validation adds six native visual calls to the existing text probe.
+        // Image validation adds twelve native visual calls, including shape warmup.
         // Keep a finite child lifetime without rejecting the text route halfway through.
         let timeout = Duration::from_secs(if request.vision.is_some() { 240 } else { 120 });
         let status = loop {

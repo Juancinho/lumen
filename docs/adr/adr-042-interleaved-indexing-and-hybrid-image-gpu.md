@@ -33,8 +33,10 @@ source revalidation, interactive holds, battery deferral and failure recovery re
 
 Extend the existing isolated, cached compatibility probe with synthetic image cycles.
 An image route requires finite timings, >= 1.15x cycle speed and cosine >= 0.999. Cache
-identity includes the vision assets; install/remove rechecks compatibility. The
-probe lifetime remains 120 s for text alone; with six added visual calls it is bounded
+identity includes the vision assets and probe method; install/remove rechecks compatibility.
+Warm each visual shape on all compared routes before timing, as the text probe already
+does for document shapes. First-use compilation must not decide repeated library work.
+The probe lifetime remains 120 s for text alone; with twelve visual calls it is bounded
 at 240 s. A loaded-machine combined probe exceeded 120 s, so the prior text-only
 deadline would incorrectly reject both routes during image validation. The overlay
 remains responsive and shows compatibility checking while background inference is held.

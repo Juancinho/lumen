@@ -5,12 +5,12 @@
 
 ## Branch and exact continuation
 
-T213 integrates main d07023a (T112, continuing T303) in managed worktree
+T213 integrates main d07023a (T112, continuing T303) from managed worktree
 `C:\Users\tj14o\.codex\worktrees\t213-indexing-progress\lumen`, branch
 `codex/t213-indexing-progress`. The user explicitly requested repairing zero image work,
 using GPU where measured faster and showing phase/counts/percentages. T112's committed
 file/type exclusions and locations JSON v3 are included; preserve both implementations.
-No push requested. Older REVIEW checklists below remain. Next roadmap implementation
+No push requested. T213 is REVIEW; older REVIEW checklists below remain. Next roadmap implementation
 after this user repair is T304 optional Windows OCR. Read SEARCH_AND_INDEXING §11/12,
 PRIVACY_SECURITY, PERFORMANCE and actual Windows OCR API/language/runtime contracts;
 claim T304 and define bounded optional OCR/FTS/coverage/privacy/license behavior before
@@ -21,8 +21,10 @@ Similar are T305/T306; full T014 downloads/runtime matrix remain separate.
 T213 initial live checks found PID 6344/start 2026-10-09 23:35:50 +02:00 at
 `D:\Proyectos\lumen\target\t303-release\lumen.exe`. Images were installed/consented,
 GPU opt-in enabled, but all image preparation waited behind text/PDF extraction.
-Preserve the DB, roots and completed vectors. A normal `--quit`/new-bundle restart is
-authorized by this user's repair request after validation; never replace a loaded exe.
+The agent normally quit that instance after validation and launched the combined
+T112/T213 bundle. A later restart produced PID 23644/start 00:48:56 +02:00 at
+`D:\Proyectos\lumen\target\t213-release\lumen.exe`; morning image vectors reached 1,321.
+Preserve DB/roots/vectors and the user's JSON v3 exclusions. Never replace a loaded exe.
 
 ## T213 — live indexing repair
 
@@ -32,9 +34,55 @@ CPU-vision/GPU-backbone route are implemented. Full GPU vision fails native Resh
 GTX 1650; it is not enabled. Public-photo mixed cycles improve 21.929→18.401 s with
 CPU-reference cosine >= 0.99999994. No vector-generation/weight/schema change.
 
-Frontend format/lint/types, 84 tests and build pass. Actual root footer browser QA passes
-at 1280x720, including unknown coverage without invented percentages. Final Rust gate,
-optimized bundle and live native checks are in progress; record final outcomes below.
+Combined gate: `cargo xtask test --locked` passes 374 tests, two intentional network tests
+ignored; workspace clippy/fmt and `cargo xtask arch` (15 crates) pass. `npm run check`
+passes format/lint/types and 85 tests; `npm run build` passes. The warm-probe amendment
+also passes `cargo test --locked -p lumen-desktop --bin lumen gpu_probe::tests` and
+desktop/benchmark all-target DirectML clippy. Actual root footer browser QA passes at
+1280x720, including unknown coverage without invented percentages. Native dark 800x576
+footer fits and exposes both accessible progress elements; 100% read and 42% vectors
+were distinct, 411 skipped/zero errors. User photo-description search returns photos.
+
+Normal startup now works without development overrides: already-cached pinned text
+and vision assets were installed and SHA-verified through lumen-provision in the usual
+AppData models directory. No network/download/new consent or DB reset. Queries stay CPU.
+The initial cold image probe rejected a noisy sample; the later restart admitted the
+hybrid route, 19.926→16.698 s, text 5.724→11.834 chunks/s. The final v3 probe warms each
+visual shape before timing, retains the 1.15x/0.999 gates and bounds twelve visual calls
+plus text checks at 240 s. It rechecks once rather than reusing the cold-method cache.
+
+Remaining native review: keyboard selection/Alt+Enter/Ctrl+K with footer, narrow/high-DPI
+and high contrast, pause/battery and longer driver/library soak. Native key injection was
+inconclusive because focus-loss hides the overlay and user input was active; do not claim
+a pass or repeatedly interfere with their search. Automated keyboard tests remain green.
+
+Final optimized custom-protocol bundle is `D:\Proyectos\lumen\target\t213-release\lumen.exe`,
+21,470,208 bytes, SHA-256
+283B08371FA353D55B46A492C19D220F45987BECA4B31EDC5E3493108813FD99.
+Runtime/DirectML and license/PDF/image notices remain hash-identical to T303.
+Launched normally after graceful Quit at 11:14 +02:00, PID 4632; verify the current
+PID/path before any later maintenance. No launch overrides are needed:
+
+```powershell
+Start-Process -FilePath 'D:\Proyectos\lumen\target\t213-release\lumen.exe'
+```
+
+The previous T213 exe is retained as `lumen-prewarm.exe` for recovery, not the launch
+target. A startup check can take several minutes; the footer shows Checking GPU
+compatibility and background inference waits. Image acceleration is partial: CPU
+vision encoder, shared validated GPU backbone; default Task Manager 3D charts alone
+do not establish whether that inference lane is running.
+
+The first final-bundle launch accidentally inherited empty development overrides from
+the helper and failed runtime loading; normal Quit/relaunch from an override-free
+environment corrected it. Avoid setting overrides to empty strings when clearing them.
+
+Final installed-app v3 check completed within 240 s and accepted both routes: text
+5.582 CPU / 11.074 GPU chunks/s; prior/hybrid visual cycles 19.674/16.351 s (1.203x),
+minimum cosine 0.99999982. `final-warm-probe.json` stores synthetic metrics only.
+Generation 1 and 1,331 image vectors survived restart; image vectors reached 1,333
+and the text queue resumed with
+zero errors. Nine locations, five excluded types, one exact exclusion remain JSON v3.
 Build target is `D:\Proyectos\lumen\target\t213-build`, isolated from T112/main artifacts.
 Do not copy workspace fingerprints from a different checkout: Cargo can reuse stale
 workspace dependencies and produce misleading field errors.
@@ -102,6 +150,8 @@ $env:LUMEN_EMBED_VARIANT="q4"
 ```
 
 ## T303 — implementation and native review
+
+Historical T303 device/menu descriptions below are superseded by T213/ADR-042 above.
 
 Read specs/T303-images.md and ADR-041. Files: new lumen-image, storage migration 0005 /
 images/catalog/content queue, content images/queue and catalog move verification;

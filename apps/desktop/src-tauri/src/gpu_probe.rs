@@ -154,6 +154,18 @@ fn measure_images(request: &Request) -> Result<ImageMetrics, String> {
             let rgb: Vec<u8> = (0..width * height * 3)
                 .map(|i| u8::try_from((i * 17 + index as u32 * 31) % 256).unwrap_or(0))
                 .collect();
+            // Match the text probe's steady-state comparison. DirectML specializes
+            // the visual shape on first use; charge that startup once, outside the
+            // repeated image -> text cycle, on all three routes equally.
+            e.embed_images(
+                &[ImageInput {
+                    width,
+                    height,
+                    rgb: &rgb,
+                }],
+                None,
+            )
+            .map_err(|e| e.to_string())?;
             e.embed_query(text, None).map_err(|e| e.to_string())?;
             let start = Instant::now();
             let v = e

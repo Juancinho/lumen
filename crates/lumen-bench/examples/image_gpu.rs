@@ -8,8 +8,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("release required".into());
     }
     let args: Vec<PathBuf> = std::env::args_os().skip(1).map(PathBuf::from).collect();
-    if args.len() != 5 {
-        return Err("model vision runtime public-fixtures output-json".into());
+    let warm = args.get(5).is_some_and(|arg| arg == "--warm");
+    if args.len() != 5 && !(args.len() == 6 && warm) {
+        return Err("model vision runtime public-fixtures output-json [--warm]".into());
     }
     lumen_embedding_ort::init_runtime(&args[2])?;
     let mut reference = Vec::new();
@@ -39,6 +40,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut cycle_ms = Vec::new();
         for (index, name) in ["0001.jpg", "0002.jpg"].iter().enumerate() {
             let image = lumen_image::decode(&args[3].join(name), None, &|| false)?;
+            if warm {
+                // Compare resident modality shapes; first-use DirectML compilation is separate.
+                e.embed_images(
+                    &[ImageInput {
+                        width: image.metadata.width,
+                        height: image.metadata.height,
+                        rgb: &image.rgb,
+                    }],
+                    None,
+                )?;
+            }
             e.embed_query("local synthetic text fidelity", None)?;
             let cycle = Instant::now();
             let start = Instant::now();
@@ -66,7 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     std::fs::write(
         &args[4],
-        serde_json::to_vec_pretty(&serde_json::json!({"runs":runs}))?,
+        serde_json::to_vec_pretty(&serde_json::json!({"warm":warm,"runs":runs}))?,
     )?;
     Ok(())
 }

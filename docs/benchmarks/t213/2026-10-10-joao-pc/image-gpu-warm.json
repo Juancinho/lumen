@@ -1,0 +1,53 @@
+{
+  "runs": [
+    {
+      "cosines_vs_cpu": [],
+      "device": "cpu",
+      "image_ms": [
+        11341.0868,
+        11966.3611
+      ],
+      "mixed_cycle_ms": [
+        11397.0777,
+        12042.8185
+      ],
+      "mode": "cpu",
+      "post_image_text_cosine": 1.0000001192092896
+    },
+    {
+      "cosines_vs_cpu": [
+        0.9999999403953552,
+        1.0000003576278687
+      ],
+      "device": "dml:0",
+      "image_ms": [
+        10765.9488,
+        15788.3315
+      ],
+      "mixed_cycle_ms": [
+        12149.5023,
+        17318.4955
+      ],
+      "mode": "gpu-text-cpu-images",
+      "post_image_text_cosine": 1.0
+    },
+    {
+      "cosines_vs_cpu": [
+        0.9999999403953552,
+        1.000000238418579
+      ],
+      "device": "dml:0",
+      "image_ms": [
+        11350.029400000001,
+        11205.424799999999
+      ],
+      "mixed_cycle_ms": [
+        11405.413199999999,
+        11261.7853
+      ],
+      "mode": "gpu-text-gpu-backbone",
+      "post_image_text_cosine": 1.0
+    }
+  ],
+  "warm": true
+}
