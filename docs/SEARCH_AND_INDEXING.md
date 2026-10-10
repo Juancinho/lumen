@@ -1,6 +1,6 @@
 # SEARCH_AND_INDEXING.md — retrieval, extraction and indexing
 
-## 0. Implementation status (2026-10-09)
+## 0. Implementation status (2026-10-10)
 
 - **Navigational (built):** Pass 0 inventory with a coverage guarantee and stable identity
   (ADR-018), app + file catalog (ADR-021), tokenized name/path matching with typo,
@@ -40,7 +40,12 @@
   embeddings in the existing queue/generation (ADR-041). Optional consented 109 MB vision
   download, CPU vision and optional measured GPU backbone (T213/ADR-042), CPU queries. Root meaning
   queries, `type:image`, file actions and metadata/coverage Quick Look work on the same ID.
-  OCR/Drop/Similar and image raster previews remain separate. Native review is pending.
+  Drop/Similar and image raster previews remain separate. Native review is pending.
+- **Image text (built, T304):** optional installed Windows OCR, off by default, bounded
+  CPU recognition on the existing writer; independent coverage/language and exact text
+  in the image unit's FTS, preserving visual vectors/sequence (ADR-043). Root quoted
+  type:image/ext queries and Alt+Enter text/coverage use the same ID/actions. No scanned
+  PDF OCR or second text embedding. Portable availability and native review are explicit.
 - **Indexing visibility (T213):** bounded image/text preparation rounds alternate with
   vector slices; separate cursors give images a turn after eight text batches. Root
   footer shows cached phase/device, files read, vectors ready, percentages and image/
@@ -330,12 +335,10 @@ OCR is complementary for exact visible text such as screenshots.
 
 Screenshots are a high-value category.
 
-T303 provides visual embeddings for supported screenshot formats. T304 OCR is not built.
-The remaining target is:
-
-- image semantic embedding;
-- OCR text;
-- application/window metadata only if available through a future explicit capture integration—not inferred retrospectively.
+T303 provides visual embeddings for supported screenshot formats. T304 adds optional
+installed Windows OCR, exact image text in FTS and Alt+Enter coverage (ADR-043).
+Application/window metadata requires a future explicit capture integration; it is not
+inferred retrospectively from existing screenshots.
 
 This enables both:
 

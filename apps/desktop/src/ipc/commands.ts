@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import { toAppearance } from "./events";
+import { toAppearance, toPreview } from "./events";
 import type {
   ActionView,
   Appearance,
@@ -55,8 +55,8 @@ export function resizeOverlay(width: number, height: number): Promise<Size> {
 }
 
 /** Quick Look data for a result of query `queryId`. Command: `preview_result`. */
-export function previewResult(queryId: number, resultId: string): Promise<Preview> {
-  return invoke<Preview>("preview_result", { queryId, resultId });
+export async function previewResult(queryId: number, resultId: string): Promise<Preview> {
+  return toPreview(await invoke<unknown>("preview_result", { queryId, resultId }));
 }
 
 export function previewPdfPage(

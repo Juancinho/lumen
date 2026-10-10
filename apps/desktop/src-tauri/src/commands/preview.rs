@@ -11,7 +11,13 @@ pub(crate) async fn preview_result(
     result_id: String,
 ) -> Result<PreviewDto, String> {
     let (_, _, item) = crate::actions::lookup(&app, query_id, &result_id)?;
-    Ok(crate::preview::preview(&item))
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut dto = crate::preview::preview(&item);
+        crate::image_ocr::enrich(&app, &item, &mut dto);
+        dto
+    })
+    .await
+    .map_err(|_| "preview unavailable".into())
 }
 
 /// A page of a remembered result, resolved in Rust. The UI supplies ids/page only.

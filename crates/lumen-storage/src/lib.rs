@@ -18,6 +18,7 @@ mod fts;
 pub mod generations;
 pub mod images;
 pub mod migrations;
+pub mod ocr;
 mod settings;
 pub mod usage;
 

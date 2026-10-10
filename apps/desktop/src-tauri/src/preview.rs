@@ -134,6 +134,7 @@ pub(crate) fn preview(item: &ResultItem) -> PreviewDto {
             Payload::Image(image) => Some(crate::dto::ImageContextDto::from(image.as_ref())),
             _ => None,
         },
+        image_ocr: None,
     };
     if let Payload::Code(code) = &item.payload {
         dto.text = Some(code.passage.clone());
@@ -174,6 +175,50 @@ pub(crate) fn preview(item: &ResultItem) -> PreviewDto {
         }
     }
     dto
+}
+
+pub(crate) fn image_ocr(
+    dto: &mut PreviewDto,
+    enabled: bool,
+    unavailable: bool,
+    record: Option<&lumen_storage::ocr::Preview>,
+) {
+    dto.text = None;
+    let mut state = if !enabled {
+        "off"
+    } else if unavailable {
+        "unavailable"
+    } else {
+        "pending"
+    };
+    let mut language = None;
+    let mut reason = None;
+    if enabled && let Some(record) = record {
+        state = match record.state.as_str() {
+            "indexed" => "indexed",
+            "empty" => "empty",
+            "skipped" => "skipped",
+            "failed" => "failed",
+            _ => "pending",
+        };
+        language = record
+            .language
+            .clone()
+            .filter(|l| l.len() <= 80 && l.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'));
+        reason = record
+            .reason
+            .clone()
+            .filter(|r| lumen_storage::ocr::valid_reason(r));
+        if state == "indexed" && record.text.len() <= lumen_storage::ocr::MAX_TEXT_BYTES {
+            dto.text = Some(record.text.clone());
+            dto.truncated = false;
+        }
+    }
+    dto.image_ocr = Some(crate::dto::ImageOcrDto {
+        state,
+        language,
+        reason,
+    });
 }
 
 fn has_text_extension(path: &Path) -> bool {
@@ -292,6 +337,25 @@ mod tests {
             p.truncated,
             "preview uses the indexed passage without parsing the PDF again"
         );
+        let mut image = pdf;
+        image.kind = ResultKind::Image;
+        image.payload = Payload::Path(dir.join("capture.png"));
+        let mut dto = preview(&image);
+        let record = lumen_storage::ocr::Preview {
+            path: lumen_catalog::path::encode(&dir.join("capture.png")).text,
+            state: "indexed".into(),
+            language: Some("es-ES".into()),
+            reason: Some("private backend detail".into()),
+            text: "ERROR 42\ncontraseña".into(),
+        };
+        image_ocr(&mut dto, true, false, Some(&record));
+        assert_eq!(dto.text.as_deref(), Some("ERROR 42\ncontraseña"));
+        assert_eq!(dto.image_ocr.as_ref().unwrap().reason, None);
+        image_ocr(&mut dto, false, false, Some(&record));
+        assert_eq!(dto.text, None);
+        assert_eq!(dto.image_ocr.as_ref().unwrap().state, "off");
+        image_ocr(&mut dto, true, true, None);
+        assert_eq!(dto.image_ocr.as_ref().unwrap().state, "unavailable");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

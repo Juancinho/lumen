@@ -32,6 +32,34 @@ function imageCoverage(image: NonNullable<Preview["image"]>): string {
   }
 }
 
+function ocrCoverage(ocr: NonNullable<Preview["imageOcr"]>): string {
+  switch (ocr.state) {
+    case "indexed":
+      return `Image text indexed${ocr.language ? ` · ${ocr.language}` : ""}`;
+    case "empty":
+      return "OCR completed · no text detected";
+    case "off":
+      return "Image text indexing is off for this image";
+    case "pending":
+      return "Waiting for image text indexing";
+    case "unavailable":
+      return "Windows OCR or an installed profile language is unavailable";
+    case "skipped":
+      return ocr.reason === "ocr:pixel_limit"
+        ? "OCR skipped · image exceeds 4,096 px per side or 8 million pixels"
+        : ocr.reason === "ocr:text_limit"
+          ? "OCR skipped · detected text exceeds 16 KiB"
+          : "Image skipped for text indexing";
+    case "failed":
+      if (ocr.reason === "image:placeholder")
+        return "OCR waiting · image is an offline cloud placeholder";
+      if (ocr.reason === "image:io") return "Image could not be read for OCR · will retry";
+      return ocr.reason === "ocr:timeout"
+        ? "OCR timed out · will retry"
+        : "Image text indexing failed · will retry";
+  }
+}
+
 interface PreviewPaneProps {
   data: Preview | null;
   /** Two-pane layout (beside the list) or one pane over it (narrow monitors). */
@@ -244,6 +272,11 @@ export function PreviewPane({
           {imageCoverage(data.image)}
         </p>
       )}
+      {data.imageOcr && (
+        <p className="preview__location" role="status">
+          {ocrCoverage(data.imageOcr)}
+        </p>
+      )}
       {data.pageNumber && (
         <div className="preview__page" aria-busy={!pdf}>
           {pdf?.image ? (
@@ -262,7 +295,11 @@ export function PreviewPane({
         </div>
       )}
       {data.text !== null && !data.pageNumber ? (
-        <pre className="preview__text" tabIndex={-1}>
+        <pre
+          className="preview__text"
+          tabIndex={-1}
+          aria-label={data.imageOcr?.state === "indexed" ? "Text from image" : undefined}
+        >
           {data.text}
           {data.truncated && "\n…"}
         </pre>

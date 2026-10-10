@@ -10,13 +10,17 @@ in `PROJECT_STATE.md`, the live continuation in `HANDOFF.md`, history in `WORKLO
 
 ## Next (ordered)
 
+**T304 REVIEW by codex**: optional native Windows OCR/FTS/coverage and image text preview,
+off by default, preserving visual vectors. Native synthetic proof and automated gates pass;
+real-library/menu/keyboard/language/DPI review remains. Next implementation **T305**.
+
 User repair (2026-10-09): **T213 REVIEW by codex**, isolated branch
 `codex/t213-indexing-progress`: interleave extraction and embedding, prevent image
 starvation, report live progress and validate hybrid image GPU. T112 is integrated;
 the combined app is running and real photo vectors are advancing. Native DPI/keys review remains.
 User priority (2026-10-09): **T112 REVIEW** — manual file/extension exclusions built;
 try Exclusions → File types / Exclude files… or root Ctrl+K, then undo (HANDOFF).
-Preserve all existing REVIEW checklists. Next roadmap task is T304.
+Preserve all existing REVIEW checklists. Next roadmap task is T305 Semantic Drop.
 
 1. **Close REVIEW tasks on Windows (human):** T003, T004 (Acrylic vs Mica default), T103,
    T104, T105, T107, T108/T109, T110 — checklists in `HANDOFF.md`.
@@ -54,8 +58,11 @@ Preserve all existing REVIEW checklists. Next roadmap task is T304.
     checks in HANDOFF.
 18. ~~T303~~ image metadata/local visual embeddings — REVIEW (ADR-041): Windows CPU visual
     retrieval measured; optional download, coverage and native library/keyboard checks in
-    HANDOFF. Next implementation is **T304** optional Windows OCR. Read its domain/OS
-    contracts and claim it first; all existing Windows REVIEW checks remain open.
+    HANDOFF. All existing Windows REVIEW checks remain open.
+19. ~~T304~~ optional image OCR — REVIEW (ADR-043): Windows native synthetic proof,
+    same-ID root FTS/coverage/text preview; native opt-in/persistence/real photos in HANDOFF.
+20. **T305 TODO** — Semantic Drop: ephemeral paste/drag image/file/text as a root query.
+    Read its domain/privacy/query-object contracts and claim before implementation.
 
 # M0 — technical spikes and foundation
 
@@ -120,7 +127,7 @@ Preserve all existing REVIEW checklists. Next roadmap task is T304.
 | T301 | REVIEW | codex | PDF text/page extraction + page-level hits (ADR-039); native real-PDF/keyboard review pending | T201           |
 | T302 | REVIEW | codex | PDF raster Quick Look/page navigation + supported viewer action (ADR-040); native QA pending | T301,T105,T108 |
 | T303 | REVIEW | codex | Bounded image metadata + local q4 vision embedding; native review pending | T006,T202      |
-| T304 | TODO   | —     | Optional Windows OCR enrichment for screenshots/images       | T303           |
+| T304 | REVIEW | codex | Optional local Windows OCR/FTS and image text preview; native review pending (ADR-043) | T303 |
 | T305 | TODO   | —     | Semantic Drop: paste/drag image/file/text as query object    | T303,T205      |
 | T306 | TODO   | —     | `Find Similar` action for supported semantic items           | T205,T303,T108 |
 | T307 | TODO   | —     | Related-content primitive for Context Lens (no graph UI yet) | T205           |

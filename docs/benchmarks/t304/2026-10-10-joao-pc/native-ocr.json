@@ -1,0 +1,20 @@
+{
+  "cpu": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+  "creation_ms": 12.4083,
+  "decode_recognize_verify_commit_ms": [
+    23.3792,
+    7.6921,
+    9.0581,
+    14.049199999999999,
+    7.9191
+  ],
+  "fixture": "generated 1200x300 visible text",
+  "language": "es-ES",
+  "logical_cpus": 12,
+  "off_removes_ocr": true,
+  "root_phrase_type_ext_hits": 5,
+  "schema_version": 1,
+  "visual_vectors_and_sequences_preserved": true,
+  "working_set_after_bytes": 16723968,
+  "working_set_before_bytes": 9334784
+}

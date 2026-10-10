@@ -5,87 +5,125 @@
 
 ## Branch and exact continuation
 
-T213 integrates main d07023a (T112, continuing T303) from managed worktree
-`C:\Users\tj14o\.codex\worktrees\t213-indexing-progress\lumen`, branch
-`codex/t213-indexing-progress`. The user explicitly requested repairing zero image work,
-using GPU where measured faster and showing phase/counts/percentages. T112's committed
-file/type exclusions and locations JSON v3 are included; preserve both implementations.
-No push requested. T213 is REVIEW; older REVIEW checklists below remain. Next roadmap implementation
-after this user repair is T304 optional Windows OCR. Read SEARCH_AND_INDEXING §11/12,
-PRIVACY_SECURITY, PERFORMANCE and actual Windows OCR API/language/runtime contracts;
-claim T304 and define bounded optional OCR/FTS/coverage/privacy/license behavior before
-code. Preserve T303 metadata/image vectors, existing text/code/PDF vectors, CPU queries,
-GPU acceleration and the single writer. No OCR presently exists. Semantic Drop/
-Similar are T305/T306; full T014 downloads/runtime matrix remain separate.
+T304 is implemented, REVIEW, on `codex/t304-image-ocr`, based on pushed main 1aa51ca.
+Managed worktree: `C:\Users\tj14o\.codex\worktrees\t213-indexing-progress\lumen`.
+The user authorized commit/push to main and continued improvements; this coherent T304
+revision is intended for normal fast-forward integration. Verify current git status,
+`git log -1` and origin/main before continuation; do not assume a revision from chat.
+Next ordered implementation is **T305 Semantic Drop**, still TODO/unclaimed. Read
+SEARCH_AND_INDEXING §11/12, PRODUCT, COMMAND_MODEL, PRIVACY_SECURITY and the relevant
+ADRs before defining its ephemeral query-object/consent/provider lifecycle. Preserve
+the single writer, T112 JSON v3 exclusions, T213 GPU/scheduling, CPU queries and all vectors.
+T306 Similar and T014 full runtime matrix remain separate; keep older REVIEW checklists.
 
-T213 initial live checks found PID 6344/start 2026-10-09 23:35:50 +02:00 at
-`D:\Proyectos\lumen\target\t303-release\lumen.exe`. Images were installed/consented,
-GPU opt-in enabled, but all image preparation waited behind text/PDF extraction.
-The agent normally quit that instance after validation and launched the combined
-T112/T213 bundle. A later restart produced PID 23644/start 00:48:56 +02:00 at
-`D:\Proyectos\lumen\target\t213-release\lumen.exe`; morning image vectors reached 1,321.
-Preserve DB/roots/vectors and the user's JSON v3 exclusions. Never replace a loaded exe.
+## T304 — optional local image text
 
-## T213 — live indexing repair
+Read `docs/specs/T304-image-ocr.md` and ADR-043. Native **Content indexing → Index text
+in images (OCR)** is off by default and persists explicit opt-in. Installed Windows
+profile recognition runs locally on the catalog MTA writer, CPU, lazy/unloaded when
+off/drained/deferred. No package/language/model installation, capture or cloud path.
+Portable capability works with es-ES on this machine; Microsoft's supported desktop
+contract requires package identity, so missing language/engine remains explicit.
 
-Read `docs/specs/T213-indexing-progress.md` and ADR-042. Bounded extraction cursors,
-eight-text-batch image fairness, cached root progress and separately validated hybrid
-CPU-vision/GPU-backbone route are implemented. Full GPU vision fails native Reshape on
-GTX 1650; it is not enabled. Public-photo mixed cycles improve 21.929→18.401 s with
-CPU-reference cosine >= 0.99999994. No vector-generation/weight/schema change.
+Bounds: existing 16 MiB source/placeholder admission, 4,096 px/edge and 8M pixels before
+full decode, 16 KiB UTF-8 text, four sequential images/two-second cooperative round,
+five-second native operation deadline. Native allocation/cancellation are not hard
+sandbox guarantees. Pause, interactive hold, battery and ADR-019 memory threshold use
+existing policy retry without a held-OCR hot loop or delaying queued vector turns.
+Transparency composites over white for OCR; visual preprocessing/version is unchanged.
 
-Combined gate: `cargo xtask test --locked` passes 374 tests, two intentional network tests
-ignored; workspace clippy/fmt and `cargo xtask arch` (15 crates) pass. `npm run check`
-passes format/lint/types and 85 tests; `npm run build` passes. The warm-probe amendment
-also passes `cargo test --locked -p lumen-desktop --bin lumen gpu_probe::tests` and
-desktop/benchmark all-target DirectML clippy. Actual root footer browser QA passes at
-1280x720, including unknown coverage without invented percentages. Native dark 800x576
-footer fits and exposes both accessible progress elements; 100% read and 42% vectors
-were distinct, 411 skipped/zero errors. User photo-description search returns photos.
+Schema6 `image_ocr` tracks digest/version/state/language/error independently. Exact text
+enriches the same image chunk/FTS; chunk IDs, visual vector/ANN sequence and generation
+stay. Source scope/digest rechecked at commit, moves preserve unchanged units, edits/
+deletions invalidate them, cancellation stays eligible. Off clears only OCR text/coverage
+in crash-resumable 512-row writer transactions, including while indexing is paused.
+The cached menu reports removal until it finishes. OCR is lexical enrichment, not new
+OCR semantic vectors. Scanned PDFs/raster image preview remain separate.
 
-Normal startup now works without development overrides: already-cached pinned text
-and vision assets were installed and SHA-verified through lumen-provision in the usual
-AppData models directory. No network/download/new consent or DB reset. Queries stay CPU.
-The initial cold image probe rejected a noisy sample; the later restart admitted the
-hybrid route, 19.926→16.698 s, text 5.724→11.834 chunks/s. The final v3 probe warms each
-visual shape before timing, retains the 1.15x/0.999 gates and bounds twelve visual calls
-plus text checks at 240 s. It rechecks once rather than reusing the cold-method cache.
+Root quoted/type/ext searches and file actions keep same-row identity. Alt+Enter shows
+bounded text and off/pending/indexed/empty/skipped/failed/unavailable states. Preview
+reads on spawn_blocking and verifies current stored path against the remembered result,
+rejecting reused/moved IDs; paths/digests/backend errors never enter OCR DTOs. Cached
+OCR percentage is expressly of prepared image units; root Files read covers inventory.
 
-Remaining native review: keyboard selection/Alt+Enter/Ctrl+K with footer, narrow/high-DPI
-and high contrast, pause/battery and longer driver/library soak. Native key injection was
-inconclusive because focus-loss hides the overlay and user input was active; do not claim
-a pass or repeatedly interfere with their search. Automated keyboard tests remain green.
+Validation: `cargo xtask test --locked` passes **382 Rust tests, including 41 shell**,
+two deliberate network tests ignored. `cargo clippy --workspace --all-targets --locked
+-- -D warnings`, fmt and `cargo xtask arch` (15 core crates) pass. `npm run check`
+passes formatting/lint/types and **88 tests**; `npm run build` passes. Latest optimized
+custom-protocol executable embeds index-CJ4Y37xj.js. Native release synthetic pipeline
+finds five quoted/type/ext captures and preserves vectors/ANN sequences through OCR/off.
+Final sample: engine 4.57 ms, full decode/native/digest/FTS commits 7.43–19.21 ms, working
+set 8.37→15.29 MiB snapshots. Clear small text only, not general accuracy/ETA/peak or
+whole-app budgets. Empty/unaligned recognition and cooperative preemption pass;
+reproduction/numeric-only evidence: `docs/benchmarks/t304/2026-10-10-joao-pc/`.
+Actual PreviewPane browser QA at 1280×720 and 800×420 (640/340 px panels) covers long
+names, Unicode/scroll and all seven states in light theme. Temporary fixture/tab/server
+removed. Automated keyboard/IPC/source/migration tests pass; native reviews below remain.
 
-Final optimized custom-protocol bundle is `D:\Proyectos\lumen\target\t213-release\lumen.exe`,
-21,470,208 bytes, SHA-256
-283B08371FA353D55B46A492C19D220F45987BECA4B31EDC5E3493108813FD99.
-Runtime/DirectML and license/PDF/image notices remain hash-identical to T303.
-Launched normally after graceful Quit at 11:14 +02:00, PID 4632; verify the current
-PID/path before any later maintenance. No launch overrides are needed:
+Remaining human REVIEW:
+
+1. On an explicit test content location, opt in from the native checkbox; cached counts
+   advance and exact known words with `type:image` return the same image. Alt+Enter shows
+   OCR text; Escape/Alt+Enter close and Ctrl+K/file actions retain selection/focus.
+2. Pause/resume, battery/unplugged and restart preserve opt-in/pending work. Off suppresses
+   preview text immediately, reports bounded cleanup, then exact OCR-only hits disappear;
+   ordinary image semantics/vectors remain. Re-enable processes only admitted content.
+3. Missing installed profile language/engine gives explicit unavailable state without an
+   installer. Complex/multilingual/small-font/transparent real photos need accuracy review.
+4. Native dark/high contrast/high DPI/narrow pane and long library/resource/driver soak.
+
+## Delivered resident app and schema compatibility
+
+Optimized bundle: `D:\Proyectos\lumen\target\t304-release\lumen.exe`, 21,582,848 bytes,
+SHA-256 F6DBF968E443F715EDCF14B1B6AD77D67C7424D9161A7BA2459051A338FA2F91.
+Runtime/DirectML and license/PDF/image notices hash-match the existing T213 bundle.
+Normal Quit stopped old PID4632 before replacement. The familiar launcher path
+`D:\Proyectos\lumen\target\t213-release\lumen.exe` now contains the same verified
+T304 bytes; it is the current resident, PID **18468**. Check actual PID/path before
+maintenance. Launched `--background` from an override-free environment; no model download
+or root/settings edit. OCR remains off/setting absent/zero OCR rows after migration.
+Read-only check: schema6, active generation1, zero vector errors, code 48,729, image 1,699, text 179,301 vectors;
+locations/settings hash unchanged, nine roots/five excluded types/one exact exclusion.
 
 ```powershell
 Start-Process -FilePath 'D:\Proyectos\lumen\target\t213-release\lumen.exe'
 ```
 
-The previous T213 exe is retained as `lumen-prewarm.exe` for recovery, not the launch
-target. A startup check can take several minutes; the footer shows Checking GPU
-compatibility and background inference waits. Image acceleration is partial: CPU
-vision encoder, shared validated GPU backbone; default Task Manager 3D charts alone
-do not establish whether that inference lane is running.
+Do not overwrite a running exe or launch old v5 binaries against the v6 DB. Future
+PDF-first/scheduler rollback must retain schema6 support; no indexing reset is required
+for that code change. Old stopped exe is `target/t213-release/lumen-schema5.exe` and a
+consistent pre-migration local SQLite backup is `target/t304-schema5-checkpoint/lumen-schema5.db`.
+Those are archival recovery material only, containing local user data in ignored target;
+never commit/upload them or run the old exe on current AppData. Do not restore a checkpoint
+without checking newer derived work/settings. Existing `lumen-prewarm.exe` is also v5.
+No LUMEN overrides are needed; don't propagate empty override strings. The single writer
+resumes the current queue; cached pinned models and current visual/text generation remain.
+Build in this worktree with `$env:CARGO_TARGET_DIR='D:/Proyectos/lumen/target/t213-build'`;
+never copy Cargo fingerprints from another checkout.
 
-The first final-bundle launch accidentally inherited empty development overrides from
-the helper and failed runtime loading; normal Quit/relaunch from an override-free
-environment corrected it. Avoid setting overrides to empty strings when clearing them.
+The installed-app startup recheck completed and stored a newly accepted report: CPU/GPU
+text 5.385/12.199 chunks/s, prior/hybrid visual cycles 18.967/15.689 s (1.209x), minimum
+cosine 0.99999982. GPU query p95 319.224 ms versus CPU25.639 ms; queries remain CPU.
+Only parent PID18468 remains, probe child exited, stderr empty, and both text/image
+vector counts advanced after the hold released. Metrics-only report:
+`docs/benchmarks/t304/2026-10-10-joao-pc/installed-startup-gpu.json`.
 
-Final installed-app v3 check completed within 240 s and accepted both routes: text
-5.582 CPU / 11.074 GPU chunks/s; prior/hybrid visual cycles 19.674/16.351 s (1.203x),
-minimum cosine 0.99999982. `final-warm-probe.json` stores synthetic metrics only.
-Generation 1 and 1,331 image vectors survived restart; image vectors reached 1,333
-and the text queue resumed with
-zero errors. Nine locations, five excluded types, one exact exclusion remain JSON v3.
-Build target is `D:\Proyectos\lumen\target\t213-build`, isolated from T112/main artifacts.
-Do not copy workspace fingerprints from a different checkout: Cargo can reuse stale
-workspace dependencies and produce misleading field errors.
+## T213 — preserved indexing repair and native review
+
+ADR-042/specs/T213-indexing-progress.md: bounded alternating image/text/PDF preparation,
+eight-text-batch image fairness, cached phase/device/root Files read/vector progress.
+Full GPU vision fails Reshape on GTX1650; validated hybrid is CPU vision plus shared GPU
+backbone. Queries stay CPU. Previous T213 warm probe: text CPU/GPU 5.582/11.074 chunks/s,
+prior/hybrid visual cycles 19.674/16.351 s (1.203x), minimum cosine 0.99999982. Numeric
+synthetic/public-licensed evidence remains under benchmarks/t213; no new probe/quality claim
+is made by OCR. Task Manager's default 3D chart alone does not show that inference lane.
+Native dark 800×576 footer previously fit and photo-description queries returned photos.
+Remaining native review: keyboard selection/Alt+Enter/Ctrl+K with footer, narrow/high-DPI/
+high contrast, pause/battery and longer driver/library soak. Previous key injection was
+inconclusive under active user input/focus loss; do not claim a pass or repeatedly interfere.
+
+All old binary/schema/override launch instructions below are historical and superseded
+by the schema6 resident instructions above; preserve their pending human review checklists.
 
 ## T112 — manual exclusions and native review
 

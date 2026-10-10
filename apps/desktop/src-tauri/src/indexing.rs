@@ -135,7 +135,7 @@ impl Indexing {
             .clone()
     }
 
-    fn set_semantic(&self, s: Semantic) {
+    pub(crate) fn set_semantic(&self, s: Semantic) {
         self.status
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -200,6 +200,7 @@ pub(crate) fn on_model_removed<R: Runtime>(app: &AppHandle<R>) {
 }
 
 pub(crate) fn install<R: Runtime>(app: &App<R>) {
+    crate::image_ocr::install(app);
     let control = Control::new();
     let paused = settings::get_raw(&app.state::<settings::Settings>(), SETTING_PAUSED)
         .is_some_and(|v| v.trim() == "true");
@@ -274,6 +275,7 @@ pub(crate) struct ContentProgress {
     image: i64,
     text_done: bool,
     image_done: bool,
+    pub(crate) ocr: crate::image_ocr::Progress,
 }
 
 /// One bounded extraction round, followed by a turn for the persistent vector queue.
@@ -285,9 +287,6 @@ pub(crate) fn content_pass<R: Runtime>(
     progress: &mut ContentProgress,
 ) -> bool {
     let state = app.state::<Indexing>();
-    if state.paused() {
-        return false;
-    }
     let started = Instant::now();
     let mut store = match Store::open_writer(db) {
         Ok(s) => s,
@@ -297,6 +296,11 @@ pub(crate) fn content_pass<R: Runtime>(
         }
     };
     let now = now_ms;
+    let cleaning = crate::image_ocr::cleanup(app, &mut store);
+    if state.paused() {
+        tray::refresh_indexing(app);
+        return cleaning;
+    }
     refresh_content_counts(&state, &store, model);
     if !progress.image_done && !token.is_cancelled() {
         state.set_semantic(Semantic::Reading("image metadata"));
@@ -315,6 +319,9 @@ pub(crate) fn content_pass<R: Runtime>(
             Ok(r) => {
                 progress.image = r.cursor;
                 progress.image_done = r.exhausted;
+                if r.exhausted {
+                    progress.ocr.metadata_finished();
+                }
                 crate::catalog::notify(app, r.files > 0);
             }
             Err(err) => {
@@ -324,6 +331,7 @@ pub(crate) fn content_pass<R: Runtime>(
         }
         refresh_content_counts(&state, &store, model);
     }
+    let more_ocr = crate::image_ocr::run(app, &mut store, model, token, &mut progress.ocr);
     if !progress.text_done && !token.is_cancelled() && !state.paused() {
         state.set_semantic(Semantic::Reading("text and PDFs"));
         tray::refresh_indexing(app);
@@ -364,7 +372,42 @@ pub(crate) fn content_pass<R: Runtime>(
         Semantic::Idle
     });
     tray::refresh_indexing(app);
-    !progress.text_done || !progress.image_done
+    cleaning || more_ocr || !progress.text_done || !progress.image_done
+}
+
+impl ContentProgress {
+    pub(crate) fn next(&self, more: bool, embedding: Next) -> Next {
+        if !more {
+            return embedding;
+        }
+        if self.ocr.deferred && self.text_done && self.image_done {
+            match embedding {
+                Next::Idle => Next::RetryIn(POLICY_RETRY),
+                Next::RetryIn(delay) => Next::RetryIn(delay.min(POLICY_RETRY)),
+                Next::More => Next::More,
+            }
+        } else {
+            Next::More
+        }
+    }
+}
+
+#[cfg(test)]
+mod ocr_scheduling_tests {
+    use super::*;
+    #[test]
+    fn held_ocr_uses_policy_retry_without_spinning_or_delaying_pending_vectors() {
+        let mut progress = ContentProgress {
+            text_done: true,
+            image_done: true,
+            ..Default::default()
+        };
+        progress.ocr.deferred = true;
+        assert_eq!(progress.next(true, Next::Idle), Next::RetryIn(POLICY_RETRY));
+        assert_eq!(progress.next(true, Next::More), Next::More);
+        progress.text_done = false;
+        assert_eq!(progress.next(true, Next::Idle), Next::More);
+    }
 }
 
 fn refresh_content_counts(state: &Indexing, store: &Store, model: &IndexLocations) {

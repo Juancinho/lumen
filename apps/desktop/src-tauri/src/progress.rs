@@ -26,6 +26,7 @@ pub(crate) fn snapshot(state: &Indexing) -> Progress {
     let (phase, device) = match &s.semantic {
         Semantic::CheckingGpu => ("Checking GPU compatibility".into(), ""),
         Semantic::Reading("image metadata") => ("Preparing image files".into(), "CPU"),
+        Semantic::Reading("image text") => ("Reading text in images".into(), "CPU"),
         Semantic::Reading(_) => ("Reading text and PDFs".into(), "CPU"),
         Semantic::RunningGpu => ("Embedding text".into(), "GPU"),
         Semantic::Running { .. } => ("Embedding text".into(), "CPU"),

@@ -17,6 +17,7 @@ mod diag;
 mod dto;
 mod gpu;
 mod gpu_probe;
+mod image_ocr;
 mod indexing;
 mod instance;
 mod lifecycle;

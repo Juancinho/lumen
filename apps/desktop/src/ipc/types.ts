@@ -104,6 +104,11 @@ export interface Preview {
   truncated: boolean;
   pageNumber?: number | null;
   image?: ImageContext | null;
+  imageOcr?: {
+    state: "off" | "pending" | "indexed" | "empty" | "skipped" | "failed" | "unavailable";
+    language: string | null;
+    reason: string | null;
+  } | null;
 }
 
 export interface PdfPreview {

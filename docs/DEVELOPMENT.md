@@ -161,6 +161,7 @@ Benchmarks (release builds only; debug runs are flagged in the report):
 | Persistent ANN generation (build/open/delta/stale/rebuild) | `cargo run --release -p lumen-bench -- ann-gen --vectors 100000 --json target/bench/ann-gen.json` |
 | Options | `cargo run --release -p lumen-bench -- --help` (`--backend`, `--dim`, `--iterations`, `--batch-sizes`, `--label`, …) |
 | Image GPU backbone / mixed-cycle fidelity | `cargo run --release --locked -p lumen-bench --features directml --example image_gpu -- MODEL VISION RUNTIME FIXTURES REPORT [--warm]` (T213 evidence; warm shapes outside timing) |
+| Native image OCR / FTS / vector preservation | Generate public text with `scripts/t304/create-ocr-fixture.ps1`, then `cargo run --release --locked -p lumen-bench --example image_ocr -- FIXTURE.png REPORT.json` (Windows installed language; T304 evidence) |
 
 Real model (ADR-015): `cargo run --release -p lumen-bench --features ort -- embed --backend ort
 --ort-dylib <onnxruntime.dll> --model-dir <embeddinggemma-2-ONNX copy> --variant q4

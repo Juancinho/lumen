@@ -2,6 +2,13 @@
 
 ## 0. Measured status (release builds, joao-pc unless noted)
 
+T304 installed Windows OCR (es-ES), generated 1200×300 visible text: engine creation
+12.41 ms, full decode/recognize/source verification/FTS commit 7.69–23.38 ms (five images).
+Working set 8.90→15.95 MiB snapshots, not private/peak/whole-app memory. CPU, one native
+image at a time, four files/two-second cooperative rounds and five-second native deadline.
+No engine while off/drained/deferred; existing battery/interactive/memory policy retry.
+No fixed photo-library ETA or interaction budget changes; evidence `benchmarks/t304/2026-10-10-joao-pc/`.
+
 | Budget | Target p50 / p95 | Measured | Evidence |
 |---|---|---|---|
 | Shortcut → painted overlay | 35 / 70 ms | 22.6 / 26.0 ms; ~22 ms with every window material | ADR-020, ADR-024 |

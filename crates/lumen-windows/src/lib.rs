@@ -10,6 +10,7 @@
 pub mod apps;
 pub mod gpu;
 pub mod material;
+pub mod ocr;
 pub mod pdf;
 pub mod pdf_viewer;
 pub mod process;

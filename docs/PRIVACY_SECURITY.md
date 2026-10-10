@@ -1,6 +1,6 @@
 # PRIVACY_SECURITY.md
 
-## 0. Implementation status (2026-10-09)
+## 0. Implementation status (2026-10-10)
 
 - Stores on device only: `%APPDATA%\dev.lumen.desktop\lumen.db` (catalog, settings, usage).
   Usage is aggregates only — frecency, learned query prefix → item, pins; no raw event log;
@@ -29,6 +29,15 @@
   weights use the same explicit download consent and pinned HF hashes (ADR-041). Queries
   and image inference remain local/offline. T303 benchmark evidence contains only numeric
   fixture names and public licensed photos/synthetic queries, identified in its README.
+
+- T304 image OCR is off by default and uses an installed Windows profile recognizer only
+  after native opt-in, within content-enabled/admitted locations and existing exclusions.
+  Exact visible text, language, local digest/version and coverage stay in SQLite/FTS; no
+  pixels, capture history, GPS, OCR telemetry or cloud path. Preview sends at most 16 KiB
+  indexed text/whitelisted status, after trusted result lookup, current consent and
+  current-path validation against the remembered result. Off removes OCR text/coverage
+  through bounded resumable writer pages, retaining images and visual vectors. No OCR
+  engine/model/language install or third-party service (ADR-043).
 
 ## 1. Default posture
 

@@ -9,6 +9,9 @@ publish.workspace = true
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62.2", features = [
     "Data_Pdf",
+    "Globalization",
+    "Graphics_Imaging",
+    "Media_Ocr",
     "Storage_Streams",
     "Win32_System_WinRT",
     "UI_ViewManagement",

@@ -148,12 +148,12 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
 - **T301 REVIEW (ADR-039):** bounded PDF page text/FTS/semantic hits, existing vectors retained; native review pending.
 - **T302 REVIEW (ADR-040):** local PDF raster Quick Look/page navigation and supported viewer action; native review pending.
 - **T303 REVIEW (ADR-041):** bounded image metadata/visual q4 queue, optional vision download; T213 adds conditional hybrid GPU, queries stay CPU.
-- **T213 REVIEW (ADR-042):** interleaved preparation/fair photo turns, root coverage counts/percentages;
-  measured CPU-vision/GPU-backbone route, live photo vectors advancing; native DPI/keys review remains.
+- **T213 REVIEW (ADR-042):** fair photo turns/root progress, measured hybrid GPU; live vectors advance, native review remains.
+- **T304 REVIEW (ADR-043):** optional local Windows OCR image text/FTS and coverage/Alt+Enter;
+  native synthetic proof, visual vectors retained; portable capability/language and native reviews explicit.
 - **T111 REVIEW (ADR-027):** locations/exclusions, visible default noise/build rules, native
   tray/folder action; edits restart the pass. Sandbox 309k entries, keystroke p95 7.1 ms.
-- **T112 REVIEW (ADR-027 amendment):** manual exact-file/extension exclusions in tray/Ctrl+K;
-  bounded cleanup includes offline catalog rows, undo restores affected files; native review pending.
+- **T112 REVIEW (ADR-027 amendment):** exact/type exclusions in tray/Ctrl+K, bounded offline cleanup/undo; native review pending.
 - **T110 REVIEW:** `LUMEN_DIAGNOSTICS=1` adds row provider/match/confidence and query timings; absent from the wire otherwise.
 - **T105 REVIEW:** Alt+Enter Quick Look beside results (over them on narrow monitors):
   metadata/text excerpt, 16 KB read/4,000 chars; T302 PDF pages/T303 image metadata. Raster images/pin/open-with remain future.
@@ -161,7 +161,7 @@ optional FastFrame/egui shell spike (TX01) only if M1 measurements miss targets.
 ## Immediate objective
 
 1. Close M1 Windows REVIEW checklists in `HANDOFF.md`: search, keys, actions, Quick Look/material.
-2. M2/M3 reviews remain; next implementation is T304 Windows OCR in `TASKS.md` → **Next**.
+2. M2/M3 reviews remain; next implementation is T305 Semantic Drop in `TASKS.md` → **Next**.
 
 ## M1 gate (instant launcher)
 

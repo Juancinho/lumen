@@ -5,6 +5,41 @@ import { formatSize } from "./format";
 import { PreviewPane } from "./PreviewPane";
 
 describe("PreviewPane", () => {
+  it("labels indexed image text and distinct OCR coverage without changing preview keys", () => {
+    const close = vi.fn();
+    const data = {
+      title: "capture.png",
+      kind: "image" as const,
+      location: null,
+      sizeBytes: null,
+      modifiedMs: null,
+      text: "ERROR 42\ncontraseña",
+      truncated: false,
+      imageOcr: { state: "indexed" as const, language: "es-ES", reason: null },
+    };
+    const { rerender } = render(<PreviewPane docked data={data} onClose={close} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Image text indexed · es-ES");
+    expect(screen.getByLabelText("Text from image")).toHaveTextContent("ERROR 42");
+    fireEvent.keyDown(screen.getByRole("complementary"), { key: "Enter", altKey: true });
+    expect(close).toHaveBeenCalledOnce();
+    for (const [state, label] of [
+      ["empty", "no text detected"],
+      ["pending", "Waiting"],
+      ["off", "off for this image"],
+      ["unavailable", "unavailable"],
+      ["failed", "will retry"],
+      ["skipped", "skipped"],
+    ] as const) {
+      rerender(
+        <PreviewPane
+          docked
+          data={{ ...data, text: null, imageOcr: { state, language: null, reason: null } }}
+        />,
+      );
+      expect(screen.getByRole("status")).toHaveTextContent(label);
+      expect(screen.queryByLabelText("Text from image")).not.toBeInTheDocument();
+    }
+  });
   it("shows visual coverage and orientation on the same keyboard preview surface", () => {
     const close = vi.fn();
     const data = {

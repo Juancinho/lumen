@@ -10,6 +10,8 @@ use sha2::{Digest, Sha256};
 pub const MAX_SOURCE_BYTES: u64 = 16 * 1024 * 1024;
 pub const MAX_PIXELS: u64 = 32_000_000;
 pub const MAX_SIDE: u32 = 16_384;
+pub const MAX_OCR_SIDE: u32 = 4096;
+pub const MAX_OCR_PIXELS: u64 = 8_000_000;
 pub const PREPROCESSING_VERSION: u32 = 1;
 pub const PATCH_SIZE: usize = 16;
 pub const MAX_PATCHES: usize = 280 * 9;
@@ -174,17 +176,57 @@ pub fn decode(
     expected: Option<&[u8]>,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<Decoded, Error> {
+    decode_inner(path, expected, cancelled, false)
+}
+
+/// Decode a bounded OCR image, compositing transparency over white.
+/// # Errors
+/// Typed resource/format/source errors, before full pixel allocation when oversized.
+pub fn decode_ocr(
+    path: &Path,
+    expected: Option<&[u8]>,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Decoded, Error> {
+    decode_inner(path, expected, cancelled, true)
+}
+
+fn decode_inner(
+    path: &Path,
+    expected: Option<&[u8]>,
+    cancelled: &dyn Fn() -> bool,
+    ocr: bool,
+) -> Result<Decoded, Error> {
     let bytes = read(path, cancelled)?;
     let (decoder, metadata) = decoder(&bytes)?;
     if expected.is_some_and(|hash| hash != metadata.digest) {
         return Err(Error::Changed);
+    }
+    if ocr
+        && (metadata.width > MAX_OCR_SIDE
+            || metadata.height > MAX_OCR_SIDE
+            || u64::from(metadata.width) * u64::from(metadata.height) > MAX_OCR_PIXELS)
+    {
+        return Err(Error::Dimensions);
     }
     check_cancel(cancelled)?;
     let mut image = DynamicImage::from_decoder(decoder).map_err(|_| Error::Decode)?;
     image.apply_orientation(
         image::metadata::Orientation::from_exif(metadata.orientation).ok_or(Error::Decode)?,
     );
-    let rgb = image.into_rgb8().into_raw();
+    let rgb = if ocr && image.color().has_alpha() {
+        image
+            .to_rgba8()
+            .pixels()
+            .flat_map(|pixel| {
+                let alpha = u16::from(pixel[3]);
+                [pixel[0], pixel[1], pixel[2]].map(|value| {
+                    ((u16::from(value) * alpha + 255 * (255 - alpha) + 127) / 255) as u8
+                })
+            })
+            .collect()
+    } else {
+        image.into_rgb8().into_raw()
+    };
     check_cancel(cancelled)?;
     // Re-read header identity/digest at the queue commit boundary separately if required.
     Ok(Decoded { metadata, rgb })
@@ -263,6 +305,32 @@ pub fn prepare(width: u32, height: u32, rgb: &[u8]) -> Result<Patches, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn ocr_composites_visible_alpha_and_bounds_before_decoding() {
+        let path = std::env::temp_dir().join(format!("lumen-ocr-alpha-{}.png", std::process::id()));
+        let rgba = image::RgbaImage::from_fn(3, 1, |x, _| {
+            image::Rgba(match x {
+                0 => [0, 0, 0, 0],
+                1 => [0, 0, 0, 128],
+                _ => [20, 40, 60, 255],
+            })
+        });
+        rgba.save(&path).unwrap();
+        let visual = decode(&path, None, &|| false).unwrap();
+        let ocr = decode_ocr(&path, Some(&visual.metadata.digest), &|| false).unwrap();
+        assert_eq!(ocr.rgb, [255, 255, 255, 127, 127, 127, 20, 40, 60]);
+        assert_eq!(visual.rgb, [0, 0, 0, 0, 0, 0, 20, 40, 60]);
+        assert_eq!(ocr.metadata, visual.metadata);
+        image::RgbImage::new(MAX_OCR_SIDE + 1, 1)
+            .save(&path)
+            .unwrap();
+        assert!(matches!(
+            decode_ocr(&path, None, &|| false),
+            Err(Error::Dimensions)
+        ));
+        assert!(decode(&path, None, &|| false).is_ok());
+        std::fs::remove_file(path).unwrap();
+    }
     #[test]
     fn aspect_padding_and_patch_channel_order() {
         assert_eq!(target_size(100, 100), Some((768, 768)));

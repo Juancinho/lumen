@@ -32,6 +32,7 @@ const EX_DEFAULT: &str = "ex-default:";
 const LOC_CONTENT: &str = "loc-content:";
 const INDEX_PAUSE: &str = "index-pause";
 const INDEX_GPU: &str = "index-gpu";
+const INDEX_OCR: &str = "index-ocr";
 const SEM_DOWNLOAD: &str = "semantic-download";
 const SEM_CANCEL: &str = "semantic-cancel";
 const SEM_REMOVE: &str = "semantic-remove";
@@ -56,6 +57,8 @@ struct IndexingItems<R: Runtime> {
     pause: CheckMenuItem<R>,
     gpu: CheckMenuItem<R>,
     gpu_status: MenuItem<R>,
+    ocr: CheckMenuItem<R>,
+    ocr_status: MenuItem<R>,
 }
 
 /// The two submenus rebuilt whenever locations, exclusions or their states change.
@@ -197,6 +200,20 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let gpu_status = MenuItem::new(app, "Checking for a dedicated GPU…", false, None::<&str>)?;
+    let ocr = CheckMenuItem::with_id(
+        app,
+        INDEX_OCR,
+        "Index text in images (OCR)",
+        true,
+        app.state::<crate::image_ocr::ImageOcr>().enabled(),
+        None::<&str>,
+    )?;
+    let ocr_status = MenuItem::new(
+        app,
+        "Checking installed Windows OCR language…",
+        false,
+        None::<&str>,
+    )?;
     let indexing_menu = Submenu::with_items(
         app,
         "Content indexing",
@@ -207,6 +224,8 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
             &index_pause,
             &index_gpu,
             &gpu_status,
+            &ocr,
+            &ocr_status,
         ],
     )?;
     let sem_status = MenuItem::new(app, "Semantic search", false, None::<&str>)?;
@@ -273,6 +292,8 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
         pause: index_pause,
         gpu: index_gpu,
         gpu_status,
+        ocr,
+        ocr_status,
     });
     app.manage(SemanticItems {
         status: sem_status,
@@ -309,6 +330,9 @@ pub(crate) fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
             } else if id == INDEX_GPU {
                 let enabled = app.state::<crate::gpu::Gpu>().enabled();
                 crate::gpu::choose(app, !enabled);
+            } else if id == INDEX_OCR {
+                let enabled = app.state::<crate::image_ocr::ImageOcr>().enabled();
+                crate::image_ocr::choose(app, !enabled);
             } else if let Some(label) = id.strip_prefix(SHORTCUT_PREFIX) {
                 shortcut::choose(app, label);
             } else if let Some(choice) = id
@@ -395,6 +419,10 @@ pub(crate) fn refresh_indexing<R: Runtime>(app: &AppHandle<R>) {
         .status
         .set_text(indexing::status_text(&state.status()));
     let _ = items.pause.set_checked(state.paused());
+    if let Some(ocr) = app.try_state::<crate::image_ocr::ImageOcr>() {
+        let _ = items.ocr.set_checked(ocr.enabled());
+        let _ = items.ocr_status.set_text(ocr.label());
+    }
     let _ = items.images.set_text(indexing::image_status_text(
         &state.status().images,
         app.try_state::<crate::gpu::Gpu>()

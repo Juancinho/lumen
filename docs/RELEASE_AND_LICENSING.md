@@ -10,6 +10,12 @@
 
 ## Dependency audit
 
+T304 uses OS-serviced Windows.Media.Ocr through the already pinned MIT/Apache Windows
+bindings. No new locked package, native OCR DLL, trained weights, Python or OS language
+package is redistributed. Language availability is checked; no OS installation. Microsoft
+supports desktop use with package identity; portable runtime capability/failure and local
+synthetic proof are explicit in ADR-043. No signing/packaging change is introduced.
+
 Before release, audit licenses/distribution terms for:
 
 - model/runtime;

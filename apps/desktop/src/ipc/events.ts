@@ -6,6 +6,7 @@ import type {
   ResultDiagnostics,
   ResultsUpdate,
   ResultView,
+  Preview,
 } from "./types";
 
 /** Mirrors `overlay::EVENT_SHOWN` in `src-tauri/src/overlay/mod.rs`. */
@@ -64,6 +65,84 @@ export const RESULTS = "lumen:results";
 export const CATALOG_CHANGED = "lumen:catalog-changed";
 
 const KINDS = new Set(["application", "file", "folder", "command", "code", "pdf-page", "image"]);
+
+/** Bounded display-only preview; reject malformed OCR status/text at the IPC boundary. */
+export function toPreview(payload: unknown): Preview {
+  const p = payload as Partial<Record<keyof Preview, unknown>> | null;
+  const nullableText = (value: unknown): value is string | null =>
+    value === null || typeof value === "string";
+  const nullableNumber = (value: unknown): value is number | null =>
+    value === null || (typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
+  if (
+    !p ||
+    typeof p.title !== "string" ||
+    typeof p.kind !== "string" ||
+    !KINDS.has(p.kind) ||
+    !nullableText(p.location) ||
+    !nullableText(p.text) ||
+    !nullableNumber(p.sizeBytes) ||
+    !nullableNumber(p.modifiedMs) ||
+    typeof p.truncated !== "boolean" ||
+    (p.pageNumber !== undefined &&
+      p.pageNumber !== null &&
+      (typeof p.pageNumber !== "number" ||
+        !Number.isInteger(p.pageNumber) ||
+        p.pageNumber < 1 ||
+        p.pageNumber > 512))
+  )
+    throw new Error("Invalid preview");
+  const image = p.image ? toImageContext(p.image) : null;
+  if (p.image && !image) throw new Error("Invalid image preview");
+  let imageOcr: Preview["imageOcr"] = null;
+  if (p.imageOcr !== undefined && p.imageOcr !== null) {
+    const o = p.imageOcr as Partial<Record<keyof NonNullable<Preview["imageOcr"]>, unknown>>;
+    const states = ["off", "pending", "indexed", "empty", "skipped", "failed", "unavailable"];
+    if (
+      p.kind !== "image" ||
+      typeof o.state !== "string" ||
+      !states.includes(o.state) ||
+      !nullableText(o.language) ||
+      (o.language !== null && !/^[a-zA-Z0-9-]{1,80}$/.test(o.language)) ||
+      !nullableText(o.reason) ||
+      (o.state === "indexed"
+        ? typeof p.text !== "string" || p.text.trim().length === 0
+        : p.text !== null) ||
+      (typeof p.text === "string" &&
+        (p.text.includes("\0") || new TextEncoder().encode(p.text).length > 16 * 1024))
+    )
+      throw new Error("Invalid image text preview");
+    const reasons = [
+      "ocr:pixel_limit",
+      "ocr:text_limit",
+      "ocr:timeout",
+      "ocr:recognition",
+      "image:unsupported",
+      "image:source_limit",
+      "image:pixel_limit",
+      "image:decode",
+      "image:io",
+      "image:placeholder",
+      "image:changed",
+    ];
+    imageOcr = {
+      state: o.state as NonNullable<Preview["imageOcr"]>["state"],
+      language: o.language,
+      reason: o.reason !== null && reasons.includes(o.reason) ? o.reason : null,
+    };
+  }
+  return {
+    title: p.title,
+    kind: p.kind as Preview["kind"],
+    location: p.location,
+    text: p.text,
+    sizeBytes: p.sizeBytes,
+    modifiedMs: p.modifiedMs,
+    truncated: p.truncated,
+    pageNumber: p.pageNumber ?? null,
+    image: image ?? null,
+    imageOcr,
+  };
+}
 
 function toImageContext(raw: unknown): ResultView["image"] {
   const image = raw as Partial<Record<keyof NonNullable<ResultView["image"]>, unknown>> | null;

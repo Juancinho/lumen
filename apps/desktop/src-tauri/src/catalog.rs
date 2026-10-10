@@ -270,7 +270,7 @@ pub(crate) fn start<R: Runtime>(app: &App<R>) {
                     Next::More
                 } else {
                     let embedding = indexing::embed_slice(&handle, &db, &token);
-                    if more_content { Next::More } else { embedding }
+                    content.next(more_content, embedding)
                 };
                 handle
                     .state::<Catalog>()

@@ -41,6 +41,16 @@ pub(crate) struct PreviewDto {
     pub(crate) page_number: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) image: Option<ImageContextDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) image_ocr: Option<ImageOcrDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ImageOcrDto {
+    pub(crate) state: &'static str,
+    pub(crate) language: Option<String>,
+    pub(crate) reason: Option<String>,
 }
 
 /// Mirrors `Size` in `src/ipc/types.ts`: logical px.

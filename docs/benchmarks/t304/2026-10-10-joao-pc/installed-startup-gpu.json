@@ -1,0 +1,32 @@
+{
+  "enabled": [
+    "true"
+  ],
+  "probe_updated": true,
+  "cpu": {
+    "query_p50_ms": 23.8689,
+    "query_p95_ms": 25.6386,
+    "index_chunks_per_s": 5.385351883267651,
+    "min_cosine_vs_cpu": 1.0,
+    "stable": true,
+    "offloaded_fraction": null,
+    "device_memory_mib": null,
+    "device_memory_total_mib": null
+  },
+  "gpu": {
+    "query_p50_ms": 290.722,
+    "query_p95_ms": 319.2238,
+    "index_chunks_per_s": 12.198716481548605,
+    "min_cosine_vs_cpu": 0.9999998211860656,
+    "stable": true,
+    "offloaded_fraction": 0.9443016281062554,
+    "device_memory_mib": 905.91796875,
+    "device_memory_total_mib": 3935.0
+  },
+  "image": null,
+  "images": {
+    "legacy_cycle_ms": 18966.9109,
+    "accelerated_cycle_ms": 15689.4599,
+    "min_cosine": 0.9999998211860656
+  }
+}

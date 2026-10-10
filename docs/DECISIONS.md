@@ -49,6 +49,7 @@
 | [ADR-040](adr/adr-040-windows-pdf-preview.md) | On-demand Windows PDF raster preview, bounded latest-wins worker and supported viewer page transport | Accepted |
 | [ADR-041](adr/adr-041-image-queue-and-vision-encoder.md) | Bounded image units in the persistent queue and optional CPU q4 vision encoder in the existing text space | Accepted |
 | [ADR-042](adr/adr-042-interleaved-indexing-and-hybrid-image-gpu.md) | Interleaved indexing, cached visible coverage and measured CPU-vision/GPU-backbone image route | Accepted |
+| [ADR-043](adr/adr-043-optional-image-ocr.md) | Optional Windows OCR lexical image text, capability checks and same-unit visual vector preservation | Accepted |
 
 T208 implements the reserved root operators and quoted lexical requests from COMMAND_MODEL
 §7 using existing ADR-017/022/032 boundaries. Exact semantics, bounded filtered ANN retrieval

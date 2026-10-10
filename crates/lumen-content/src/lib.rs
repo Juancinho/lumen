@@ -13,6 +13,7 @@
 
 mod code;
 mod images;
+pub mod ocr;
 mod pass;
 mod queue;
 

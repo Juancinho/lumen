@@ -8,9 +8,42 @@ import {
   OVERLAY_SHOWN,
   toAppearance,
   toResultsUpdate,
+  toPreview,
 } from "./events";
 
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
+
+describe("image OCR preview wire", () => {
+  const base = {
+    title: "capture.png",
+    kind: "image",
+    location: null,
+    sizeBytes: null,
+    modifiedMs: null,
+    truncated: false,
+    text: "ERROR 42",
+    imageOcr: { state: "indexed", language: "es-ES", reason: null },
+  };
+  it("preserves exact Unicode text and filters backend reasons", () => {
+    expect(toPreview({ ...base, text: "ERROR 42\ncontraseña" }).text).toBe("ERROR 42\ncontraseña");
+    expect(
+      toPreview({ ...base, imageOcr: { ...base.imageOcr, reason: "private backend detail" } })
+        .imageOcr?.reason,
+    ).toBeNull();
+    expect(toPreview({ ...base, pageNumber: 512 }).pageNumber).toBe(512);
+  });
+  it("rejects unbounded output, malformed coverage and text in the off state", () => {
+    expect(() => toPreview({ ...base, text: "é".repeat(8193) })).toThrow();
+    expect(() => toPreview({ ...base, imageOcr: { ...base.imageOcr, state: "off" } })).toThrow();
+    expect(() =>
+      toPreview({ ...base, imageOcr: { ...base.imageOcr, language: "<script>" } }),
+    ).toThrow();
+    expect(() =>
+      toPreview({ ...base, imageOcr: { ...base.imageOcr, state: "complete" } }),
+    ).toThrow();
+    expect(() => toPreview({ ...base, text: "a\0b" })).toThrow();
+  });
+});
 
 describe("onOverlayShown", () => {
   it("listens to the shell event and passes a normalized payload", async () => {

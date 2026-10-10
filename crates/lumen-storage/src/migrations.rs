@@ -43,6 +43,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "image_metadata",
         sql: include_str!("../migrations/0005_image_metadata.sql"),
     },
+    Migration {
+        version: 6,
+        name: "image_ocr",
+        sql: include_str!("../migrations/0006_image_ocr.sql"),
+    },
 ];
 
 /// Schema version this binary produces.
@@ -88,6 +93,46 @@ mod tests {
     use super::*;
 
     #[test]
+    fn v5_ocr_upgrade_preserves_image_chunk_vector_sequence_and_fts() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        apply(&mut conn, &MIGRATIONS[..5]).unwrap();
+        conn.execute_batch("INSERT INTO items(kind,canonical_path,display_name,content_state,image_width,image_height,image_digest) VALUES('file','/a.png','a.png','indexed',4,3,zeroblob(32));
+            INSERT INTO chunks(item_id,ordinal,chunk_kind,text) VALUES(1,0,'image','');
+            INSERT INTO generations(space_key,chunker_version,dim,scalar,created_at,state) VALUES('k',1,2,'f16',0,'active');
+            INSERT INTO chunk_vectors(chunk_id,generation,vector,embedded_at,seq) VALUES(1,1,x'0000003c',0,7);").unwrap();
+        assert_eq!(apply(&mut conn, MIGRATIONS).unwrap(), (5, 6));
+        conn.execute_batch(
+            "INSERT INTO image_ocr VALUES(1,zeroblob(32),1,'indexed','es-ES',NULL);
+            UPDATE chunks SET text='ERROR 42' WHERE id=1;",
+        )
+        .unwrap();
+        let record: (i64, Vec<u8>, i64) = conn
+            .query_row(
+                "SELECT c.id,vector,seq FROM chunks c JOIN chunk_vectors v ON v.chunk_id=c.id",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(record, (1, vec![0, 0, 0, 60], 7));
+        let fts: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM chunks_fts WHERE chunks_fts MATCH 'ERROR'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(fts, 1);
+        conn.execute_batch("UPDATE items SET content_state=NULL WHERE id=1;")
+            .unwrap();
+        assert_eq!(
+            conn.query_row("SELECT count(*) FROM image_ocr", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
     fn v4_images_upgrade_keeps_text_vectors_and_invalidation_clears_metadata() {
         let mut conn = Connection::open_in_memory().unwrap();
         conn.pragma_update(None, "foreign_keys", "ON").unwrap();
@@ -96,7 +141,7 @@ mod tests {
             INSERT INTO chunks(item_id,ordinal,chunk_kind,text) VALUES(1,0,'text','existing text');
             INSERT INTO generations(space_key,chunker_version,dim,scalar,created_at,state) VALUES('k',1,2,'f16',0,'active');
             INSERT INTO chunk_vectors(chunk_id,generation,vector,embedded_at,seq) VALUES(1,1,x'0000003c',0,7);").unwrap();
-        assert_eq!(apply(&mut conn, MIGRATIONS).unwrap(), (4, 5));
+        assert_eq!(apply(&mut conn, MIGRATIONS).unwrap(), (4, 6));
         let before: (Vec<u8>, i64, String) = conn
             .query_row(
                 "SELECT vector,seq,text FROM chunk_vectors JOIN chunks ON chunks.id=chunk_id",

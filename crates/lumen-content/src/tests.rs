@@ -76,6 +76,272 @@ fn image_pass(store: &mut Store) -> PassReport {
     run_image_pass(store, &|_| true, &CancellationToken::new(), &|| 1).unwrap()
 }
 
+struct TestOcr {
+    calls: usize,
+    text: &'static str,
+    cancel: Option<CancellationToken>,
+    edit: Option<PathBuf>,
+    remove: Option<PathBuf>,
+}
+impl ocr::Recognizer for TestOcr {
+    fn recognize(
+        &mut self,
+        _: u32,
+        _: u32,
+        _: &[u8],
+        _: &dyn Fn() -> bool,
+    ) -> Result<ocr::OcrText, ocr::OcrError> {
+        self.calls += 1;
+        if let Some(path) = &self.remove {
+            std::fs::remove_file(path).unwrap();
+        }
+        if let Some(cancel) = &self.cancel {
+            cancel.cancel();
+        }
+        if let Some(path) = &self.edit {
+            image::RgbImage::from_pixel(4, 3, image::Rgb([0, 255, 0]))
+                .save(path)
+                .unwrap();
+        }
+        Ok(ocr::OcrText {
+            text: self.text.into(),
+            language: "es-ES".into(),
+        })
+    }
+}
+fn test_ocr(text: &'static str) -> TestOcr {
+    TestOcr {
+        calls: 0,
+        text,
+        cancel: None,
+        edit: None,
+        remove: None,
+    }
+}
+fn ocr_pass(store: &mut Store, recognizer: &mut TestOcr) -> PassReport {
+    ocr::run_ocr_slice(
+        store,
+        &|_| true,
+        &CancellationToken::new(),
+        &|| false,
+        recognizer,
+        0,
+        Slice::unbounded(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn ocr_fts_off_resume_moves_and_edits_preserve_visual_units_and_unrelated_vectors() {
+    use lumen_core::{Provider, ProviderQuery, QueryId, ResultKind};
+    let t = Temp::new("ocr-pipeline");
+    let path = t.files().join("0001.png");
+    image::RgbImage::from_pixel(4, 3, image::Rgb([255, 0, 0]))
+        .save(&path)
+        .unwrap();
+    std::fs::write(t.files().join("notes.txt"), "unrelated text").unwrap();
+    let mut store = t.store();
+    sync(&mut store, &t.files());
+    image_pass(&mut store);
+    pass(&mut store, &PassConfig::default());
+    let visual = embedder(Arc::new(Visual::new(None)));
+    let g = generation(&store, &visual);
+    queue(
+        &mut store,
+        &visual,
+        g,
+        &Control::new(),
+        &QueueConfig::default(),
+    )
+    .unwrap();
+    store.promote_first(g, 2).unwrap();
+    let original = store.vectors(g, 0, 100).unwrap();
+    let candidate = store.ocr_candidates(0, 1).unwrap().remove(0);
+    let mut recognizer = test_ocr("ERROR 42\nBuscar texto en imágenes");
+    let denied = ocr::run_ocr_slice(
+        &mut store,
+        &|_| false,
+        &CancellationToken::new(),
+        &|| false,
+        &mut recognizer,
+        0,
+        Slice::unbounded(),
+    )
+    .unwrap();
+    assert_eq!((denied.files, recognizer.calls), (0, 0));
+    assert_eq!(store.ocr_counts(&|_| true).unwrap().pending, 1);
+    assert_eq!(ocr_pass(&mut store, &mut recognizer).indexed, 1);
+    assert!(store.ocr_candidates(0, 1).unwrap().is_empty());
+    assert_eq!(store.vectors(g, 0, 100).unwrap(), original);
+    drop(store);
+    let mut store = t.store();
+    let preview = store.image_ocr_preview(candidate.item).unwrap().unwrap();
+    assert_eq!(
+        (preview.state.as_str(), preview.language.as_deref()),
+        ("indexed", Some("es-ES"))
+    );
+    let provider =
+        lumen_catalog::ContentProvider::new(Store::open_reader(&t.0.join("lumen.db")).unwrap());
+    let query = ProviderQuery {
+        id: QueryId::new(1).unwrap(),
+        text: "\"ERROR 42\" type:image ext:png",
+        typing: false,
+        limit: 10,
+    };
+    let result = provider
+        .search(&query, &CancellationToken::new())
+        .unwrap()
+        .remove(0);
+    assert_eq!(result.kind, ResultKind::Image);
+    assert_eq!(result.id.as_str(), format!("item:{}", candidate.item));
+    assert!(result.subtitle.as_deref().unwrap().contains("ERROR 42"));
+    assert!(
+        result.offers(&lumen_core::builtin::OPEN)
+            && result.offers(&lumen_core::builtin::REVEAL)
+            && result.offers(&lumen_core::builtin::COPY_PATH)
+    );
+    drop(provider);
+    // Same source after a notified rename retains the OCR unit and its vector.
+    let opts = incremental_opts(&t.files());
+    sync_files(&mut store, &opts, None).unwrap();
+    let moved = t.files().join("0002.png");
+    std::fs::rename(&path, &moved).unwrap();
+    lumen_catalog::sync_changes(
+        &mut store,
+        &opts,
+        &hints(&[path, moved.clone()], true),
+        None,
+    )
+    .unwrap();
+    assert_eq!(store.vectors(g, 0, 100).unwrap(), original);
+    assert_eq!(
+        store
+            .image_ocr_preview(candidate.item)
+            .unwrap()
+            .unwrap()
+            .text,
+        preview.text
+    );
+    // Off removes lexical text and coverage, keeping expensive visual inference intact.
+    assert_eq!(store.clear_ocr_page().unwrap(), 1);
+    assert_eq!(store.clear_ocr_page().unwrap(), 0);
+    assert!(store.image_ocr_preview(candidate.item).unwrap().is_none());
+    assert_eq!(store.vectors(g, 0, 100).unwrap(), original);
+    let provider =
+        lumen_catalog::ContentProvider::new(Store::open_reader(&t.0.join("lumen.db")).unwrap());
+    assert!(
+        provider
+            .search(&query, &CancellationToken::new())
+            .unwrap()
+            .is_empty()
+    );
+    drop(provider);
+    assert_eq!(image_pass(&mut store).files, 0);
+    assert_eq!(ocr_pass(&mut store, &mut recognizer).indexed, 1);
+    // A source edit invalidates its OCR + visual unit, while the unrelated text survives.
+    image::RgbImage::from_pixel(4, 3, image::Rgb([0, 0, 255]))
+        .save(&moved)
+        .unwrap();
+    lumen_catalog::sync_changes(
+        &mut store,
+        &opts,
+        &hints(std::slice::from_ref(&moved), true),
+        None,
+    )
+    .unwrap();
+    assert!(store.image_ocr_preview(candidate.item).unwrap().is_none());
+    assert_eq!(store.vectors(g, 0, 100).unwrap().len(), 1);
+    image_pass(&mut store);
+    ocr_pass(&mut store, &mut recognizer);
+    std::fs::remove_file(&moved).unwrap();
+    lumen_catalog::sync_changes(&mut store, &opts, &hints(&[moved], true), None).unwrap();
+    assert!(store.image_ocr_preview(candidate.item).unwrap().is_none());
+}
+
+#[test]
+fn ocr_cancel_empty_pixel_bounds_and_changed_pixels_are_distinct_and_resumable() {
+    let t = Temp::new("ocr-controls");
+    let path = t.files().join("a.png");
+    image::RgbImage::from_pixel(4, 3, image::Rgb([255, 0, 0]))
+        .save(&path)
+        .unwrap();
+    image::RgbImage::from_pixel(4097, 1, image::Rgb([255, 0, 0]))
+        .save(t.files().join("b.png"))
+        .unwrap();
+    let mut store = t.store();
+    sync(&mut store, &t.files());
+    image_pass(&mut store);
+    let candidate = store.ocr_candidates(0, 1).unwrap().remove(0);
+    let mut recognizer = test_ocr("");
+    let held = ocr::run_ocr_slice(
+        &mut store,
+        &|_| true,
+        &CancellationToken::new(),
+        &|| true,
+        &mut recognizer,
+        0,
+        Slice::unbounded(),
+    )
+    .unwrap();
+    assert!(held.cancelled);
+    assert_eq!((held.cursor, recognizer.calls), (0, 0));
+    let token = CancellationToken::new();
+    recognizer.cancel = Some(token.clone());
+    let cancelled = ocr::run_ocr_slice(
+        &mut store,
+        &|_| true,
+        &token,
+        &|| false,
+        &mut recognizer,
+        0,
+        Slice::unbounded(),
+    )
+    .unwrap();
+    assert!(cancelled.cancelled);
+    assert_eq!(cancelled.cursor, 0);
+    assert!(store.image_ocr_preview(candidate.item).unwrap().is_none());
+    recognizer.cancel = None;
+    let report = ocr_pass(&mut store, &mut recognizer);
+    assert_eq!((report.indexed, report.skipped), (1, 1));
+    let counts = store.ocr_counts(&|_| true).unwrap();
+    assert_eq!((counts.empty, counts.skipped, counts.pending), (1, 1, 0));
+    assert_eq!(recognizer.calls, 2); // Oversized header never reaches recognition.
+    assert!(
+        store
+            .write_ocr(
+                &candidate,
+                &"x".repeat(16 * 1024 + 1),
+                Some("es-ES"),
+                "indexed",
+                None
+            )
+            .is_err()
+    );
+    assert!(
+        store
+            .write_ocr(
+                &candidate,
+                "",
+                None,
+                "failed",
+                Some("private backend detail")
+            )
+            .is_err()
+    );
+    store.clear_ocr_page().unwrap();
+    recognizer.text = "stale";
+    recognizer.edit = Some(path.clone());
+    ocr_pass(&mut store, &mut recognizer);
+    assert!(store.image_ocr_preview(candidate.item).unwrap().is_none());
+    assert_eq!(image_pass(&mut store).indexed, 1);
+    recognizer.edit = None;
+    recognizer.remove = Some(path);
+    assert_eq!(ocr_pass(&mut store, &mut recognizer).failed, 1);
+    let failed = store.image_ocr_preview(candidate.item).unwrap().unwrap();
+    assert_eq!(failed.reason.as_deref(), Some("image:io"));
+    assert!(failed.text.is_empty());
+}
+
 #[test]
 fn bounded_extraction_resumes_inside_a_page_and_keeps_cancelled_work() {
     let t = Temp::new("sliced-extraction");

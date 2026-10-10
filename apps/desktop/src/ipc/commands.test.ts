@@ -80,8 +80,19 @@ describe("ipc commands", () => {
   });
 
   it("previewResult sends ids", async () => {
-    vi.mocked(invoke).mockResolvedValueOnce({});
-    await previewResult(3, "item:9");
+    vi.mocked(invoke).mockResolvedValueOnce({
+      title: "capture.png",
+      kind: "image",
+      location: null,
+      sizeBytes: null,
+      modifiedMs: null,
+      text: "ERROR 42",
+      truncated: false,
+      imageOcr: { state: "indexed", language: "es-ES", reason: null },
+    });
+    const preview = await previewResult(3, "item:9");
+    expect(preview.text).toBe("ERROR 42");
+    expect(preview.imageOcr?.language).toBe("es-ES");
     expect(invoke).toHaveBeenLastCalledWith("preview_result", { queryId: 3, resultId: "item:9" });
   });
 
